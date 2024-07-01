@@ -1,0 +1,114 @@
+# Simple EC2 Instance with sample application
+
+Parameters:
+    ZBLambInstanceType:
+      Type: String
+      Default: t2.micro
+    ZBLambImage:
+      Type: String
+      Default: ami-04f1b917806393faa
+      ConstraintDescription: >
+       Use distro with YUM package manager - e.g. Amazon Linux
+       Be aware that some Regions only support some images.
+    ZBLambSSHRange:
+      Type: String
+      Default: 0.0.0.0/0
+    ZBLambHTTPRange:
+      Type: String
+      Default: 0.0.0.0/0
+    
+    ZBLambUserData:
+      Type: String
+      Descritpion: Read-Only! Do not set!
+      ConstraintDescription: Do not change!
+      Default: |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ${InstName} --configsets InstallAndRun --region ${AWS::Region}
+            ${AfterInitCode}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ${InstName} --region ${AWS::Region}
+
+
+Resources:
+# key pair
+  ZBLambKeypair:
+    Type: "AWS::EC2::KeyPair"
+    Properties:
+      KeyName: ZBLambTestKey
+  
+# networking 
+
+  ZBLambSSHSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SSH access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref ZBLambSSHRange
+
+  ZBLambHTTPSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: HTTP/S access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '8080'
+          ToPort: '8080'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '8443'
+          ToPort: '8443'
+          CidrIp: !Ref ZBLambHTTPRange
+
+# EC2 Instances
+
+  ZBLambAppInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroups:
+        - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambHTTPSecGroup
+      KeyName: !Ref ZBLambKeypair
+      UserData: !Base64
+        'Fn::Sub':
+          - !Ref ZBLambUserData
+          - InstName: ZBLambAppInstance
+          - AfterInitCode: ""
+      CreationPolicy:
+        ResourceSignal:
+          Timeout: PT5M
+
+    Metadata:
+        AWS::CloudFormation::Init:
+            configSets:
+                InstallAndRun:
+                    - install_common
+                    - configure
+            install_common:
+              packages:
+                  yum:
+                      docker: []
+              services:
+                  sysvinit:
+                      docker:
+                          enabled: "true"
+                          ensureRunning: "true"
+
+            configure:
+              commands:
+                01_run_simple_http:
+                  command: docker run -p 80:8080 -d nginxdemos/nginx-hello

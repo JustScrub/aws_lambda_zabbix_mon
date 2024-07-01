@@ -1,0 +1,347 @@
+# Template to run the infrastructure
+
+Parameters:
+    ZBLambInstanceType:
+      Type: String
+      Default: t2.micro
+    ZBLambImage:
+      Type: String
+      Default: ami-04f1b917806393faa
+      ConstraintDescription: >
+       Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
+       Be aware that some Regions only support some images.
+    ZBLambSSHRange:
+      Type: String
+      Default: 0.0.0.0/0
+    ZBLambHTTPRange:
+      Type: String
+      Default: 0.0.0.0/0
+
+    ZBLambDBUser:
+      Type: String
+      NoEcho: 'true'
+      Default: zabbix
+
+    ZBLambDBPwd:
+      Type: String
+      NoEcho: 'true'
+      Default: zabbix
+    
+    ZBLambUserData:
+      Type: String
+      Descritpion: Read-Only! Do not set!
+      ConstraintDescription: Do not change!
+      Default: |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ${InstName} --configsets InstallAndRun --region ${AWS::Region}
+            ${AfterInitCode}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ${InstName} --region ${AWS::Region}
+
+#        'Fn::Join':
+#          - ''
+#          - - |
+#              #!/bin/bash -xe
+#            - |
+#              yum update -y aws-cfn-bootstrap
+#            - |
+#              # Install the files and packages from the metadata
+#            - '/opt/aws/bin/cfn-init -v '
+#            - '         --stack '
+#            - !Ref 'AWS::StackName'
+#            - '         --resource ${InstName} '
+#            - '         --configsets InstallAndRun '
+#            - '         --region '
+#            - !Ref 'AWS::Region'
+#            - |+
+#
+#            - |
+#              # Signal the status from cfn-init
+#            - '/opt/aws/bin/cfn-signal -e $? '
+#            - '         --stack '
+#            - !Ref 'AWS::StackName'
+#            - '         --resource ${InstName} '
+#            - '         --region '
+#            - !Ref 'AWS::Region'
+#            - |+
+
+Resources:
+# key pair
+  ZBLambKeypair:
+    Type: "AWS::EC2::KeyPair"
+    Properties:
+      KeyName: ZBLambQMLAJkeyPair
+  
+# networking 
+
+  ZBLambSSHSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SSH access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref ZBLambSSHRange
+
+  ZBLambHTTPSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: HTTP/S access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '8080'
+          ToPort: '8080'
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: '8443'
+          ToPort: '8443'
+          CidrIp: !Ref ZBLambHTTPRange
+
+# EC2 Instances
+
+  ZBLambAppInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroups:
+        - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambHTTPSecGroup
+      KeyName: !Ref ZBLambKeypair
+      UserData: !Base64
+        'Fn::Sub':
+          - !Ref ZBLambUserData
+          - InstName: ZBLambAppInstance
+          - AfterInitCode: ""
+      CreationPolicy:
+        ResourceSignal:
+          Timeout: PT5M
+
+    Metadata:
+        AWS::CloudFormation::Init:
+            configSets:
+                InstallAndRun:
+                    - install_common
+                    - configure
+            install_common:
+              packages:
+                  yum:
+                      docker: []
+              services:
+                  sysvinit:
+                      docker:
+                          enabled: "true"
+                          ensureRunning: "true"
+
+            configure:
+              commands:
+                01_run_simple_http:
+                  command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello
+                02_run_zabbix_agent:
+                  command: !Sub
+                    - >
+                      sudo docker run 
+                      --name zblamb-zabbix-agent 
+                      -e ZBX_HOSTNAME="zblamb-agent" -e ZBX_SERVER_HOST="${ZabServ}" 
+                      -p 10050:10050 
+                      --init -d zabbix/zabbix-agent:ubuntu-5.4-latest
+                    - ZabServ: !GetAtt ZBLambZabProxy.PrivateIP
+
+  # cfn-hup utility for stack updates -- not needed (hopefully)
+  #              files:
+  #                "/etc/cfn/cfn-hup.conf":
+  #                  content: !Sub |
+  #                    [main]
+  #                    stack=${AWS::StackId}
+  #                    region=${AWS::Region}
+  #                  mode: "000400"
+  #                  owner: "root"
+  #                  group: "root"
+  #                "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+  #                  content: !Sub |
+  #                      [cfn-auto-reloader-hook]
+  #                      triggers=post.update
+  #                      path=Resources.host2.Metadata.AWS::CloudFormation::Init
+  #                      action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource host2 --region ${AWS::Region}
+  #                  mode: "000400"
+  #                  owner: "root"
+  #                  group: "root"
+          
+
+  ZBLambZabProxy:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroups:
+        - !Ref ZBLambSSHSecGroup
+      KeyName: !Ref ZBLambKeypair
+      UserData: !Base64
+        'Fn::Sub':
+          - !Ref ZBLambUserData
+          - InstName: ZBLambZabProxy
+          - AfterInitCode: ""
+      
+      CreationPolicy:
+        ResourceSignal:
+          Timeout: PT5M
+
+    Metadata:
+        AWS::CloudFormation::Init:
+            configSets:
+                InstallAndRun:
+                    - install_common
+                    - configure
+            install_common:
+              packages:
+                  yum:
+                      docker: []
+              services:
+                  sysvinit:
+                      docker:
+                          enabled: "true"
+                          ensureRunning: "true"
+
+            configure:
+              commands:
+                01_run_zabbix_proxy:
+                  command: !Sub
+                    - >
+                      sudo docker run 
+                      --name zblamb-zabbix-proxy 
+                      -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} 
+                      -p 10051:10051 
+                      --init -d zabbix/zabbix-proxy-sqlite3:ubuntu-5.4-latest
+                    - ZabServ: !GetAtt ZBLamZabServer.PrivateIP
+
+
+  ZBLambZabServer:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroups:
+        - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambHTTPSecGroup
+      KeyName: !Ref ZBLambKeypair
+      UserData: !Base64
+        'Fn::Sub':
+          - !Ref ZBLambUserData
+          - InstName: ZBLambZabServer
+          - AfterInitCode: ""
+      CreationPolicy:
+        ResourceSignal:
+          Timeout: PT5M
+
+
+    Metadata:
+        AWS::CloudFormation::Init:
+            configSets:
+                InstallAndRun:
+                    - install_common
+                    - configure
+            install_common:
+              packages:
+                  yum:
+                      docker: []
+              services:
+                  sysvinit:
+                      docker:
+                          enabled: "true"
+                          ensureRunning: "true"
+
+            configure:
+              commands:
+                01_docker_bridge_network:
+                  command: sudo docker network create -d bridge zab-serv-net
+                02_start_pgsql_server:
+                  command: !Sub 
+                    - >
+                      sudo docker run 
+                      --name zblamb-postgres 
+                      --network=zab-serv-net --network-alias=postgres-server 
+                      -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" -e POSTGRES_DB="zabbix" 
+                      postgres/13-alpine
+                    - DBUser: !Ref ZBLambDBUser
+                    - DBPwd: !Ref ZBLambDBPwd
+                03_start_zabbix_server:
+                  command: !Sub
+                    - >
+                      sudo docker run 
+                      --name zblamb-zabbix-server 
+                      --network=zab-serv-net --network-alias=zabbix-server 
+                      -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" 
+                      -p 10051:10051 
+                      --init -d zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
+                    - DBUser: !Ref ZBLambDBUser
+                    - DBPwd: !Ref ZBLambDBPwd
+                04_start_zabbix_frontend:
+                  command: >
+                    sudo docker run 
+                    --name zblamb-zabbix-web 
+                    --network=zab-serv-net 
+                    -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" 
+                    -p 80:8080 -p 443:8443 
+                    -d zabbix/zabbix-web-nginx-pgsql:ubuntu-5.4-latest
+
+# Lambdas
+
+  ZBLambFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: AppendToLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
+
+  ZBLambMockLambda1:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: ZBLambMockLambda1
+      Description: |
+        Lambda function that passes or fails on demand.
+        Input: { 'result': 'pass' / 'raise' / 'fail' / 'timeout' }
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+            todo = event.get('result')
+            if todo == 'pass':
+              return "passed"
+            if todo == 'raise':
+              raise Exception('raised')
+            if todo == 'timeout':
+              from time import sleep
+              while True: sleep(1)
+            exit(1)
+      Handler: index.lambda_handler
+      Runtime: python3.10
+      Timeout: 2
+      Role: !GetAtt ZBLambFunctionRole.Arn
