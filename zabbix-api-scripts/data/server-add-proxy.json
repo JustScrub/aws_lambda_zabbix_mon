@@ -1,0 +1,11 @@
+{
+    "jsonrpc": "2.0",
+    "method": "proxy.create",
+    "params": {
+        "name": "zblamb-proxy",
+        "operating_mode": "1",
+        "address": "ZBLAMB_PROXY_HNAME",
+        "port": "10051"
+    },
+    "id": 1
+}

@@ -1,0 +1,15 @@
+{
+    "jsonrpc": "2.0",
+    "method": "host.create",
+    "params": {
+        "host": "zblamb-agent",
+        "groups": [
+            {
+                "groupid": ZBLAMB_GROUP_ID
+            }
+        ],
+        "monitored_by": 1,
+        "proxyid": ZBLAMB_PROXY_ID
+    },
+    "id": 1
+}

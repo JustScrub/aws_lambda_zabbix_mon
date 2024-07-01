@@ -33,7 +33,7 @@ Parameters:
       ConstraintDescription: Do not change!
       Default: |
             #!/bin/bash -xe
-            sudo yum install -y yum-utils
+            sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
             yum update -y aws-cfn-bootstrap
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ${InstName} --configsets InstallAndRun --region ${AWS::Region}
@@ -112,6 +112,7 @@ Resources:
 
   ZBLambAppInstance:
     Type: "AWS::EC2::Instance"
+    DependsOn: ZBLambZabProxy
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
@@ -181,6 +182,7 @@ Resources:
 
   ZBLambZabProxy:
     Type: "AWS::EC2::Instance"
+    DependsOn: ZBLambZabServer
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
@@ -220,7 +222,7 @@ Resources:
                     - >
                       sudo docker run 
                       --name zblamb-zabbix-proxy 
-                      -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} 
+                      -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} -e ZBX_PROXYMODE=1
                       -p 10051:10051 
                       --init -d zabbix/zabbix-proxy-sqlite3:ubuntu-5.4-latest
                     - ZabServ: !GetAtt ZBLamZabServer.PrivateIP
