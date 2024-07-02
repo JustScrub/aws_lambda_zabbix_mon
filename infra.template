@@ -72,7 +72,7 @@ Resources:
   ZBLambKeypair:
     Type: "AWS::EC2::KeyPair"
     Properties:
-      KeyName: ZBLambQMLAJkeyPair
+      KeyName: ZBLambKeyPair
   
 # networking 
 
