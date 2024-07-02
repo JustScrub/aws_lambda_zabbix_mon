@@ -3,9 +3,20 @@
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: "10.0.0.0/16"
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC
+        - Key: Description
+          Value: VPC for the Zabbix Lambda monitor project
 
   ZBLambInternetGateway:
     Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Internet gateway
+        - Key: Description
+          Value: Internet gateway used in VPC for the Zabbix Lambda monitor project
 
   ZBLambAttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -17,6 +28,11 @@
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref ZBLambVPC
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Private routing table
+        - Key: Description
+          Value: Private routing table used in VPC for the Zabbix Lambda monitor project
 
   # route 0.0.0.0/0 to internet gateway
   ZBLambPublicRoute:
@@ -26,12 +42,22 @@
       RouteTableId: !Ref ZBLambPublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref ZBLambInternetGateway  
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Public routing table
+        - Key: Description
+          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
 
   ZBLambPrivSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ZBLambVPC
       CidrBlock: "10.0.1.0/24"
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Private subnet
+        - Key: Description
+          Value: Private subnet in theVPC for the Zabbix Lambda monitor project
 
   ZBLambPubSubnet:
     Type: AWS::EC2::Subnet
@@ -39,6 +65,11 @@
       VpcId: !Ref ZBLambVPC
       CidrBlock: "10.0.2.0/24"
       MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Public subnet
+        - Key: Description
+          Value: Public subnet in the VPC for the Zabbix Lambda monitor project
 
   AssocRTtoPrivSubnet:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -50,4 +81,4 @@
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref ZBLambRouteTable
-      SubnetId: !Ref ZBlambPubSubnet
+      SubnetId: !Ref ZBlambPubSubnet  

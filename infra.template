@@ -88,9 +88,9 @@ Resources:
     Properties:
       KeyName: ZBLambKeyPair
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor KeyPair
-        - Key: description
+        - Key: Description
           Value: Key pair for SSH access to EC2 instances within the Zabbix Lambda monitor project
   
 # networking 
@@ -106,9 +106,9 @@ Resources:
           ToPort: '22'
           CidrIp: !Ref ZBLambSSHRange
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor SSH security group
-        - Key: description
+        - Key: Description
           Value: EC2 security group allowing connections to port 22 from parametrized IP CIDR range
 
   ZBLambHTTPSecGroup:
@@ -134,9 +134,9 @@ Resources:
           ToPort: '8443'
           CidrIp: !Ref ZBLambHTTPRange
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor HTTP/S security group
-        - Key: description
+        - Key: Description
           Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080 from parametrized IP CIDR range
 
 # EC2 Instances
@@ -163,9 +163,9 @@ Resources:
         ResourceSignal:
           Timeout: PT5M
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor Zabbix agent
-        - Key: description
+        - Key: Description
           Value: EC2 instance running a sample web app on ports 80/tcp and 443/tcp and Zabbix agent that monitors the instance
 
     Metadata:
@@ -241,9 +241,9 @@ Resources:
         ResourceSignal:
           Timeout: PT5M
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor Zabbix proxy
-        - Key: description
+        - Key: Description
           Value: EC2 instance running Zabbix proxy with SQLite3
 
     Metadata:
@@ -296,9 +296,9 @@ Resources:
         ResourceSignal:
           Timeout: PT5M
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor Zabbix server and frontend
-        - Key: description
+        - Key: Description
           Value: EC2 instance running Zabbix server with POSTGRESQL and Zabbix frontend over nginx with pqsql as well. Has public IPv4.
 
 
@@ -379,9 +379,9 @@ Resources:
             - logs:PutLogEvents
             Resource: "*"
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor Mock Lambda function IAM role
-        - Key: description
+        - Key: Description
           Value: IAM role of monitored Lambda functions, allowing some operations for CloudWatch
 
   ZBLambMockLambda1:
@@ -408,7 +408,7 @@ Resources:
       Timeout: 2
       Role: !GetAtt ZBLambFunctionRole.Arn
       Tags:
-        - Key: name
+        - Key: Name
           Value: Zabbix Lambda monitor Mock Lambda function
-        - Key: description
+        - Key: Description
           Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
