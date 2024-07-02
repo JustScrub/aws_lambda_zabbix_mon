@@ -17,12 +17,16 @@ Parameters:
       Type: String
       Default: 0.0.0.0/0
 
+    ZBLambVPC:
+      Type: AWS::EC2::VPC::Id
+      Description: The VPC under which to run the instances.
+      ConstraintDescription: Must have a private AND a public subnet
     ZBLambPrivSubnet:
       Type: AWS::EC2::Subnet::Id
-      ConstraintDescription: A private subnet. Same VPC as public subnet.
+      ConstraintDescription: A private subnet. Must belong to ZBLambVPC.
     ZBLambPubSubnet:
       Type: AWS::EC2::Subnet::Id
-      ConstraintDescription: A public subnet. Same VPC as private subnet.
+      ConstraintDescription: A public subnet. Must belong to ZBLambVPC.
 
     ZBLambDBUser:
       Type: String
@@ -40,46 +44,6 @@ Parameters:
       AllowedValues:
         - standard
         - unlimited
-    
-    ZBLambUserData:
-      Type: String
-      Description: Read-Only! Do not set!
-      ConstraintDescription: Do not change!
-      Default: |
-            #!/bin/bash -xe
-            sudo yum install -y yum-utils jq
-            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            yum update -y aws-cfn-bootstrap
-            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ${InstName} --configsets InstallAndRun --region ${AWS::Region}
-            ${AfterInitCode}
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ${InstName} --region ${AWS::Region}
-
-#        'Fn::Join':
-#          - ''
-#          - - |
-#              #!/bin/bash -xe
-#            - |
-#              yum update -y aws-cfn-bootstrap
-#            - |
-#              # Install the files and packages from the metadata
-#            - '/opt/aws/bin/cfn-init -v '
-#            - '         --stack '
-#            - !Ref 'AWS::StackName'
-#            - '         --resource ${InstName} '
-#            - '         --configsets InstallAndRun '
-#            - '         --region '
-#            - !Ref 'AWS::Region'
-#            - |+
-#
-#            - |
-#              # Signal the status from cfn-init
-#            - '/opt/aws/bin/cfn-signal -e $? '
-#            - '         --stack '
-#            - !Ref 'AWS::StackName'
-#            - '         --resource ${InstName} '
-#            - '         --region '
-#            - !Ref 'AWS::Region'
-#            - |+
 
 Resources:
 # key pair
@@ -99,7 +63,7 @@ Resources:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: SSH access
-      VpcId: !GetAtt ZBLambPrivSubnet.VpcId
+      VpcId: !Ref ZBLambVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -115,7 +79,7 @@ Resources:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: HTTP/S access
-      VpcId: !GetAtt ZBLambPrivSubnet.VpcId
+      VpcId: !Ref ZBLambVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -153,9 +117,13 @@ Resources:
       KeyName: !Ref ZBLambKeypair
       UserData: 
         'Fn::Base64': !Sub
-          - !Ref ZBLambUserData
-          - InstName: ZBLambAppInstance
-          - AfterInitCode: ""
+          - |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils jq
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ZBLambAppInstance --configsets InstallAndRun --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ZBLambAppInstance --region ${AWS::Region}
       SubnetId: !Ref ZBLambPrivSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
@@ -233,9 +201,13 @@ Resources:
         CPUCredits: !Ref ZBLambCreditSpec
       UserData: 
         'Fn::Base64': !Sub
-          - !Ref ZBLambUserData
-          - InstName: ZBLambZabProxy
-          - AfterInitCode: ""
+          - |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils jq
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ZBLambZabProxy --configsets InstallAndRun --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ZBLambZabProxy --region ${AWS::Region}
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Zabbix proxy
@@ -285,9 +257,13 @@ Resources:
       KeyName: !Ref ZBLambKeypair
       UserData: 
         'Fn::Base64': !Sub
-          - !Ref ZBLambUserData
-          - InstName: ZBLambZabServer
-          - AfterInitCode: ""
+          - |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils jq
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ZBLambZabServer --configsets InstallAndRun --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ZBLambZabServer --region ${AWS::Region}
       SubnetId: !Ref ZBLambPubSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
