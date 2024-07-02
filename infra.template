@@ -18,10 +18,10 @@ Parameters:
       Default: 0.0.0.0/0
 
     ZBLambPrivSubnet:
-      Type: AWS::EC2::Subnet
+      Type: AWS::EC2::Subnet::Id
       ConstraintDescription: A private subnet. Same VPC as public subnet.
     ZBLambPubSubnet:
-      Type: AWS::EC2::Subnet
+      Type: AWS::EC2::Subnet::Id
       ConstraintDescription: A public subnet. Same VPC as private subnet.
 
     ZBLambDBUser:
@@ -43,7 +43,7 @@ Parameters:
     
     ZBLambUserData:
       Type: String
-      Descritpion: Read-Only! Do not set!
+      Description: Read-Only! Do not set!
       ConstraintDescription: Do not change!
       Default: |
             #!/bin/bash -xe
@@ -102,8 +102,8 @@ Resources:
       VpcId: !GetAtt ZBLambPrivSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '22'
-          ToPort: '22'
+          FromPort: 22
+          ToPort: 22
           CidrIp: !Ref ZBLambSSHRange
       Tags:
         - Key: Name
@@ -118,20 +118,20 @@ Resources:
       VpcId: !GetAtt ZBLambPrivSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '443'
-          ToPort: '443'
+          FromPort: 443
+          ToPort: 443
           CidrIp: !Ref ZBLambHTTPRange
         - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
+          FromPort: 80
+          ToPort: 80
           CidrIp: !Ref ZBLambHTTPRange
         - IpProtocol: tcp
-          FromPort: '8080'
-          ToPort: '8080'
+          FromPort: 8080
+          ToPort: 8080
           CidrIp: !Ref ZBLambHTTPRange
         - IpProtocol: tcp
-          FromPort: '8443'
-          ToPort: '8443'
+          FromPort: 8443
+          ToPort: 8443
           CidrIp: !Ref ZBLambHTTPRange
       Tags:
         - Key: Name
@@ -151,23 +151,23 @@ Resources:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
-      UserData: !Base64
-        'Fn::Sub':
+      UserData: 
+        'Fn::Base64': !Sub
           - !Ref ZBLambUserData
           - InstName: ZBLambAppInstance
           - AfterInitCode: ""
       SubnetId: !Ref ZBLambPrivSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
-      CreationPolicy:
-        ResourceSignal:
-          Timeout: PT5M
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Zabbix agent
         - Key: Description
           Value: EC2 instance running a sample web app on ports 80/tcp and 443/tcp and Zabbix agent that monitors the instance
 
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
     Metadata:
         AWS::CloudFormation::Init:
             configSets:
@@ -231,21 +231,20 @@ Resources:
       SubnetId: !Ref ZBLambPrivSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
-      UserData: !Base64
-        'Fn::Sub':
+      UserData: 
+        'Fn::Base64': !Sub
           - !Ref ZBLambUserData
           - InstName: ZBLambZabProxy
           - AfterInitCode: ""
-      
-      CreationPolicy:
-        ResourceSignal:
-          Timeout: PT5M
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Zabbix proxy
         - Key: Description
           Value: EC2 instance running Zabbix proxy with SQLite3
 
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
     Metadata:
         AWS::CloudFormation::Init:
             configSets:
@@ -284,17 +283,14 @@ Resources:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
-      UserData: !Base64
-        'Fn::Sub':
+      UserData: 
+        'Fn::Base64': !Sub
           - !Ref ZBLambUserData
           - InstName: ZBLambZabServer
           - AfterInitCode: ""
       SubnetId: !Ref ZBLambPubSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
-      CreationPolicy:
-        ResourceSignal:
-          Timeout: PT5M
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Zabbix server and frontend
@@ -302,6 +298,9 @@ Resources:
           Value: EC2 instance running Zabbix server with POSTGRESQL and Zabbix frontend over nginx with pqsql as well. Has public IPv4.
 
 
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
     Metadata:
         AWS::CloudFormation::Init:
             configSets:
