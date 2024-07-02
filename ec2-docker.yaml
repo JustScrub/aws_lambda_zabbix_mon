@@ -1,14 +1,14 @@
-# Simple EC2 Instance with sample application
+# Template to run the infrastructure
 
 Parameters:
     ZBLambInstanceType:
       Type: String
-      Default: t2.micro
+      Default: t3a.micro
     ZBLambImage:
       Type: String
-      Default: ami-04f1b917806393faa
+      Default: ami-04f1b917806393faa # AMD image!
       ConstraintDescription: >
-       Use distro with YUM package manager - e.g. Amazon Linux
+       Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
        Be aware that some Regions only support some images.
     ZBLambSSHRange:
       Type: String
@@ -16,6 +16,17 @@ Parameters:
     ZBLambHTTPRange:
       Type: String
       Default: 0.0.0.0/0
+
+    ZBLambPubSubnet:
+      Type: AWS::EC2::Subnet
+      ConstraintDescription: A public subnet. Same VPC as private subnet.
+
+    ZBLambCreditSpec:
+      Type: String
+      Default: standard
+      AllowedValues:
+        - standard
+        - unlimited
     
     ZBLambUserData:
       Type: String
@@ -23,20 +34,24 @@ Parameters:
       ConstraintDescription: Do not change!
       Default: |
             #!/bin/bash -xe
-            sudo yum install -y yum-utils
+            sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
             yum update -y aws-cfn-bootstrap
             /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ${InstName} --configsets InstallAndRun --region ${AWS::Region}
             ${AfterInitCode}
             /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ${InstName} --region ${AWS::Region}
 
-
 Resources:
 # key pair
   ZBLambKeypair:
     Type: "AWS::EC2::KeyPair"
     Properties:
-      KeyName: ZBLambTestKey
+      KeyName: ZBLambKeyPair
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor KeyPair
+        - Key: Description
+          Value: Key pair for SSH access to EC2 instances within the Zabbix Lambda monitor project
   
 # networking 
 
@@ -44,16 +59,23 @@ Resources:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: SSH access
+      VpcId: !GetAtt ZBLambPubSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
           ToPort: '22'
           CidrIp: !Ref ZBLambSSHRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor SSH security group
+        - Key: Description
+          Value: EC2 security group allowing connections to port 22 from parametrized IP CIDR range
 
   ZBLambHTTPSecGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: HTTP/S access
+      VpcId: !GetAtt ZBLambPubSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '443'
@@ -71,15 +93,21 @@ Resources:
           FromPort: '8443'
           ToPort: '8443'
           CidrIp: !Ref ZBLambHTTPRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor HTTP/S security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080 from parametrized IP CIDR range
 
 # EC2 Instances
 
   ZBLambAppInstance:
     Type: "AWS::EC2::Instance"
+    DependsOn: ZBLambZabProxy
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
-      SecurityGroups:
+      SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
@@ -88,9 +116,17 @@ Resources:
           - !Ref ZBLambUserData
           - InstName: ZBLambAppInstance
           - AfterInitCode: ""
+      SubnetId: !Ref ZBLambPubSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
       CreationPolicy:
         ResourceSignal:
           Timeout: PT5M
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Sample app
+        - Key: Description
+          Value: EC2 instance running a sample web app on ports 80/tcp and 443/tcp
 
     Metadata:
         AWS::CloudFormation::Init:
@@ -111,4 +147,4 @@ Resources:
             configure:
               commands:
                 01_run_simple_http:
-                  command: docker run -p 80:8080 -d nginxdemos/nginx-hello
+                  command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello
