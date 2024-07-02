@@ -1,0 +1,53 @@
+
+  ZBLambVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+
+  ZBLambInternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  ZBLambAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref ZBLambVPC
+      InternetGatewayId: !Ref ZBLambInternetGateway
+
+  ZBLambRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ZBLambVPC
+
+  # route 0.0.0.0/0 to internet gateway
+  ZBLambPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ZBLambAttachGateway
+    Properties:
+      RouteTableId: !Ref ZBLambPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref ZBLambInternetGateway  
+
+  ZBLambPrivSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ZBLambVPC
+      CidrBlock: "10.0.1.0/24"
+
+  ZBLambPubSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ZBLambVPC
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: true
+
+  AssocRTtoPrivSubnet:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref ZBLambRouteTable
+      SubnetId: !Ref ZBlambPrivSubnet
+  
+  AssocRTtoPubSubnet:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref ZBLambRouteTable
+      SubnetId: !Ref ZBlambPubSubnet
