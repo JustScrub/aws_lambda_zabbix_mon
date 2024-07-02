@@ -3,10 +3,10 @@
 Parameters:
     ZBLambInstanceType:
       Type: String
-      Default: t2.micro
+      Default: t3a.micro
     ZBLambImage:
       Type: String
-      Default: ami-04f1b917806393faa
+      Default: ami-04f1b917806393faa # AMD image!
       ConstraintDescription: >
        Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
        Be aware that some Regions only support some images.
@@ -17,6 +17,13 @@ Parameters:
       Type: String
       Default: 0.0.0.0/0
 
+    ZBLambPrivSubnet:
+      Type: AWS::EC2::Subnet
+      ConstraintDescription: A private subnet. Same VPC as public subnet.
+    ZBLambPubSubnet:
+      Type: AWS::EC2::Subnet
+      ConstraintDescription: A public subnet. Same VPC as private subnet.
+
     ZBLambDBUser:
       Type: String
       NoEcho: 'true'
@@ -26,6 +33,13 @@ Parameters:
       Type: String
       NoEcho: 'true'
       Default: zabbix
+
+    ZBLambCreditSpec:
+      Type: String
+      Default: standard
+      AllowedValues:
+        - standard
+        - unlimited
     
     ZBLambUserData:
       Type: String
@@ -73,6 +87,11 @@ Resources:
     Type: "AWS::EC2::KeyPair"
     Properties:
       KeyName: ZBLambKeyPair
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor KeyPair
+        - Key: description
+          Value: Key pair for SSH access to EC2 instances within the Zabbix Lambda monitor project
   
 # networking 
 
@@ -80,16 +99,23 @@ Resources:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: SSH access
+      VpcId: !GetAtt ZBLambPrivSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
           ToPort: '22'
           CidrIp: !Ref ZBLambSSHRange
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor SSH security group
+        - Key: description
+          Value: EC2 security group allowing connections to port 22 from parametrized IP CIDR range
 
   ZBLambHTTPSecGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: HTTP/S access
+      VpcId: !GetAtt ZBLambPrivSubnet.VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '443'
@@ -107,6 +133,11 @@ Resources:
           FromPort: '8443'
           ToPort: '8443'
           CidrIp: !Ref ZBLambHTTPRange
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor HTTP/S security group
+        - Key: description
+          Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080 from parametrized IP CIDR range
 
 # EC2 Instances
 
@@ -116,7 +147,7 @@ Resources:
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
-      SecurityGroups:
+      SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
@@ -125,9 +156,17 @@ Resources:
           - !Ref ZBLambUserData
           - InstName: ZBLambAppInstance
           - AfterInitCode: ""
+      SubnetId: !Ref ZBLambPrivSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
       CreationPolicy:
         ResourceSignal:
           Timeout: PT5M
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor Zabbix agent
+        - Key: description
+          Value: EC2 instance running a sample web app on ports 80/tcp and 443/tcp and Zabbix agent that monitors the instance
 
     Metadata:
         AWS::CloudFormation::Init:
@@ -186,9 +225,12 @@ Resources:
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
-      SecurityGroups:
+      SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
       KeyName: !Ref ZBLambKeypair
+      SubnetId: !Ref ZBLambPrivSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
       UserData: !Base64
         'Fn::Sub':
           - !Ref ZBLambUserData
@@ -198,6 +240,11 @@ Resources:
       CreationPolicy:
         ResourceSignal:
           Timeout: PT5M
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor Zabbix proxy
+        - Key: description
+          Value: EC2 instance running Zabbix proxy with SQLite3
 
     Metadata:
         AWS::CloudFormation::Init:
@@ -233,7 +280,7 @@ Resources:
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
-      SecurityGroups:
+      SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
@@ -242,9 +289,17 @@ Resources:
           - !Ref ZBLambUserData
           - InstName: ZBLambZabServer
           - AfterInitCode: ""
+      SubnetId: !Ref ZBLambPubSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
       CreationPolicy:
         ResourceSignal:
           Timeout: PT5M
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor Zabbix server and frontend
+        - Key: description
+          Value: EC2 instance running Zabbix server with POSTGRESQL and Zabbix frontend over nginx with pqsql as well. Has public IPv4.
 
 
     Metadata:
@@ -323,6 +378,11 @@ Resources:
             - logs:CreateLogStream
             - logs:PutLogEvents
             Resource: "*"
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor Mock Lambda function IAM role
+        - Key: description
+          Value: IAM role of monitored Lambda functions, allowing some operations for CloudWatch
 
   ZBLambMockLambda1:
     Type: "AWS::Lambda::Function"
@@ -347,3 +407,8 @@ Resources:
       Runtime: python3.10
       Timeout: 2
       Role: !GetAtt ZBLambFunctionRole.Arn
+      Tags:
+        - Key: name
+          Value: Zabbix Lambda monitor Mock Lambda function
+        - Key: description
+          Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
