@@ -143,4 +143,4 @@ Resources:
         configure:
           commands:
             01_run_simple_http:
-              command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello
+              command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello:plain-text
