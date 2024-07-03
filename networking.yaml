@@ -24,6 +24,23 @@ Resources:
       VpcId: !Ref ZBLambVPC
       InternetGatewayId: !Ref ZBLambInternetGateway
 
+  ZBLambNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ZBLambNATGatewayEIP.AllocationId
+      SubnetId: !Ref ZBLambPubSubnet
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor NAT Gateway
+          
+  ZBLambNATGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor NAT IP
+
   ZBLambPrivSubnet:
     Type: AWS::EC2::Subnet
     Properties:
@@ -47,17 +64,53 @@ Resources:
         - Key: Description
           Value: Public subnet in the VPC for the Zabbix Lambda monitor project
 
-  ZBLambNATENI:
-    Type: AWS::EC2::NetworkInterface
-    Properites:
-      SubnetId: !Ref ZBLambPrivSubnet
-      SourceDestCheck: false
-      Tags:
-        - Key: Description
-          Value: Network Interface used to forward packets through a public instance running NAT
-        - Key: Name
-          Value: Zabbix Lambda monitor network interface for NAT routing
 
+  ZBLambSSHSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref ZBLambSSHRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor SSH security group
+        - Key: Description
+          Value: EC2 security group allowing connections to port 22 from parametrized IP
+            CIDR range
+
+  ZBLambHTTPSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP/S access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIp: !Ref ZBLambHTTPRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor HTTP/S security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080
+            from parametrized IP CIDR range
+  
   ZBLambRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -80,7 +133,7 @@ Resources:
         - Key: Name
           Value: Zabbix Lambda monitor VPC Public routing table
         - Key: Description
-          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
+          Value: Routing internet traffic via Internet Gateway
 
   ZBLambPrivRouteTable:
     Type: AWS::EC2::RouteTable
@@ -92,18 +145,18 @@ Resources:
         - Key: Description
           Value: Private routing table used in VPC for the Zabbix Lambda monitor project
 
-  # route 0.0.0.0/0 to NAT interface
+  # route 0.0.0.0/0 to NAT GW
   ZBLambPrivateRoute:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref ZBLambPrivRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      NetworkInterfaceId: !Ref ZBLambNATENI
+      NatGatewayId: !Ref ZBLambNATGateway
       Tags:
         - Key: Name
-          Value: Zabbix Lambda monitor VPC Public routing table
+          Value: Zabbix Lambda monitor NAT default route
         - Key: Description
-          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
+          Value: Routing internet traffic via NAT Gateway
   
   AssocRTtoPrivSubnet:
     Type: AWS::EC2::SubnetRouteTableAssociation

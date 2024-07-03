@@ -24,9 +24,6 @@ Parameters:
   ZBLambPubSubnet:
     Type: AWS::EC2::Subnet::Id
     ConstraintDescription: A public subnet. Must belong to ZBLambVPC
-  ZBLambPrivSubnet:
-    Type: AWS::EC2::Subnet::Id
-    ConstraintDescription: A private subnet. Must belong to ZBLambVPC
 
   ZBLambCreditSpec:
     Type: String
@@ -96,14 +93,6 @@ Resources:
           Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080
             from parametrized IP CIDR range
 
-  ZBLambENI:
-    Type: AWS::EC2::NetworkInterface
-    Properites:
-      SubnetId: !Ref ZBLambPrivSubnet
-      GroupSets:
-        - !Ref ZBLambHTTPSecGroup
-      SourceDestCheck: false
-
   # EC2 Instances
 
   ZBLambAppInstance:
@@ -111,17 +100,13 @@ Resources:
     Properties:
       InstanceType: !Ref ZBLambInstanceType
       ImageId: !Ref ZBLambImage
-      SecurityGroupIds:
-        - !Ref ZBLambSSHSecGroup
-        - !Ref ZBLambHTTPSecGroup
       SubnetId: !Ref ZBLambPubSubnet
-      NetworkInterfaces:
-        - NetworkInterfaceId: !Ref ZBLambENI
-          DeviceIndex: "1"
+      SecurityGroupIds:
+        - !Ref ZBLambHTTPSecGroup
+        - !Ref ZBLambSSHSecGroup
       KeyName: !Ref ZBLambKeypair
       UserData:
-        Fn::Base64: !Sub 
-          - |
+        Fn::Base64: !Sub |
             #!/bin/bash -xe
             sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
