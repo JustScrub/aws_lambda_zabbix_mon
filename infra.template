@@ -116,8 +116,7 @@ Resources:
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
       UserData: 
-        'Fn::Base64': !Sub
-          - |
+        Fn::Base64: !Sub |
             #!/bin/bash -xe
             sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -200,8 +199,7 @@ Resources:
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
       UserData: 
-        'Fn::Base64': !Sub
-          - |
+        Fn::Base64: !Sub |
             #!/bin/bash -xe
             sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -243,7 +241,7 @@ Resources:
                       -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} -e ZBX_PROXYMODE=1
                       -p 10051:10051 
                       --init -d zabbix/zabbix-proxy-sqlite3:ubuntu-5.4-latest
-                    - ZabServ: !GetAtt ZBLamZabServer.PrivateIP
+                    - ZabServ: !GetAtt ZBLambZabServer.PrivateIP
 
 
   ZBLambZabServer:
@@ -256,8 +254,7 @@ Resources:
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeypair
       UserData: 
-        'Fn::Base64': !Sub
-          - |
+        Fn::Base64: !Sub |
             #!/bin/bash -xe
             sudo yum install -y yum-utils jq
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -306,7 +303,7 @@ Resources:
                       -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" -e POSTGRES_DB="zabbix" 
                       postgres/13-alpine
                     - DBUser: !Ref ZBLambDBUser
-                    - DBPwd: !Ref ZBLambDBPwd
+                      DBPwd: !Ref ZBLambDBPwd
                 03_start_zabbix_server:
                   command: !Sub
                     - >
@@ -317,7 +314,7 @@ Resources:
                       -p 10051:10051 
                       --init -d zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
                     - DBUser: !Ref ZBLambDBUser
-                    - DBPwd: !Ref ZBLambDBPwd
+                      DBPwd: !Ref ZBLambDBPwd
                 04_start_zabbix_frontend:
                   command: >
                     sudo docker run 
@@ -387,3 +384,23 @@ Resources:
           Value: Zabbix Lambda monitor Mock Lambda function
         - Key: Description
           Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
+
+
+Outputs:
+  AgentIP:
+    Description: Private IP of the Agent instance
+    Value: !GetAtt ZBLambAppInstance.PrivateIP
+
+  ProxyIP:
+    Description: Private IP of the Proxy instance
+    Value: !GetAtt ZBLambZabProxy.PrivateIP
+
+  ZabbixIP:
+    Description: Public and Private IPs of the Zabbix server + frontend instance
+    Value: !Join [',', [!GetAtt ZBLambZabServer.PublicIP, !GetAtt ZBLambZabServer.PrivateIP] ] 
+
+  KeyID:
+    Description: >
+      ID of the SSH keypair to access the instances. 
+      Private key stored at /ec2/keypair/<KeyID> in Parameter Store
+    Value: !GetAtt ZBLambKeyPair.KeyPairId
