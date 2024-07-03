@@ -1,4 +1,4 @@
-
+Resources:
   ZBLambVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -24,30 +24,6 @@
       VpcId: !Ref ZBLambVPC
       InternetGatewayId: !Ref ZBLambInternetGateway
 
-  ZBLambRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref ZBLambVPC
-      Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor VPC Private routing table
-        - Key: Description
-          Value: Private routing table used in VPC for the Zabbix Lambda monitor project
-
-  # route 0.0.0.0/0 to internet gateway
-  ZBLambPublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: ZBLambAttachGateway
-    Properties:
-      RouteTableId: !Ref ZBLambPublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref ZBLambInternetGateway  
-      Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor VPC Public routing table
-        - Key: Description
-          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
-
   ZBLambPrivSubnet:
     Type: AWS::EC2::Subnet
     Properties:
@@ -71,10 +47,68 @@
         - Key: Description
           Value: Public subnet in the VPC for the Zabbix Lambda monitor project
 
+  ZBLambNATENI:
+    Type: AWS::EC2::NetworkInterface
+    Properites:
+      SubnetId: !Ref ZBLambPrivSubnet
+      SourceDestCheck: false
+      Tags:
+        - Key: Description
+          Value: Network Interface used to forward packets through a public instance running NAT
+        - Key: Name
+          Value: Zabbix Lambda monitor network interface for NAT routing
+
+  ZBLambRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ZBLambVPC
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Public routing table
+        - Key: Description
+          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
+
+  # route 0.0.0.0/0 to internet gateway
+  ZBLambPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ZBLambAttachGateway
+    Properties:
+      RouteTableId: !Ref ZBLambRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref ZBLambInternetGateway  
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Public routing table
+        - Key: Description
+          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
+
+  ZBLambPrivRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ZBLambVPC
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Private routing table
+        - Key: Description
+          Value: Private routing table used in VPC for the Zabbix Lambda monitor project
+
+  # route 0.0.0.0/0 to NAT interface
+  ZBLambPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref ZBLambPrivRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NetworkInterfaceId: !Ref ZBLambNATENI
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor VPC Public routing table
+        - Key: Description
+          Value: Public routing table used in VPC for the Zabbix Lambda monitor project
+  
   AssocRTtoPrivSubnet:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref ZBLambRouteTable
+      RouteTableId: !Ref ZBLambPrivRouteTable
       SubnetId: !Ref ZBlambPrivSubnet
   
   AssocRTtoPubSubnet:
