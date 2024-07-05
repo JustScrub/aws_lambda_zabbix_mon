@@ -47,7 +47,7 @@ Parameters:
 
 Resources:
 # key pair
-  ZBLambKeypair:
+  ZBLambKeyPair:
     Type: "AWS::EC2::KeyPair"
     Properties:
       KeyName: ZBLambKeyPair
@@ -114,7 +114,7 @@ Resources:
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
-      KeyName: !Ref ZBLambKeypair
+      KeyName: !Ref ZBLambKeyPair
       UserData: 
         Fn::Base64: !Sub |
             #!/bin/bash -xe
@@ -136,34 +136,35 @@ Resources:
       ResourceSignal:
         Timeout: PT5M
     Metadata:
-        AWS::CloudFormation::Init:
-            configSets:
-                InstallAndRun:
-                    - install_common
-                    - configure
-            install_common:
-              packages:
-                  yum:
-                      docker: []
-              services:
-                  sysvinit:
-                      docker:
-                          enabled: "true"
-                          ensureRunning: "true"
+      AWS::CloudFormation::Init:
+        configSets:
+          InstallAndRun:
+            - install_common
+            - configure
+        install_common:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: "true"
+                ensureRunning: "true"
 
-            configure:
-              commands:
-                01_run_simple_http:
-                  command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello:plain-text
-                02_run_zabbix_agent:
-                  command: !Sub
-                    - >
-                      sudo docker run 
-                      --name zblamb-zabbix-agent 
-                      -e ZBX_HOSTNAME="zblamb-agent" -e ZBX_SERVER_HOST="${ZabServ}" 
-                      -p 10050:10050 
-                      --init -d zabbix/zabbix-agent:ubuntu-5.4-latest
-                    - ZabServ: !GetAtt ZBLambZabProxy.PrivateIP
+        configure:
+          commands:
+            01_run_simple_http:
+              command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello:plain-text
+            02_run_zabbix_agent:
+              command: !Sub
+                - >
+                    sudo docker run 
+                    --name zblamb-zabbix-agent 
+                    --restart=always
+                    -e ZBX_HOSTNAME="zblamb-agent" -e ZBX_SERVER_HOST="${ZabServ}" 
+                    -p 10050:10050 
+                    --init -d zabbix/zabbix-agent:ubuntu-5.4-latest
+                - ZabServ: !GetAtt ZBLambZabProxy.PrivateIP
 
   # cfn-hup utility for stack updates -- not needed (hopefully)
   #              files:
@@ -194,7 +195,7 @@ Resources:
       ImageId: !Ref ZBLambImage
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
-      KeyName: !Ref ZBLambKeypair
+      KeyName: !Ref ZBLambKeyPair
       SubnetId: !Ref ZBLambPrivSubnet
       CreditSpecification:
         CPUCredits: !Ref ZBLambCreditSpec
@@ -216,32 +217,33 @@ Resources:
       ResourceSignal:
         Timeout: PT5M
     Metadata:
-        AWS::CloudFormation::Init:
-            configSets:
-                InstallAndRun:
-                    - install_common
-                    - configure
-            install_common:
-              packages:
-                  yum:
-                      docker: []
-              services:
-                  sysvinit:
-                      docker:
-                          enabled: "true"
-                          ensureRunning: "true"
+      AWS::CloudFormation::Init:
+        configSets:
+          InstallAndRun:
+            - install_common
+            - configure
+        install_common:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: "true"
+                ensureRunning: "true"
 
-            configure:
-              commands:
-                01_run_zabbix_proxy:
-                  command: !Sub
-                    - >
-                      sudo docker run 
-                      --name zblamb-zabbix-proxy 
-                      -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} -e ZBX_PROXYMODE=1
-                      -p 10051:10051 
-                      --init -d zabbix/zabbix-proxy-sqlite3:ubuntu-5.4-latest
-                    - ZabServ: !GetAtt ZBLambZabServer.PrivateIP
+        configure:
+          commands:
+            01_run_zabbix_proxy:
+              command: !Sub
+                - >
+                    sudo docker run 
+                    --name zblamb-zabbix-proxy 
+                    --restart=always
+                    -e ZBX_HOSTNAME=zblamb-proxy -e ZBX_SERVER_HOST=${ZabServ} -e ZBX_PROXYMODE=1
+                    -p 10051:10051 
+                    --init -d zabbix/zabbix-proxy-sqlite3:ubuntu-5.4-latest
+                - ZabServ: !GetAtt ZBLambZabServer.PrivateIP
 
 
   ZBLambZabServer:
@@ -252,7 +254,7 @@ Resources:
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
-      KeyName: !Ref ZBLambKeypair
+      KeyName: !Ref ZBLambKeyPair
       UserData: 
         Fn::Base64: !Sub |
             #!/bin/bash -xe
@@ -275,54 +277,65 @@ Resources:
       ResourceSignal:
         Timeout: PT5M
     Metadata:
-        AWS::CloudFormation::Init:
-            configSets:
-                InstallAndRun:
-                    - install_common
-                    - configure
-            install_common:
-              packages:
-                  yum:
-                      docker: []
-              services:
-                  sysvinit:
-                      docker:
-                          enabled: "true"
-                          ensureRunning: "true"
+      AWS::CloudFormation::Init:
+        configSets:
+          InstallAndRun:
+            - install_common
+            - configure
+        install_common:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: "true"
+                ensureRunning: "true"
 
-            configure:
-              commands:
-                01_docker_bridge_network:
-                  command: sudo docker network create -d bridge zab-serv-net
-                02_start_pgsql_server:
-                  command: !Sub 
-                    - >
-                      sudo docker run 
-                      --name zblamb-postgres 
-                      --network=zab-serv-net --network-alias=postgres-server 
-                      -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" -e POSTGRES_DB="zabbix" 
-                      postgres/13-alpine
-                    - DBUser: !Ref ZBLambDBUser
-                      DBPwd: !Ref ZBLambDBPwd
-                03_start_zabbix_server:
-                  command: !Sub
-                    - >
-                      sudo docker run 
-                      --name zblamb-zabbix-server 
-                      --network=zab-serv-net --network-alias=zabbix-server 
-                      -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" 
-                      -p 10051:10051 
-                      --init -d zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
-                    - DBUser: !Ref ZBLambDBUser
-                      DBPwd: !Ref ZBLambDBPwd
-                04_start_zabbix_frontend:
-                  command: >
+        configure:
+          commands:
+            01_docker_bridge_network:
+              command: sudo docker network create -d bridge zab-serv-net
+            02_start_pgsql_server:
+              command: !Sub 
+                - >
+                    sudo docker run 
+                    --name zblamb-postgres 
+                    --network=zab-serv-net --network-alias=postgres-server 
+                    --restart=always
+                    -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" -e POSTGRES_DB="zabbix" 
+                    -d postgres:13-alpine
+                - DBUser: !Ref ZBLambDBUser
+                  DBPwd: !Ref ZBLambDBPwd
+            03_start_zabbix_server:
+              command: !Sub
+                - >
+                    sudo docker run 
+                    --name zblamb-zabbix-server 
+                    --network=zab-serv-net --network-alias=zabbix-server 
+                    --restart=always
+                    -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" 
+                    -p 10051:10051 
+                    --init -d zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
+                - DBUser: !Ref ZBLambDBUser
+                  DBPwd: !Ref ZBLambDBPwd
+            04_start_zabbix_frontend:
+              command: !Sub
+                - >
                     sudo docker run 
                     --name zblamb-zabbix-web 
                     --network=zab-serv-net 
+                    --restart=always
                     -e POSTGRES_USER="${DBUser}" -e POSTGRES_PASSWORD="${DBPwd}" 
                     -p 80:8080 -p 443:8443 
                     -d zabbix/zabbix-web-nginx-pgsql:ubuntu-5.4-latest
+                - DBUser: !Ref ZBLambDBUser
+                  DBPwd: !Ref ZBLambDBPwd
+            05_run_on_startup:
+              command: >
+                echo "#!/bin/bash" >> /etc/rc.local &&
+                echo docker start zblamb-postgres zblamb-zabbix-server zblamb-zabbix-web >> /etc/rc.local &&
+                chmod +x /etc/rc.local
 
 # Lambdas
 
@@ -354,7 +367,7 @@ Resources:
         - Key: Name
           Value: Zabbix Lambda monitor Mock Lambda function IAM role
         - Key: Description
-          Value: IAM role of monitored Lambda functions, allowing some operations for CloudWatch
+          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
 
   ZBLambMockLambda1:
     Type: "AWS::Lambda::Function"
