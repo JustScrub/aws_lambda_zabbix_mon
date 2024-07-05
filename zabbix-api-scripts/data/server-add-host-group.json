@@ -4,5 +4,6 @@
            "params": {
                "name": "zblamb-agent-group"
            },
-           "id": 1
+           "id": 1,
+           "auth": "ZBLAMB_TOKEN"
 }

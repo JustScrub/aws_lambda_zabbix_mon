@@ -5,11 +5,12 @@
         "host": "zblamb-agent",
         "groups": [
             {
-                "groupid": ZBLAMB_GROUP_ID
+                "groupid": "ZBLAMB_GROUP_ID"
             }
         ],
         "monitored_by": 1,
-        "proxyid": ZBLAMB_PROXY_ID
+        "proxyid": "ZBLAMB_PROXY_ID"
     },
-    "id": 1
+    "id": 1,
+    "auth": "ZBLAMB_TOKEN"
 }

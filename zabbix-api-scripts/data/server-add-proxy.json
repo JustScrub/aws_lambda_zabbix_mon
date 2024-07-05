@@ -7,5 +7,6 @@
         "address": "ZBLAMB_PROXY_HNAME",
         "port": "10051"
     },
-    "id": 1
+    "id": 1,
+    "auth": "ZBLAMB_TOKEN"
 }
