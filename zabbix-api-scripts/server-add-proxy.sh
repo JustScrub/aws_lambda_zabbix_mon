@@ -14,4 +14,4 @@ curl -s --request POST \
   --header 'Content-Type: application/json-rpc' \
   --header "Authorization: Bearer $ZBLAMB_TOKEN" \
   --data  $DATA | \
-jq ".result.proxyids[0]"
+jq -r ".result.proxyids[0]"

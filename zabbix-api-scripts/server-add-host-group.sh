@@ -10,4 +10,4 @@ curl -s --request POST \
   --header 'Content-Type: application/json-rpc' \
   --header "Authorization: Bearer $ZBLAMB_TOKEN" \
   --data $DATA | \
-jq ".result.groupids[0]"
+jq -r ".result.groupids[0]"
