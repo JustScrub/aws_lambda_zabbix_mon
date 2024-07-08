@@ -5,6 +5,8 @@ services:
     networks:
      zab-serv-net:
       aliases: ["postgres-server"]
+    env_file:
+      - .env
 
   zblamb-zabbix-server:
     image: zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
@@ -17,6 +19,8 @@ services:
     init: true
     depends_on:
       - zblamb-postgres
+    env_file:
+      - .env
     
   zblamb-zabbix-web:
     image: zabbix/zabbix-web-nginx-pgsql:ubuntu-5.4-latest
@@ -28,6 +32,8 @@ services:
      - "443:8443"
     depends_on:
       - zblamb-zabbix-server
+    env_file:
+      - .env
 
 networks:
   zab-serv-net:
