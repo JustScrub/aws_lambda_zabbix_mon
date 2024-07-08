@@ -4,6 +4,7 @@ services:
     restart: always
     environment:
       - ZBX_HOSTNAME=zblamb-agent
+      - ZBX_SERVER_HOST=${ZBX_SERVER_HOST}
     ports:
       - "10050:10050"
     init: true
