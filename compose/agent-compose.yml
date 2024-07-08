@@ -10,7 +10,7 @@ services:
     init: true
 
   zblamb-sample-app:
-    image: nginxdemos/nginx-hello:plain-text¨
+    image: nginxdemos/nginx-hello:plain-text
     restart: always
     ports:
       - "80:8080"

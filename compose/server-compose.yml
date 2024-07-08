@@ -8,6 +8,19 @@ services:
     env_file:
       - .env
 
+  zblamb-zabbix-agent:
+    image: zabbix/zabbix-agent:ubuntu-5.4-latest
+    restart: always
+    environment:
+      - ZBX_HOSTNAME="Zabbix server"
+      - ZBX_SERVER_HOST=${ZBX_SERVER_HOST}
+    ports:
+      - "10050:10050"
+    init: true
+    networks:
+      zab-serv-net:
+        aliases: ["zabbix-agent"]
+
   zblamb-zabbix-server:
     image: zabbix/zabbix-server-pgsql:ubuntu-5.4-latest
     restart: always
