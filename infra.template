@@ -13,9 +13,15 @@ Parameters:
     ZBLambSSHRange:
       Type: String
       Default: 0.0.0.0/0
+      Description: CIDR range of IP addresses able to connect via SSH
     ZBLambHTTPRange:
       Type: String
       Default: 0.0.0.0/0
+      Description: CIDR range of IP addresses able to connect to ports 80, 8080, 443 and 8443
+    ZBLambZBXPortRange:
+      Type: String
+      Default: 0.0.0.0/0
+      Description: CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051. Recommended the range of specified VPC.
 
     ZBLambVPC:
       Type: AWS::EC2::VPC::Id
@@ -103,6 +109,26 @@ Resources:
         - Key: Description
           Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080 from parametrized IP CIDR range
 
+  ZBLambZabbixSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SSH access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 10050
+          ToPort: 10050
+          CidrIp: !Ref ZBLambZBXPortRange
+        - IpProtocol: tcp
+          FromPort: 10051
+          ToPort: 10051
+          CidrIp: !Ref ZBLambZBXPortRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 10050 and 10051 from parametrized IP CIDR range
+
 # EC2 Instances
 
   ZBLambAppInstance:
@@ -114,6 +140,7 @@ Resources:
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
         - !Ref ZBLambHTTPSecGroup
+        - !Ref ZBLambZabbixSecGroup
       KeyName: !Ref ZBLambKeyPair
       UserData: 
         Fn::Base64: !Sub |
@@ -198,6 +225,7 @@ Resources:
       ImageId: !Ref ZBLambImage
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambZabbixSecGroup
       KeyName: !Ref ZBLambKeyPair
       SubnetId: !Ref ZBLambPrivSubnet
       CreditSpecification:
@@ -259,6 +287,7 @@ Resources:
       ImageId: !Ref ZBLambImage
       SecurityGroupIds:
         - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambZabbixSecGroup
         - !Ref ZBLambHTTPSecGroup
       KeyName: !Ref ZBLambKeyPair
       UserData: 
@@ -368,7 +397,7 @@ Resources:
               raise Exception('raised')
             if todo == 'timeout':
               from time import sleep
-              while True: sleep(1)
+              sleep(5)
             exit(1)
       Handler: index.lambda_handler
       Runtime: python3.10
