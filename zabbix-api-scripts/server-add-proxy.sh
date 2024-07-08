@@ -1,11 +1,11 @@
 #!/bin/bash
 
 : "${ZBLAMB_TOKEN:?'Authorize first using get-cred.sh!'}"
+: "${ZBLAMB_PROXY_IP:?'Specify reachable Proxy IP!'}"
 : "${ZBLAMB_FRONTEND_HNAME:=localhost}"
-: "${ZBLAMB_PROXY_HNAME:=localhost}"
 
 DATA=$(cat data/server-add-proxy.json | \
-       sed -e "s/ZBLAMB_PROXY_HNAME/$ZBLAMB_PROXY_HNAME/g" \
+       sed -e "s/ZBLAMB_PROXY_IP/$ZBLAMB_PROXY_IP/g" \
            -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN" | \
         jq -c)
 

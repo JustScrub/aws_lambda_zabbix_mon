@@ -3,14 +3,28 @@
     "method": "host.create",
     "params": {
         "host": "zblamb-agent",
+        "interfaces": [
+            {
+                "type": 1,
+                "main": 1,
+                "useip": 1,
+                "ip": "ZBLAMB_AGENT_IP",
+                "dns": "",
+                "port": "10050"
+            }
+        ],
         "groups": [
             {
                 "groupid": "ZBLAMB_GROUP_ID"
             }
         ],
-        "monitored_by": 1,
-        "proxyid": "ZBLAMB_PROXY_ID"
+        "templates": [
+            {
+                "templateid": "10001"
+            }
+        ],
+        "proxy_hostid": "ZBLAMB_PROXY_ID"
     },
-    "id": 1,
-    "auth": "ZBLAMB_TOKEN"
-}
+    "auth": "ZBLAMB_TOKEN",
+    "id": 1
+       }

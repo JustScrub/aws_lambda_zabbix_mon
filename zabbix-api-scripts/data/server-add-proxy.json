@@ -1,12 +1,16 @@
 {
-    "jsonrpc": "2.0",
-    "method": "proxy.create",
-    "params": {
-        "name": "zblamb-proxy",
-        "operating_mode": "1",
-        "address": "ZBLAMB_PROXY_HNAME",
-        "port": "10051"
-    },
-    "id": 1,
-    "auth": "ZBLAMB_TOKEN"
-}
+           "jsonrpc": "2.0",
+           "method": "proxy.create",
+           "params": {
+               "host": "zblamb-proxy",
+               "status": "6",
+               "interface": {
+                   "ip": "ZBLAMB_PROXY_IP",
+                   "dns": "",
+                   "useip": "1",
+                   "port": "10051"
+               }
+           },
+           "auth": "ZBLAMB_TOKEN",
+           "id": 1
+       }
