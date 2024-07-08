@@ -135,7 +135,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT5M
+        Timeout: PT10M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -155,10 +155,10 @@ Resources:
         configure:
           commands:
             00_install_docker_compose:
-              command: >
+              command: >-
                 mkdir -p /usr/local/lib/docker/cli-plugins &&
                 curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
-                     -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             01_run_simple_http:
               command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello:plain-text
@@ -219,7 +219,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT5M
+        Timeout: PT10M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -239,10 +239,10 @@ Resources:
         configure:
           commands:
             00_install_docker_compose:
-              command: >
+              command: >-
                 mkdir -p /usr/local/lib/docker/cli-plugins &&
                 curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
-                     -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             01_configure_proxy:
               command: !Sub
@@ -282,7 +282,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT5M
+        Timeout: PT10M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -302,14 +302,14 @@ Resources:
         configure:
           commands:
             00_install_docker_compose:
-              command: >
+              command: >-
                 mkdir -p /usr/local/lib/docker/cli-plugins &&
                 curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
-                     -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             01_configure_postgres:
               command: !Sub
-                - >
+                - >-
                     sed -i
                     -e "s/pg-user/${DBUser}/" 
                     -e "s/pg-pwd/${DBPwd}/" 

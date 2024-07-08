@@ -124,7 +124,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT5M
+        Timeout: PT10M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -143,16 +143,22 @@ Resources:
 
         configure:
           commands:
-            00_run_simple_http:
+            00_install_docker_compose:
+              command: >-
+                mkdir -p /usr/local/lib/docker/cli-plugins &&
+                curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            01_run_simple_http:
               command: docker run -p 8080:8080 --restart=always -d nginxdemos/nginx-hello:plain-text
-            01_edit_zabbix_config:
+            02_edit_zabbix_config:
               command: !Sub
-              - >
-                  sed -i
-                  -e "s/pg-user/${DBUser}/" 
-                  -e "s/pg-pwd/${DBPwd}/" 
-                  /root/alzm/compose/.env
-              - DBUser: zabbix
-                DBPwd: zabbix
-            02_start_zabbix_server:
+                - >-
+                    sed -i
+                    -e "s/pg-user/${DBUser}/" 
+                    -e "s/pg-pwd/${DBPwd}/" 
+                    /root/alzm/compose/.env
+                - DBUser: zabbix
+                  DBPwd: zabbix
+            03_start_zabbix_server:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d 
