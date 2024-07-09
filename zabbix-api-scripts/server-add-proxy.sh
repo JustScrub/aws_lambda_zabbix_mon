@@ -6,7 +6,7 @@
 
 DATA=$(cat data/server-add-proxy.json | \
        sed -e "s/ZBLAMB_PROXY_IP/$ZBLAMB_PROXY_IP/g" \
-           -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN" | \
+           -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN/g" | \
         jq -c)
 
 curl -s --request POST \

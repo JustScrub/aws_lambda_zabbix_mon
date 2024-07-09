@@ -24,6 +24,9 @@ Parameters:
   ZBLambPubSubnet:
     Type: AWS::EC2::Subnet::Id
     ConstraintDescription: A public subnet. Must belong to ZBLambVPC
+  ZBLambPrivSubnet:
+    Type: AWS::EC2::Subnet::Id
+    ConstraintDescription: A private subnet. Must belong to ZBLambVPC.
 
   ZBLambCreditSpec:
     Type: String
@@ -92,6 +95,26 @@ Resources:
         - Key: Description
           Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080
             from parametrized IP CIDR range
+  
+  ZBLambZabbixSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Zabbix access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 10050
+          ToPort: 10050
+          CidrIp: !Ref ZBLambZBXPortRange
+        - IpProtocol: tcp
+          FromPort: 10051
+          ToPort: 10051
+          CidrIp: !Ref ZBLambZBXPortRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 10050 and 10051 from parametrized IP CIDR range
 
   # EC2 Instances
 
@@ -104,6 +127,7 @@ Resources:
       SecurityGroupIds:
         - !Ref ZBLambHTTPSecGroup
         - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambZabbixSecGroup
       KeyName: !Ref ZBLambKeypair
       UserData:
         Fn::Base64: !Sub |
@@ -162,3 +186,65 @@ Resources:
                   DBPwd: zabbix
             03_start_zabbix_server:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d 
+  
+  ZBLambZabProxy:
+    Type: "AWS::EC2::Instance"
+    DependsOn: ZBLambAppInstance
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroupIds:
+        - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambZabbixSecGroup
+      KeyName: !Ref ZBLambKeyPair
+      SubnetId: !Ref ZBLambPrivSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
+      UserData: 
+        Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils jq git
+            git clone https://github.com/JustScrub/aws_lambda_zabbix_mon.git /root/alzm
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ZBLambZabProxy --configsets InstallAndRun --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ZBLambZabProxy --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix proxy
+        - Key: Description
+          Value: EC2 instance running Zabbix proxy with SQLite3
+
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT10M
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          InstallAndRun:
+            - install_common
+            - configure
+        install_common:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: "true"
+                ensureRunning: "true"
+
+        configure:
+          commands:
+            00_install_docker_compose:
+              command: >-
+                mkdir -p /usr/local/lib/docker/cli-plugins &&
+                curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            01_configure_proxy:
+              command: !Sub
+                - sed -i -e "s/zabbix-server/${ServIP}/" /root/alzm/compose/.env
+                - ServIP: !GetAtt ZBLambAppInstance.PrivateIp
+            02_run_proxy_container:
+              command: docker compose -f /root/alzm/compose/proxy-compose.yml up -d  

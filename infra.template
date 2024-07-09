@@ -112,7 +112,7 @@ Resources:
   ZBLambZabbixSecGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: SSH access
+      GroupDescription: Zabbix access
       VpcId: !Ref ZBLambVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -187,14 +187,18 @@ Resources:
                 curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
                 -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-            01_run_simple_http:
-              command: sudo docker run -p 80:8080 -d nginxdemos/nginx-hello:plain-text
             02_configure_agent:
               command: !Sub
                 - sed -i -e "s/zabbix-server/${ProxyIP}/" /root/alzm/compose/.env
-                - ProxyIP: !GetAtt ZBLambZabProxy.PrivateIP
+                - ProxyIP: !GetAtt ZBLambZabProxy.PrivateIp
             02_run_zabbix_agent:
               command: docker compose -f /root/alzm/compose/agent-compose.yml up -d
+            03_configure_zabbix_infrastructure:
+              command: !Sub >-
+                export ZBLAMB_FRONTEND_HNAME=${ZBLambZabServer.PrivateIp};
+                export ZBLAMB_PROXY_IP=${ZBLambZabProxy.PrivateIp};
+                /root/alzm/zabbix-api-scripts/zab-agent-script.sh
+              ignoreErrors: "true"
 
   # cfn-hup utility for stack updates -- not needed (hopefully)
   #              files:
@@ -275,7 +279,7 @@ Resources:
             01_configure_proxy:
               command: !Sub
                 - sed -i -e "s/zabbix-server/${ServIP}/" /root/alzm/compose/.env
-                - ServIP: !GetAtt ZBLambZabServer.PrivateIP
+                - ServIP: !GetAtt ZBLambZabServer.PrivateIp
             02_run_proxy_container:
               command: docker compose -f /root/alzm/compose/proxy-compose.yml up -d  
 
@@ -413,15 +417,15 @@ Resources:
 Outputs:
   AgentIP:
     Description: Private IP of the Agent instance
-    Value: !GetAtt ZBLambAppInstance.PrivateIP
+    Value: !GetAtt ZBLambAppInstance.PrivateIp
 
   ProxyIP:
     Description: Private IP of the Proxy instance
-    Value: !GetAtt ZBLambZabProxy.PrivateIP
+    Value: !GetAtt ZBLambZabProxy.PrivateIp
 
   ZabbixIP:
     Description: Public and Private IPs of the Zabbix server + frontend instance
-    Value: !Join [',', [!GetAtt ZBLambZabServer.PublicIP, !GetAtt ZBLambZabServer.PrivateIP] ] 
+    Value: !Join [',', [!GetAtt ZBLambZabServer.PublicIp, !GetAtt ZBLambZabServer.PrivateIp] ] 
 
   KeyID:
     Description: >
