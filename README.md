@@ -58,6 +58,8 @@ Architecture:
  
  - Migrate from pure CloudFormation to SAM 
 
+ - Change paths of IAM roles
+
  - create network stack:
     - VPC + IGW + NATGW
     - Public Subnet + Private Subnet + Routing tables for both
@@ -90,6 +92,11 @@ Architecture:
     - manage metadata: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-metadata-v2-how-it-works.html
     - manage ENI with EC2 instance: https://www.reddit.com/r/aws/comments/m08tsc/comment/gq6px8g/
 
+ - AWS Managed Policies:
+    - list: https://docs.aws.amazon.com/aws-managed-policy/latest/reference/policy-list.html
+    - Lambda Basic Executions: https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicExecutionRole.html
+    - Lambda VPC permissions: https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaVPCAccessExecutionRole.html
+
  - Metric streams
     - Basics: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-metric-streams-setup.html
     - CloudFormation create: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-metric-streams-setup-datalake.html#CloudWatch-metric-streams-setup-datalake-CFN
@@ -100,6 +107,7 @@ Architecture:
     - CloudFormation object: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-kinesisfirehose-deliverystream.html
     - HTTP Endpoint destination: https://docs.aws.amazon.com/firehose/latest/dev/create-destination.html#create-destination-http
     - Destination in private VPC subnet: https://docs.aws.amazon.com/firehose/latest/dev/vpc.html
+    - IAM roles: https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html
 
  - PrivateLinks:
     - basics: https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html

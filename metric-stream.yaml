@@ -7,6 +7,10 @@ Parameters:
   ZBLambPrivSubnet:
     Type: AWS::EC2::Subnet::Id
     ConstraintDescription: A private subnet. Must belong to ZBLambVPC.
+  ZBLambVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC under which to run the instances.
+    ConstraintDescription: Must have a private AND a public subnet
 
 Resources:
 # Lambdas
@@ -24,20 +28,11 @@ Resources:
           Action:
           - sts:AssumeRole
       Path: "/"
-      Policies:
-      - PolicyName: AppendToLogsPolicy
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Tags:
         - Key: Name
-          Value: Zabbix Lambda monitor Mock Lambda function IAM role
+          Value: Zabbix Lambda monitor Lambda function IAM role
         - Key: Description
           Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
 
@@ -71,6 +66,25 @@ Resources:
           Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
 
 
+  ZBLambZabbixSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Zabbix access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 10050
+          ToPort: 10050
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 10051
+          ToPort: 10051
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 10050 and 10051 from parametrized IP CIDR range
 
   ZBLambMetricStreamTransformLambda:
     Type: AWS::Lambda::Function
@@ -90,22 +104,25 @@ Resources:
              print(e)
              return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in R]}
 
-             s=socket.create_connection((os.env['ZBLAMB_PROXY_IP'],10051))
+             #s=socket.create_connection((os.env['ZBLAMB_PROXY_IP'],10051))
              for j in i.chain(*[ list(filter(lambda j: list(j[D].keys())==[F],map( json.loads,base64.b64decode(r['data']).decode('utf-8').splitlines() )))  for r in R]): 
                V, N=int(j[v]['sum']), j[D][F]
                d = json.dumps({"request":"sender data","data": [
                 *([ { h:n,k:"error-stream",v:N } ] * V),
-                {h:n,k:"error-log",v:f"ERROR {V} {N}"}],
-                {h:n,k:"error-counts",v:f"{V}"}],
-                {h:n,k:"error-count-string",v:','.join([N]*V)}
-                "clock":j[t] })
-               s.sendall(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
-               print(s.recv(1024))
-             s.close()
+                {h:n,k:"error-log",v:f"ERROR {V} {N}"},
+                {h:n,k:"error-counts",v:f"{V}"},
+                {h:n,k:"error-count-string",v:','.join([N]*V)}],
+                "clock":j[t] }).encode("utf-8")
+               #s.sendall(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
+               #print(s.recv(1024))
+               print(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
+             #s.close()
              return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in R]}
       VpcConfig:
         SubnetIds:
           - !Ref ZBLambPrivSubnet
+        SecurityGroupIds:
+          - !Ref ZBLambZabbixSecGroup
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Firehose stream transformation
@@ -113,50 +130,49 @@ Resources:
           Value: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
 
 
-  ZBLambMetricStreamFirehorseIAM:
+  ZBLambMetricStreamFirehoseIAM:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+        Statement: [{
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "firehose.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+          }]
       Path: "/"
       Policies:
       - PolicyName: FirehorseToS3Policy
         PolicyDocument:
           Version: '2012-10-17'
-          Statement: [    
-        {      
-            "Effect": "Allow",      
-            "Action": [
-                "s3:AbortMultipartUpload",
-                "s3:GetBucketLocation",
-                "s3:GetObject",
-                "s3:ListBucket",
-                "s3:ListBucketMultipartUploads",
-                "s3:PutObject"
-            ],      
-            "Resource": [        
-                "Ref": "ZBLambDummyDeliveryStreamBucket",
-                "Fn::Sub": "${ZBLambDummyDeliveryStreamBucket}/*"
-            ]    
-        },        
-        {
-           "Effect": "Allow", 
-           "Action": [
-               "lambda:InvokeFunction", 
-               "lambda:GetFunctionConfiguration" 
-           ],
-           "Resource": [
-               "Fn::GetAtt": [ "ZBLambMetricStreamTransformLambda", "Arn" ]
-           ]
-        }
-    ]
+          Statement: [{      
+                    "Effect": "Allow",      
+                    "Action": [
+                        "s3:AbortMultipartUpload",
+                        "s3:GetBucketLocation",
+                        "s3:GetObject",
+                        "s3:ListBucket",
+                        "s3:ListBucketMultipartUploads",
+                        "s3:PutObject"
+                    ],      
+                    "Resource": [        
+                        "Ref": "ZBLambDummyDeliveryStreamBucket",
+                        "Fn::Sub": "${ZBLambDummyDeliveryStreamBucket}/*"
+                    ]    
+                },        
+                {
+                    "Effect": "Allow", 
+                    "Action": [
+                        "lambda:InvokeFunction", 
+                        "lambda:GetFunctionConfiguration" 
+                    ],
+                    "Resource": [
+                        "Fn::GetAtt": [ "ZBLambMetricStreamTransformLambda", "Arn" ]
+                    ]
+              }]
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Mock Lambda function IAM role
@@ -177,7 +193,7 @@ Resources:
         EncryptionConfiguration: 
           NoEncryptionConfig: "NoEncryption"
         S3BackupMode: "Disabled"
-        RoleARN: !GetAtt ZBLambMetricStreamFirehose.Arn
+        RoleARN: !GetAtt ZBLambMetricStreamFirehoseIAM.Arn
 
         ProcessingConfiguration:
           Enabled: true
@@ -186,8 +202,10 @@ Resources:
               Parameters: 
                 - ParameterName: LambdaArn
                   ParameterValue: !GetAtt ZBLambMetricStreamTransformLambda.Arn
-                - ParameterName: BufferIntervalInSeconds
-                  ParameterValue: "0"
+                #- ParameterName: BufferIntervalInSeconds
+                #  ParameterValue: "1"
+                #- ParameterName: BufferSizeInMBs
+                #  ParameterValue: "1"
                 - ParameterName: CompressionFormat
                   ParameterValue: UNCOMPRESSED
       Tags:
@@ -195,3 +213,47 @@ Resources:
           Value: Zabbix Lambda monitor Metric Delivery Stream
         - Key: Description
           Value: The Firehose stream that streams metrics from CloudWatch to the S3 bucket / HTTP Endpoint
+
+  ZBLambMetricStreamIAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - streams.metrics.cloudwatch.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: FirehoseAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - firehose:PutRecord
+            - firehose:PutRecordBatch
+            Resource: !GetAtt ZBLambMetricStreamFirehose.Arn
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream IAM permission
+        - Key: Description
+          Value: IAM role of the metric stream to access the Firehose
+ 
+  ZBLambMetricStream:
+    Type: AWS::CloudWatch::MetricStream
+    Properties:
+      FirehoseArn: !GetAtt ZBLambMetricStreamFirehose.Arn
+      RoleArn: !GetAtt ZBLambMetricStreamIAM.Arn
+      OutputFormat: json
+      IncludeFilters:
+        - Namespace: "AWS/Lambda"
+          MetricNames: [ "Errors" ]
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream 
+        - Key: Description
+          Value: The metric stream used to push AWS/Lambda Errors to Lambda pushing to Zabbix

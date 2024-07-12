@@ -367,22 +367,13 @@ Resources:
           Action:
           - sts:AssumeRole
       Path: "/"
-      Policies:
-      - PolicyName: AppendToLogsPolicy
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Tags:
         - Key: Name
-          Value: Zabbix Lambda monitor Mock Lambda function IAM role
+          Value: Zabbix Lambda monitor Lambda function IAM role
         - Key: Description
-          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
+          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch and VPC
 
   ZBLambMockLambda1:
     Type: "AWS::Lambda::Function"
