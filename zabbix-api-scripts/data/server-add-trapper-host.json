@@ -1,0 +1,14 @@
+{
+    "jsonrpc": "2.0",
+    "method": "host.create",
+    "params": {
+        "host": "zblamb-lambda-errors",
+        "groups": [
+            {
+                "groupid": "ZBLAMB_GROUP_ID"
+            }
+        ]
+    },
+    "auth": "ZBLAMB_TOKEN",
+    "id": 1
+}

@@ -13,5 +13,6 @@ export ZBLAMB_TOKEN=$(./get-cred.sh)
 export ZBLAMB_PROXY_ID=$(./server-add-proxy.sh)
 export ZBLAMB_GROUP_ID=$(./server-add-host-group.sh)
 ./server-add-host.sh
+./server-add-trapper-host.sh
 ./logout.sh
 
