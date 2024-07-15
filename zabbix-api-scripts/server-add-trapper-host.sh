@@ -12,7 +12,8 @@ trapper_types=(1 2 3 4)
 
 DATA=$(cat data/server-add-trapper-host.json | \
        sed -e "s/ZBLAMB_GROUP_ID/$ZBLAMB_GROUP_ID/g"  \
-           -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN/g" | \
+           -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN/g" \
+           -e "s/HOST_NAME/zblamb-lambda-errors/" | \
         jq -c) 
 
 TRAPPER_HOST_ID=\
@@ -39,8 +40,20 @@ curl -s --request POST \
   --url "http://$ZBLAMB_FRONTEND_HNAME/api_jsonrpc.php" \
   --header 'Content-Type: application/json-rpc' \
   --header "Authorization: Bearer $ZBLAMB_TOKEN" \
-  --data $DATA 
+  --data $DATA > /dev/null
 
 done
+
+# add triggers
+
+DATA=$(cat data/error-count-string-trigger.json | \
+       sed -e "s/ZBLAMB_TOKEN/$ZBLAMB_TOKEN/" | \
+       jq -c)
+
+curl -s --request POST \
+  --url "http://$ZBLAMB_FRONTEND_HNAME/api_jsonrpc.php" \
+  --header 'Content-Type: application/json-rpc' \
+  --header "Authorization: Bearer $ZBLAMB_TOKEN" \
+  --data @- <<< $DATA > /dev/null
 
 echo $TRAPPER_HOST_ID

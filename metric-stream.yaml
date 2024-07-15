@@ -104,7 +104,6 @@ Resources:
              print(e)
              return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in R]}
 
-             #s=socket.create_connection((os.env['ZBLAMB_PROXY_IP'],10051))
              for j in i.chain(*[ list(filter(lambda j: list(j[D].keys())==[F],map( json.loads,base64.b64decode(r['data']).decode('utf-8').splitlines() )))  for r in R]): 
                V, N=int(j[v]['sum']), j[D][F]
                d = json.dumps({"request":"sender data","data": [
@@ -113,10 +112,11 @@ Resources:
                 {h:n,k:"error-counts",v:f"{V}"},
                 {h:n,k:"error-count-string",v:','.join([N]*V)}],
                 "clock":j[t] }).encode("utf-8")
+               #s=socket.create_connection((os.env['ZBLAMB_PROXY_IP'],10051))
                #s.sendall(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
                #print(s.recv(1024))
+               #s.close()
                print(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
-             #s.close()
              return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in R]}
       VpcConfig:
         SubnetIds:

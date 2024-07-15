@@ -1,7 +1,10 @@
 #!/bin/bash
 
 export ZBLAMB_FRONTEND_HNAME=${ZBLAMB_FRONTEND_HNAME:?'Frontend IP or DNS name must be specified'}
-export ZBLAMB_PROXY_IP=${ZBLAMB_PROXY_IP:?'Server-reachable Proxy IP must be specified'}
+
+if [ -z $ZBLAMB_PROXY_ID ]; then
+    export ZBLAMB_PROXY_IP=${ZBLAMB_PROXY_IP:?'Server-reachable Proxy IP must be specified'}
+fi
 
 # LOCAL IP for host creation -- Zabbix v5.4 needs it in API call
 if [ -z $ZBLAMB_AGENT_IP ]; then
@@ -9,10 +12,24 @@ if [ -z $ZBLAMB_AGENT_IP ]; then
     export ZBLAMB_AGENT_IP=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
 fi
 
-export ZBLAMB_TOKEN=$(./get-cred.sh)
-export ZBLAMB_PROXY_ID=$(./server-add-proxy.sh)
-export ZBLAMB_GROUP_ID=$(./server-add-host-group.sh)
+to_logout=0
+if [ -z $ZBLAMB_TOKEN ]; then
+    export ZBLAMB_TOKEN=$(./get-cred.sh)
+    to_logout=1
+fi
+
+if [ -z $ZBLAMB_PROXY_ID ]; then
+    export ZBLAMB_PROXY_ID=$(./server-add-proxy.sh)
+fi
+
+if [-z $ZBLAMB_GROUP_ID]; then
+    export ZBLAMB_GROUP_ID=$(./server-add-host-group.sh)
+fi
+
 ./server-add-host.sh
 ./server-add-trapper-host.sh
-./logout.sh
+
+if [ $to_logout = 1 ]; then
+    ./logout.sh
+fi
 
