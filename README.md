@@ -17,7 +17,7 @@ Architecture:
             - gets ".values.sum" and ".timestamp"
             - sends Zabbix packet to a Zabbix proxy
                 - contains: specific zabbix hostname (e.g. zabbix-lambda-errors), function name and "values.sum", timestamp
-    - CloudWatch -> Firehose -> HTTPS Endpoint -> Zabbix protocol -> Zabbix Proxx
+    - CloudWatch -> Firehose -> HTTPS Endpoint -> Zabbix protocol -> Zabbix Proxy
         - HTTPS Endpoint must have public IP address
         - Firehose cannot currently access instances in a private VPC subnet
             - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
@@ -32,27 +32,26 @@ Architecture:
                 - Firehorse does not pass it forward to the destination
 
  - configure Zabbix
-    - add host (e.g. zabbix-lambda-errors)
+    - add host (e.g. lambda.aws)
     - possible flows:
-        - aggregate functions
-            - add trapper items to the host:
-                - error-stream: text entries, just a stream of AWS Lambda names that failed (with the correct number of failures from CloudWatch)
-                - error-log: log entries, contains severity, function name and number of failed invocations
-                - error-counts: number entries, just a number of failures, aggregated across all Lambda functions
-                - error-count-string: text entries, comma-delimited repetition of FnName, number of repetitions is number of failures
-            - create a trigger based on at least one of the items
-                - which ones? How to show the Function Name in Dashboard? Are neccessary operations/function implemented in Zabbix trigger expressions?
-                    - `error-counts.count(1H, threshold, ge) > 1` --> "A Lambda keeps failing. Go to logs for more information"
-                    - `error-count-string.count(1H, "([A-Za-z0-9]+),\1,\1",regex)>1` --> "A lambda keeps failing. Go to logs..."
-                        - repeat `\1` threshold-times
-                - or create multiple triggers for items? Per-Lambda trigger?
-                    - `error-stream.count(1H, FnName, eq) > threshold` --> "Lambda FnName keeps failing"
-                    - <b>Automatization of Lambda Registration</b>
-
-        - Per-Lambda trapper items
-            - just error-counts (e.g. FnName.error-counts item) would suffice
-            - trigger: `FnName.error-counts.count(1H, threshold, ge)>1` --> "Lambda FnName keeps failing"
-            - <b>Automatization of Lambda Registration</b>
+        - Per-Lambda trapper items via Low-Level Discovery
+            - host + discovery rule with key e.g. `discover.lambda.aws`
+            - item prototypes
+                - for each metric, with keys e.g. `error.metrics.lambda.aws[${FN_NAME}]`/`duration.metrics.lambda.aws[${FN_NAME}]`
+            - trigger prototypes
+                - problem: cannot dynamicly set severity
+                - create for each metric and each Zabbix priority one trigger
+                - all triggers have same expression, just the constants differ
+                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{#C_HIGH}")>=1`    
+                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{#C_WARN}")>=1`
+                - Lambdas are tagged in AWS with a severity/prioirty, e.g. `{PRIO=0}`
+                    - defined priority range/keywords (e.g. 0-9 / HIGH, WARN, INFO...)
+                    - each tag priority is mapped to trigger constant values
+                        - `PRIO=0` => `{#C_HIGH}=4`, `{#C_WARN}=2`, `{#C_INFO}=1000000`
+                        - put high constants to Zabbix severities to "disable" (e.g. above "disables" info trigger)
+                        - may use Zabbix "user macros with context"
+                            - `count(...,{$C_HIGH:"{#PRIO}"})>=1`
+                            - constants defined in Zabbix, not in "sender"
     - somehow visualize
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
  
@@ -68,7 +67,7 @@ Architecture:
 # Done
  - test template functionality
  - test scripts functionality
- - configure Zabbix 
+ - configure Zabbix infrastructure
     - passive agent --> proxy --> server
     - agent:
         - `Hostname` (for server/proxy) config already set via compose
@@ -86,6 +85,23 @@ Architecture:
         - add host monitored by proxy
         - add template to host
         - https://www.zabbix.com/documentation/current/en/manual/distributed_monitoring/proxies
+
+ - configure Zabbix metrics
+    - add host zblamb-lambda-errors
+        - no interface
+    - possible flows:
+        - aggregate functions
+            - add trapper items to the host:
+                - error-stream: text entries, just a stream of AWS Lambda names that failed (with the correct number of failures from CloudWatch)
+                - error-log: log entries, contains severity, function name and number of failed invocations
+                - error-counts: number entries, just a number of failures, aggregated across all Lambda functions
+                - error-count-string: text entries, comma-delimited repetition of FnName, number of repetitions is number of failures
+            - create a trigger based on at least one of the items
+                - `count(/zblamb-lambda-errors/error-count-string, 5m, "([A-Za-z0-9]+),\1,\1",regex)>0` --> "A lambda keeps failing"
+                    - Tags: Key="Lambda Name", Value=` "{{ITEM.VALUE}.regsub(\"([A-Za-z0-9]+),\\1,\\1\", \"\\1\")}" `
+                    - Allow multiple triggers with correlation tag "Lambda Name"
+                    - Allow manual close
+                    - These setting wills report errors per-function
 
 # Useful links
  - AWS instances
@@ -114,6 +130,11 @@ Architecture:
 
  - Zabbix API -- version 5.0!
     - overview: https://www.zabbix.com/documentation/5.0/en/manual/api
+
+ - Zabbix Low-Level Discovery
+    - basic: https://www.zabbix.com/documentation/5.4/en/manual/discovery/low_level_discovery
+    - user macros with context: https://www.zabbix.com/documentation/5.4/en/manual/config/macros/user_macros_context#use-cases
+    - tutorial: https://blog.zabbix.com/how-to-use-zabbix-low-level-discovery/9993#custom-low-level-discovery-rul
 
  - Zabbix Trapper + Sender
     - https://www.zabbix.com/documentation/5.0/en/manual/config/items/itemtypes/trapper

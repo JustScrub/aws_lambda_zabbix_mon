@@ -1,0 +1,12 @@
+{
+    "jsonrpc": "2.0",
+    "method": "discoveryrule.create",
+    "params": {
+        "name": "Discover Lambda Functions",
+        "key_": "LLD_KEY",
+        "hostid": "TRAPPER_HOST_ID",
+        "type": "2"
+    },
+    "auth": "ZBLAMB_TOKEN",
+    "id": 1
+}
