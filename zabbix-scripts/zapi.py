@@ -1,4 +1,4 @@
-import sys
+import sys, os
 from zapi_constructor import *
 
 def ec2_get_local_addr():
@@ -54,7 +54,7 @@ def configure_zabbix(zapi, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr
 
 if __name__ == "__main__":
 
-    frontend_host=sys.argv[1] if len(sys.argv)>1 else "localhost"
+    frontend_host=sys.argv[1] if len(sys.argv)>1 else os.environ.get("ZBLAMB_FRONTEND_HNAME","localhost")
     frontend_port=sys.argv[2] if len(sys.argv)>2 else 80
     try:
         frontend_port=int(frontend_port)
@@ -63,10 +63,9 @@ if __name__ == "__main__":
         exit(1)
     url=f"http://{frontend_host}:{frontend_port}"
 
-
     zapi = ZabbixAPI(url)
     zapi.login("Admin", "zabbix")
-    
+
     metrics = [
         LLDMultiTriggerMetricConfig(
             name="errors",
@@ -81,4 +80,11 @@ if __name__ == "__main__":
         )
     ]
 
-    create_multi_trigger_mapping(zapi,metrics,suffix="multi.lambda.zblamb",group_id=21)
+    if len(sys.argv)>3 and sys.argv[3]=="agent":
+        configure_zabbix(
+            zapi,
+            metrics,
+            (os.environ["ZBLAMB_PROXY_IP"],10051)
+        )
+    else:
+        create_multi_trigger_mapping(zapi,metrics,suffix="multi.lambda.zblamb",group_id=21)

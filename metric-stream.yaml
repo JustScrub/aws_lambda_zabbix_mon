@@ -186,7 +186,7 @@ Resources:
       ExtendedS3DestinationConfiguration:
         BucketARN: !Ref ZBLambDummyDeliveryStreamBucket
         BufferingHints:
-          IntervalInSeconds: 0
+          IntervalInSeconds: 0 # 300 # 5 min
         CloudWatchLoggingOptions:
           Enabled: false
         CompressionFormat: UNCOMPRESSED
