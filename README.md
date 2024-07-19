@@ -52,6 +52,8 @@ Architecture:
                         - may use Zabbix "user macros with context"
                             - `count(...,{$C_HIGH:"{#PRIO}"})>=1`
                             - constants defined in Zabbix, not in "sender"
+                    - flag that 
+
     - somehow visualize
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
  

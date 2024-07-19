@@ -12,8 +12,8 @@ d = json.dumps({
     "request": "sender data",
     "data": [
         {
-            "host": "lambda.zblamb",
-            "key": "discover.lambda.zblamb",
+            "host": "multi.lambda.zblamb",
+            "key": "discover.multi.lambda.zblamb",
             "value": json.dumps(discovered)
         }
     ]

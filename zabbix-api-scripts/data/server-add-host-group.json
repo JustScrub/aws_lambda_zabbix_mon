@@ -1,9 +1,0 @@
-{
-           "jsonrpc": "2.0",
-           "method": "hostgroup.create",
-           "params": {
-               "name": "zblamb-agent-group"
-           },
-           "id": 1,
-           "auth": "ZBLAMB_TOKEN"
-}

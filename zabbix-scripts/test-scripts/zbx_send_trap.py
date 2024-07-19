@@ -20,8 +20,8 @@ M = [json.dumps({
     "request": "sender data",
     "data": [
         {
-        "host":"test-host-no-if",
-        "key": "no.if.trapper",
+        "host":"multi.lambda.zblamb",
+        "key": "errors.metrics.multi.lambda.zblamb[la1]",
         "value":random.randint(*vs)
         }
     for _ in range(ireps)]
