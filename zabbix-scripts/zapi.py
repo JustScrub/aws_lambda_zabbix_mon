@@ -32,15 +32,14 @@ def configure_zabbix(zapi, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr
         zapi,
         "multi.lambda.zblamb",
         [group_id],
-        {
-            "proxy_hostid": proxy_id,
-            "interfaces": [
-                interface_dict(
-                    addr=local_addr[0],
-                    port=local_addr[1]
-                )
-            ]
-        }
+
+        proxy_hostid=proxy_id,
+        interfaces=[
+            interface_dict(
+                addr=local_addr[0],
+                port=local_addr[1]
+            )
+        ]
     )
 
     create_multi_trigger_mapping(
