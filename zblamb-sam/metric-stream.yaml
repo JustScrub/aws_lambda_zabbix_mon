@@ -1,0 +1,399 @@
+
+Parameters:
+  # metric stream params
+  ZBLambDummyDeliveryStreamBucket:
+    Type: String
+    AllowedPattern: arn:.*
+    Description: A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements.
+
+  # networking params
+  ZBLambPrivSubnet:
+    Type: AWS::EC2::Subnet::Id
+    ConstraintDescription: A private subnet. Must belong to ZBLambVPC.
+  ZBLambPubSubnet:
+    Type: AWS::EC2::Subnet::Id
+    ConstraintDescription: A public subnet. Must belong to ZBLambVPC.
+  ZBLambVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC under which to run the instances.
+    ConstraintDescription: Must have a private AND a public subnet
+  ZBLambSSHRange:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR range of IP addresses able to connect via SSH
+  ZBLambHTTPRange:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR range of IP addresses able to connect to ports 80, 8080, 443 and 8443
+  ZBLambZBXPortRange:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051. Recommended the range of specified VPC.
+  
+  # zabbix server params
+  ZBLambInstanceType:
+    Type: String
+    Default: t3a.micro
+  ZBLambImage:
+    Type: String
+    Default: ami-04f1b917806393faa # AMD image!
+    ConstraintDescription: >
+      Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
+      Be aware that some Regions only support some images.
+  ZBLambDBUser:
+    Type: String
+    NoEcho: 'true'
+    Default: zabbix
+  ZBLambDBPwd:
+    Type: String
+    NoEcho: 'true'
+    Default: zabbix
+  ZBLambCreditSpec:
+    Type: String
+    Default: standard
+    AllowedValues:
+      - standard
+      - unlimited
+
+Resources:
+
+# networking 
+
+  ZBLambSSHSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SSH access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref ZBLambSSHRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor SSH security group
+        - Key: Description
+          Value: EC2 security group allowing connections to port 22 from parametrized IP CIDR range
+
+  ZBLambHTTPSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: HTTP/S access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !Ref ZBLambHTTPRange
+        - IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIp: !Ref ZBLambHTTPRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor HTTP/S security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 443, 8443, 80 and 8080 from parametrized IP CIDR range
+
+  ZBLambZabbixSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Zabbix access
+      VpcId: !Ref ZBLambVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 10050
+          ToPort: 10050
+          CidrIp: !Ref ZBLambZBXPortRange
+        - IpProtocol: tcp
+          FromPort: 10051
+          ToPort: 10051
+          CidrIp: !Ref ZBLambZBXPortRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix security group
+        - Key: Description
+          Value: EC2 security group allowing connections to ports 10050 and 10051 from parametrized IP CIDR range
+
+# Zabbix Server
+
+  ZBLambKeyPair:
+    Type: "AWS::EC2::KeyPair"
+    Properties:
+      KeyName: ZBLambKeyPair
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor KeyPair
+        - Key: Description
+          Value: Key pair for SSH access to EC2 instances within the Zabbix Lambda monitor project
+
+  ZBLambZabServer:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: !Ref ZBLambInstanceType
+      ImageId: !Ref ZBLambImage
+      SecurityGroupIds:
+        - !Ref ZBLambSSHSecGroup
+        - !Ref ZBLambZabbixSecGroup
+        - !Ref ZBLambHTTPSecGroup
+      KeyName: !Ref ZBLambKeyPair
+      UserData: 
+        Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            sudo yum install -y yum-utils jq git
+            git clone https://github.com/JustScrub/aws_lambda_zabbix_mon.git /root/alzm
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ZBLambZabServer --configsets InstallAndRun --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ZBLambZabServer --region ${AWS::Region}
+      SubnetId: !Ref ZBLambPubSubnet
+      CreditSpecification:
+        CPUCredits: !Ref ZBLambCreditSpec
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Zabbix server and frontend
+        - Key: Description
+          Value: EC2 instance running Zabbix server with POSTGRESQL and Zabbix frontend over nginx with pqsql as well. Has public IPv4.
+
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT10M
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          InstallAndRun:
+            - install_common
+            - configure
+        install_common:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: "true"
+                ensureRunning: "true"
+
+        configure:
+          commands:
+            00_install_docker_compose:
+              command: >-
+                mkdir -p /usr/local/lib/docker/cli-plugins &&
+                curl -SL https://github.com/docker/compose/releases/download/v2.28.1/docker-compose-linux-x86_64 
+                -o /usr/local/lib/docker/cli-plugins/docker-compose &&
+                sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            01_configure_postgres:
+              command: !Sub
+                - >-
+                    sed -i
+                    -e "s/pg-user/${DBUser}/" 
+                    -e "s/pg-pwd/${DBPwd}/" 
+                    /root/alzm/compose/.env
+                - DBUser: !Ref ZBLambDBUser
+                  DBPwd: !Ref ZBLambDBPwd
+            02_run_server_containers:
+              command: docker compose -f /root/alzm/compose/server-compose.yml up -d
+            03_configure_zabbix_infrastructure:
+              command: python3 /root/alzm/zabbix-scripts/zapi.py localhost 80 server
+              ignoreErrors: "true"
+
+# Lambdas
+
+  ZBLambFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Lambda function IAM role
+        - Key: Description
+          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
+
+  ZBLambMockLambda1:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      FunctionName: ZBLambMockLambda1
+      Description: |
+        Lambda function that passes or fails on demand.
+        Input: { 'result': 'pass' / 'raise' / 'fail' / 'timeout' }
+      CodeUri: functions/fail_lambda/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Timeout: 2
+      Role: !GetAtt ZBLambFunctionRole.Arn
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Mock Lambda function
+        - Key: Description
+          Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
+
+  ZBLambMetricStreamTransformLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/multi_trigger_transform/
+      Handler: app.lambda_handler
+      FunctionName: ZBLambFirehoseTransform
+      Role: !GetAtt ZBLambFunctionRole.Arn
+      Runtime: python3.12
+      Environment:
+        Variables:
+          ZBLAMB_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
+      VpcConfig:
+        SubnetIds:
+          - !Ref ZBLambPrivSubnet
+        SecurityGroupIds:
+          - !Ref ZBLambZabbixSecGroup
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Firehose stream transformation
+        - Key: Description
+          Value: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+
+# Metric Stream
+
+  ZBLambMetricStreamFirehoseIAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "firehose.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+          }]
+      Path: "/"
+      Policies:
+      - PolicyName: FirehorseToS3Policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement: [{      
+                    "Effect": "Allow",      
+                    "Action": [
+                        "s3:AbortMultipartUpload",
+                        "s3:GetBucketLocation",
+                        "s3:GetObject",
+                        "s3:ListBucket",
+                        "s3:ListBucketMultipartUploads",
+                        "s3:PutObject"
+                    ],      
+                    "Resource": [        
+                        "Ref": "ZBLambDummyDeliveryStreamBucket",
+                        "Fn::Sub": "${ZBLambDummyDeliveryStreamBucket}/*"
+                    ]    
+                },        
+                {
+                    "Effect": "Allow", 
+                    "Action": [
+                        "lambda:InvokeFunction", 
+                        "lambda:GetFunctionConfiguration" 
+                    ],
+                    "Resource": [
+                        "Fn::GetAtt": [ "ZBLambMetricStreamTransformLambda", "Arn" ]
+                    ]
+              }]
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Mock Lambda function IAM role
+        - Key: Description
+          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
+
+  ZBLambMetricStreamFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref ZBLambDummyDeliveryStreamBucket
+        BufferingHints:
+          IntervalInSeconds: 0 # 300 # 5 min
+        CloudWatchLoggingOptions:
+          Enabled: false
+        CompressionFormat: UNCOMPRESSED
+        EncryptionConfiguration: 
+          NoEncryptionConfig: "NoEncryption"
+        S3BackupMode: "Disabled"
+        RoleARN: !GetAtt ZBLambMetricStreamFirehoseIAM.Arn
+
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Type: Lambda
+              Parameters: 
+                - ParameterName: LambdaArn
+                  ParameterValue: !GetAtt ZBLambMetricStreamTransformLambda.Arn
+                #- ParameterName: BufferIntervalInSeconds
+                #  ParameterValue: "1"
+                #- ParameterName: BufferSizeInMBs
+                #  ParameterValue: "1"
+                - ParameterName: CompressionFormat
+                  ParameterValue: UNCOMPRESSED
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Delivery Stream
+        - Key: Description
+          Value: The Firehose stream that streams metrics from CloudWatch to the S3 bucket / HTTP Endpoint
+
+  ZBLambMetricStreamIAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - streams.metrics.cloudwatch.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: FirehoseAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - firehose:PutRecord
+            - firehose:PutRecordBatch
+            Resource: !GetAtt ZBLambMetricStreamFirehose.Arn
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream IAM permission
+        - Key: Description
+          Value: IAM role of the metric stream to access the Firehose
+ 
+  ZBLambMetricStream:
+    Type: AWS::CloudWatch::MetricStream
+    Properties:
+      FirehoseArn: !GetAtt ZBLambMetricStreamFirehose.Arn
+      RoleArn: !GetAtt ZBLambMetricStreamIAM.Arn
+      OutputFormat: json
+      IncludeFilters:
+        - Namespace: "AWS/Lambda"
+          MetricNames: [ "Errors" ]
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream 
+        - Key: Description
+          Value: The metric stream used to push AWS/Lambda Errors to Lambda pushing to Zabbix

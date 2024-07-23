@@ -15,7 +15,7 @@ def ec2_get_local_addr():
     )
     return ip.text
 
-def configure_zabbix(zapi, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr:Tuple[str,int], local_addr:Tuple[str,int]=None):
+def configure_zabbix_from_agent(zapi:ZabbixAPI, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr:Tuple[str,int], local_addr:Tuple[str,int]=None):
     local_addr = local_addr or (ec2_get_local_addr(),10050)
 
     proxy_id=create_proxy(zapi,
@@ -50,6 +50,21 @@ def configure_zabbix(zapi, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr
         host_id=host_id
     )
 
+def configure_zabbix_from_server(zapi:ZabbixAPI,metrics:List[LLDMultiTriggerMetricConfig]):
+    group_id=create_group(zapi,"zblamb")
+    host_id=create_host(
+        zapi,
+        "multi.lambda.zblamb",
+        [group_id],
+    )
+
+    create_multi_trigger_mapping(
+        zapi,
+        metrics,
+        "multi.lambda.zblamb",
+        group_id=group_id,
+        host_id=host_id
+    )
 
 if __name__ == "__main__":
 
@@ -80,10 +95,12 @@ if __name__ == "__main__":
     ]
 
     if len(sys.argv)>3 and sys.argv[3]=="agent":
-        configure_zabbix(
+        configure_zabbix_from_agent(
             zapi,
             metrics,
             (os.environ["ZBLAMB_PROXY_IP"],10051)
         )
+    elif len(sys.argv)>3 and sys.argv[3]=="server":
+        configure_zabbix_from_server(zapi,metrics)
     else:
         create_multi_trigger_mapping(zapi,metrics,suffix="multi.lambda.zblamb",group_id=21)

@@ -369,7 +369,7 @@ class LLDMultiTriggerMetricConfig:
             "manual_close": int(manual_close),
             "priority": severity.value,
             "expression": self.expr.format(
-                f"/{zabbix_host}/{self.items(suffix,0,name_tag)['key_']}",
+                f"/{zabbix_host}/{self.items(suffix,0,0,name_tag)['key_']}",
                 "{$%s_%s:\\\"{#%s}\\\"}" % (self.const,severity.name,prio_tag) # f-string: "{{${self.const}:\\\"{{#{prio_tag}}}\\\"}}"
             ),
             "dependencies": [{"triggerid":f"{id}"} for id in depends_on_ids] if depends_on_ids else [],
@@ -390,7 +390,7 @@ class LLDMultiTriggerMetricConfig:
                 "hostid": f"{hostid}",
                 "macro": f'{{${self.const}_{severity.name}}}', 
                 "value": f"{self.priority_map[LambdaPriority(-1)][severity] or 1<<24}"
-            } # default macro
+            } # default macro (for undefined priority)
         ]
     
     def override_operations(self,suffix,priority,name_tag="FN_NAME"):
@@ -473,7 +473,7 @@ def create_multi_trigger_mapping(
                     for metric in metrics]))
             }
         for i,priority in enumerate(LambdaPriority.list())
-        ] + [ # override for unclassified lambda
+        ] + [ # override for unclassified lambda (=undefined priority)
             {
                 "name": f"OV_PRIO_N",
                 "step": f"{LambdaPriority.num_priorities+1}",

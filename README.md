@@ -6,6 +6,51 @@ Architecture:
  - AWS side --> this project --> Zabbix side
  - AWS Lambda --> AWS CloudWatch --> metrics to this project --> Zabbix Proxy --> Zabbix Server --> Dashboard
 
+# Config
+ - Zabbix: 
+    - zabbix-scripts/zapi.py
+        - select mapping (all-in-one item, single-trigger discovery, multi-trigger discovery)
+        - create list of MetricConfig objects for the specific mapping
+            - there can be multiple zabbix items/metrics for one metric in AWS Lambda
+            - each is a separate instance of MetricConfig
+        - call function that populates zabbix
+
+ - AWS: 
+    - zblamb-sam/
+        - template.yaml
+            - includes demo infrastructure, feel free to modify (remove EC2 instance...)
+            - only Firehose transform Lambda, Firehose Data Stream and Meric Stream objects must remain
+                - Transform Lambda must have ZBLAMB_PROXY_IP environment variable defined!
+                - IP address of the Zabbix Server/Proxy it will be sending data to
+                - if the Zabbix Server/Proxy is in a private subnet in AWS VPC, the transform lambda must be "inside" as well
+            - in Metric Stream, select which metric for Lambda to stream (e.g. 'Errors', 'Duration')
+            - can add more statistics (see AWS::CloudWatch::MetricStream documentation)
+
+        - functions/
+            - modify python function that generates Zabbix Sender items or modify variables used inside (e.g. `metric2stat_map` in multi_trigger_transform/app.py)
+                - it recieves AWS metric name, dictionary of {statistic: value} and function name
+                - dictionary of statistics includes default statistics (min,max,sum,count) and those specified in template.yaml under Metric Stream
+                - returns <b>List</b> of dictionaries `{'host':zabbix host, 'key': item key, 'value': zabbix metric value}`
+                - The list may include more dictionaries, if one AWS metric produces more zabbix items/metrics
+                    - e.g. Zabbix may track the min and max statistic of the Duration AWS metric
+                    - the list would contain two such dictionaries, one with value equal to min and one with max
+                    - Zabbix items must be different as well
+                - <b>This function maps AWS metrics to Zabbix metrics</b>
+                - you can create whatever mapping you wish, Zabbix just has to be configured for it (have items and tiggers, LLD rules, etc.)
+
+- Common:
+    - all 'names' (e.g. Zabbix item names, Zabbix host names or trigger names) must be same across Zabbix and AWS config!
+        - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
+        - LLD rule under the host has (item) name `discovery.<suffix>`
+        - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]` (or without `[]` part for non-discovery, e.g. all-in-one item)
+            - if one AWS metric has more statistics tracked by zabbix, the convention would be `<statistic>.<aws_metric>.metrics.<suffix>[<function_name>]`, e.g. `max.duration.metrics.multi-trigger-mapping-zblamb[{#FN_NAME}]` for item prototype
+            - multi_trigger_transform AWS lambda function counts on this
+            - but it's always up to you :-)
+        - triggers have name `<severity>.<zabbix_metric>.triggers.<suffix>[<function_name>]` or without `<severity>` for other than multi-trigger mapping and without `[]` for non-discovery
+        - proxy has name `proxy.<suffix>`
+        - host group has name `group.<suffix>` 
+
+
 # TODO
  - Setup Metric Stream
     - namespace: AWS/Lambda, metric: Error
