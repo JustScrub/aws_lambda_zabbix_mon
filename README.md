@@ -41,6 +41,7 @@ Architecture:
 - Common:
     - all 'names' (e.g. Zabbix item names, Zabbix host names or trigger names) must be same across Zabbix and AWS config!
         - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
+        - all zabbix names are lower-case, except for Lambda function name (anything outside of `[]` is lower-case)
         - LLD rule under the host has (item) name `discovery.<suffix>`
         - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]` (or without `[]` part for non-discovery, e.g. all-in-one item)
             - if one AWS metric has more statistics tracked by zabbix, the convention would be `<statistic>.<aws_metric>.metrics.<suffix>[<function_name>]`, e.g. `max.duration.metrics.multi-trigger-mapping-zblamb[{#FN_NAME}]` for item prototype

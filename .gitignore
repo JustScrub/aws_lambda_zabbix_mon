@@ -1,3 +1,4 @@
 .venv
 __pycache__
-zblamb-sam/build
+zblamb-sam/.aws-sam
+concr_configs

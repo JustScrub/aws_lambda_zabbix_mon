@@ -5,6 +5,12 @@ Parameters:
     Type: String
     AllowedPattern: arn:.*
     Description: A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements.
+  ZBLambTransformationFunction:
+    Type: String
+    AllowedValues:
+      - multi_trigger_transform
+      - all_in_one_item
+    Default: multi_trigger_transform
 
   # networking params
   ZBLambPrivSubnet:
@@ -221,7 +227,8 @@ Resources:
           - sts:AssumeRole
       Path: "/"
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole # transformation Lambda is inside VPC
+        - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess # transformation Lambda may need to read Lambda tags
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Lambda function IAM role
@@ -237,23 +244,22 @@ Resources:
         Input: { 'result': 'pass' / 'raise' / 'fail' / 'timeout' }
       CodeUri: functions/fail_lambda/
       Handler: app.lambda_handler
-      Runtime: python3.12
+      Runtime: python3.8
       Timeout: 2
       Role: !GetAtt ZBLambFunctionRole.Arn
       Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor Mock Lambda function
-        - Key: Description
-          Value: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
+        Name: Zabbix Lambda monitor Mock Lambda function
+        Description: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
+        PRIO: 1
 
   ZBLambMetricStreamTransformLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/multi_trigger_transform/
+      CodeUri: !Sub functions/${ZBLambTransformationFunction}/
       Handler: app.lambda_handler
       FunctionName: ZBLambFirehoseTransform
       Role: !GetAtt ZBLambFunctionRole.Arn
-      Runtime: python3.12
+      Runtime: python3.8
       Environment:
         Variables:
           ZBLAMB_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
@@ -263,10 +269,9 @@ Resources:
         SecurityGroupIds:
           - !Ref ZBLambZabbixSecGroup
       Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor Firehose stream transformation
-        - Key: Description
-          Value: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+        Name: Zabbix Lambda monitor Firehose stream transformation
+        Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+        PRIO: 4
 
 # Metric Stream
 

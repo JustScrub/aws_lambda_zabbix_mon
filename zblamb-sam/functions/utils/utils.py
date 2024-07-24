@@ -1,5 +1,5 @@
 import json as j, base64, itertools as i, socket, struct
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple,List,Set,Union
 import boto3
 
 ##### CONFIG #######
@@ -22,20 +22,20 @@ def extract_data(evt:Dict):
     # firehose_data= i.chain(*[ list(filter(lambda j: list(j['dimensions'].keys())==['FunctionName'],map( json.loads,base64.b64decode(r['data']).decode('utf-8').splitlines() )))  for r in e['records']])
     return list(firehose_data)
 
-def zbx_discover(addr:Tuple[str,str],zabbix_discovery_host: str,jsons):
+def zbx_discover(addr:Tuple[str,str],zabbix_host: str,jsons):
     function_names = [json['dimensions']['FunctionName'] for json in jsons]
     tags = [(fn,lambda_client.get_function(FunctionName=fn)['Tags']) for fn in function_names] # function and its tags tuples
     untracked = set(filter(lambda e: PRIO_TAG not in e[1],tags)) # functions without the PRIO tag
     tags = filter(lambda e: e[0] not in untracked, tags) # keep only functions with PRIO tag
 
-    discovery_item = f"discover.{zabbix_discovery_host}"
+    discovery_item = f"discover.{zabbix_host}"
     packet = j.dumps(
          {
             "request":"sender data",  # zabbix_sender request to zabbix server -- only trapper items are used
             "data": 
             [
                 {
-                    "host": zabbix_discovery_host,
+                    "host": zabbix_host,
                     "key": discovery_item,
                     "data": j.dumps([
                         {
@@ -50,7 +50,7 @@ def zbx_discover(addr:Tuple[str,str],zabbix_discovery_host: str,jsons):
     ).encode("utf-8") # encode to bytes object for socket
     return zbx_send_packet(addr,packet), untracked
 
-def zbx_item_packet(jsons,zbx_sender_data):
+def zbx_item_packet(jsons,zbx_sender_data:Callable[[str,Dict,str],List[Dict]],ignore_names:Union[Set,None]=None):
     '''
     :param jsons: parsed json objects with extract_data
     :param zbx_sender_data: function that accepts name of metric, its values and function name and returns 
@@ -59,11 +59,16 @@ def zbx_item_packet(jsons,zbx_sender_data):
                             The function returns a list in case one AWS metric translates to more Zabbix metrics,
                             e.g. the Duration metric may translate to max.duration and min.duration in zabbix, 
                             thus the function returns two dictionaries
+    :param untracked_functions: set of function names to ignore
     '''
+    ignore_names = ignore_names or {}
+    # get zabbix data objects for each metric and function, and update the objects with clock parameter
     sender_data = [
-                list(map(lambda e: e.update({'clock': json['timestamp']}),
-                     zbx_sender_data(json['metric_name'],json['value'],json['dimensions']['FunctionName'])))
-                for json in jsons] # get data objects for each metric and function, and update the objects with clock parameter
+                list(map(lambda e: {**e,'clock': json['timestamp']},
+                         zbx_sender_data(json['metric_name'],json['value'],json['dimensions']['FunctionName'])
+                    ))
+                for json in jsons
+                if json['dimensions']['FunctionName'] not in ignore_names]
     sender_data = list(i.chain(*sender_data))
 
 
