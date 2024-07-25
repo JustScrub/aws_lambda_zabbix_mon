@@ -28,7 +28,7 @@ Architecture:
 
         - functions/
             - modify python function that generates Zabbix Sender items or modify variables used inside (e.g. `metric2stat_map` in multi_trigger_transform/app.py)
-                - it recieves AWS metric name, dictionary of {statistic: value} and function name
+                - the function recieves AWS metric name, dictionary of {statistic: value} and function name
                 - dictionary of statistics includes default statistics (min,max,sum,count) and those specified in template.yaml under Metric Stream
                 - returns <b>List</b> of dictionaries `{'host':zabbix host, 'key': item key, 'value': zabbix metric value}`
                 - The list may include more dictionaries, if one AWS metric produces more zabbix items/metrics

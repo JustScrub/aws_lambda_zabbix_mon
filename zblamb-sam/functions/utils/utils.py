@@ -22,10 +22,22 @@ def extract_data(evt:Dict):
     # firehose_data= i.chain(*[ list(filter(lambda j: list(j['dimensions'].keys())==['FunctionName'],map( json.loads,base64.b64decode(r['data']).decode('utf-8').splitlines() )))  for r in e['records']])
     return list(firehose_data)
 
+def __catch_default(func,default,*args,**kwargs):
+    try:
+        return func(*args,**kwargs)
+    except:
+        return default
+
 def zbx_discover(addr:Tuple[str,str],zabbix_host: str,jsons):
     function_names = [json['dimensions']['FunctionName'] for json in jsons]
-    tags = [(fn,lambda_client.get_function(FunctionName=fn)['Tags']) for fn in function_names] # function and its tags tuples
-    untracked = set(filter(lambda e: PRIO_TAG not in e[1],tags)) # functions without the PRIO tag
+    tags = [
+        (
+            fn,
+            __catch_default(lambda_client.get_function,{'Tags':{}},FunctionName=fn).get('Tags',{})
+            # non-existent functions and functions without tags will be ignored
+        )
+        for fn in function_names] # tuples of function name and its tags
+    untracked = set(filter(lambda e: PRIO_TAG not in e[1],tags)) # functions without the PRIO tag, non-existent functions and functions with no tags at all
     tags = filter(lambda e: e[0] not in untracked, tags) # keep only functions with PRIO tag
 
     discovery_item = f"discover.{zabbix_host}"

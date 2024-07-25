@@ -9,6 +9,6 @@ fi
 cp functions/utils/utils.py functions/$TRANSFORM_FN/
 cp functions/utils/requirements.txt functions/$TRANSFORM_FN/
 
-sam build -t metric-stream.yaml
+sam build -t metric-stream.yaml --parameter-overrides ZBLambTransformationFunction=$TRANSFORM_FN
 
 rm functions/$TRANSFORM_FN/utils.py functions/$TRANSFORM_FN/requirements.txt
