@@ -28,11 +28,10 @@ def build(params, args):
 
     return c
 
-def deploy(params,args):
+def default_cmd(params,args):
     param_list = dict2arg_list(params)
     call = f"sam deploy --config-file {CONFIG} --parameter-overrides {param_list} {args}"
 
-    os.system('pwd; ls')
     print("calling:\n"+call)
     c=0
     if not DRY:
@@ -43,7 +42,7 @@ def deploy(params,args):
 
 def print_usage():
     print("usage: python3 sam.py <command> <path_to_template_parameters.json> [other AWS SAM CLI args]")
-    print("<command>: one of build, deploy")
+    print("<command>: AWS SAM CLI command")
     print("for build, template is 'metric-stream.yaml'")
 
 if __name__ == "__main__":
@@ -52,14 +51,11 @@ if __name__ == "__main__":
         exit(1)
 
     cmd = sys.argv[1]
-    if cmd not in {'deploy', 'build'}:
-        print_usage()
-        exit(1)
 
     with open(sys.argv[2]) as parf:
         params = json.load(parf)
 
     args = " ".join(sys.argv[3:])
-    exit( globals()[cmd](params,args) )
+    exit( globals().get(cmd,default_cmd)(params,args) )
 
     
