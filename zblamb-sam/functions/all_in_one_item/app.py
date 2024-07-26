@@ -1,4 +1,4 @@
-from utils import extract_data, zbx_item_packet, zbx_send_packet
+from utils import extract_data, zbx_mass_item_packet, zbx_send_packet
 import os
 
 zabbix_host = "all-in-one.lambda.zblamb"
@@ -38,7 +38,7 @@ def lambda_handler(e,c):
     zbx_addr = (os.environ['ZBLAMB_PROXY_IP'],10051)
 
     data = extract_data(e)
-    packet = zbx_item_packet(data,sender_data)
+    packet = zbx_mass_item_packet(data,sender_data)
     resp = zbx_send_packet(zbx_addr,packet)
     print(resp)
     return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in e['records']]} # drop all data, do not send it further via firehose

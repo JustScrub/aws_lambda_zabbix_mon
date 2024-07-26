@@ -1,6 +1,8 @@
 
-import os
-from utils import extract_data, zbx_discover, zbx_item_packet, zbx_send_packet
+import os, logging
+from utils import extract_data, zbx_discover_packet, zbx_mass_item_packet, zbx_send_packet
+logger = logging.getLogger()
+logger.setLevel(os.environ.get('LOG_LEVEL', 'WARNING').upper())
 
 metric2stat_map = { # map metric to desired statistic. See Lambda Metrics AWS documentation for more info. Available: sum, count, min, max
     "Errors": ["sum"], # values must be lists
@@ -20,15 +22,22 @@ def sender_data(metric,values,function_name):
     ]
 
 def lambda_handler(e,c):
-    print("Event",e)
-    print("Context",c)
+    logger.info("Event %s",e)
     zbx_addr = (os.environ['ZBLAMB_PROXY_IP'],10051)
 
+    # extract metrics
     data = extract_data(e)
-    resp, untracked = zbx_discover(zbx_addr,zabbix_host,data)
-    print("Discovery response:",resp)
-    packet = zbx_item_packet(data,sender_data,untracked)
+
+    # discover functions
+    packet, ignored_functions = zbx_discover_packet(zbx_addr,zabbix_host,data)
+    logger.info("Discovery packet: %s",packet)
     resp = zbx_send_packet(zbx_addr,packet)
-    print(resp)
+    logger.info("Discovery response: %s",resp)
+
+    # send metrics to Zabbix
+    packet = zbx_mass_item_packet(data,sender_data,ignored_functions)
+    logger.info("Item packet: %s",packet)
+    resp = zbx_send_packet(zbx_addr,packet)
+    logger.info("Item response: %s",resp)
 
     return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in e['records']]} # drop all data, do not send it further via firehose

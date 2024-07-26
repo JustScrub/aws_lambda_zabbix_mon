@@ -1,6 +1,7 @@
 import json as j, base64, itertools as i, socket, struct
 from typing import Callable, Dict, Tuple,List,Set,Union
 import boto3
+import time
 
 ##### CONFIG #######
 PRIO_TAG="PRIO" # tag of lambda function assigning its priority
@@ -28,7 +29,7 @@ def __catch_default(func,default,*args,**kwargs):
     except:
         return default
 
-def zbx_discover(addr:Tuple[str,str],zabbix_host: str,jsons):
+def zbx_discover_packet(addr:Tuple[str,str],zabbix_host: str,jsons):
     function_names = [json['dimensions']['FunctionName'] for json in jsons]
     tags = [
         (
@@ -49,7 +50,7 @@ def zbx_discover(addr:Tuple[str,str],zabbix_host: str,jsons):
                 {
                     "host": zabbix_host,
                     "key": discovery_item,
-                    "data": j.dumps([
+                    "value": j.dumps([
                         {
                             f"{{#{ZBX_FN_NAME_MACRO}}}": function_name,
                             f"{{#{ZBX_PRIO_MACRO}}}": f"{fn_tags[PRIO_TAG]}"
@@ -60,10 +61,12 @@ def zbx_discover(addr:Tuple[str,str],zabbix_host: str,jsons):
             ]
          }
     ).encode("utf-8") # encode to bytes object for socket
-    return zbx_send_packet(addr,packet), untracked
+    return packet, untracked
 
-def zbx_item_packet(jsons,zbx_sender_data:Callable[[str,Dict,str],List[Dict]],ignore_names:Union[Set,None]=None):
+def zbx_mass_item_packet(jsons,zbx_sender_data:Callable[[str,Dict,str],List[Dict]],ignore_names:Union[Set,None]=None):
     '''
+    Creates a single monoliTHICC packet including all functions and metrics
+    
     :param jsons: parsed json objects with extract_data
     :param zbx_sender_data: function that accepts name of metric, its values and function name and returns 
                             a list of dictionaries corresponding to the zabbix sender protocol data field
@@ -74,20 +77,27 @@ def zbx_item_packet(jsons,zbx_sender_data:Callable[[str,Dict,str],List[Dict]],ig
     :param untracked_functions: set of function names to ignore
     '''
     ignore_names = ignore_names or {}
-    # get zabbix data objects for each metric and function, and update the objects with clock parameter
+    # get zabbix data objects for each metric and function, and update the objects with timestamps
     sender_data = [
-                list(map(lambda e: {**e,'clock': json['timestamp']},
+                list(map(lambda e: {
+                                **e,
+                                'clock': {int(json['timestamp'])//1000},          # timestamp in miliseconds -- extract seconds
+                                'ns': {(int(json['timestamp'])%1000)*1_000_000}  # exctract miliseconds and convert to nanoseconds
+                            },
                          zbx_sender_data(json['metric_name'],json['value'],json['dimensions']['FunctionName'])
                     ))
                 for json in jsons
                 if json['dimensions']['FunctionName'] not in ignore_names]
     sender_data = list(i.chain(*sender_data))
+    ts = time.time_ns()
 
 
     return j.dumps(
         {
             "request":"sender data",  # zabbix_sender request to zabbix server -- only trapper items are used
-            "data": sender_data
+            "data": sender_data,
+            "clock": ts//1_000_000_000,  # extract seconds
+            "ns": ts%1_000_000_000       # extract fractional nanoseconds
         }
     ).encode("utf-8") # encode to bytes object for socket
 
