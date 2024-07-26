@@ -1,0 +1,44 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version: 0.1
+
+default:
+  global:
+    parameters:
+      stack_name: ZBLambStack
+      region: eu-central-1
+  
+  build:
+    parameters:
+      cached: true
+      parallel: true
+
+  validate:
+    parameters:
+      lint: true
+
+  deploy:
+    parameters:
+      stack_name: ZBLambStack
+      capabilities: "CAPABILITY_IAM"
+      confirm_changeset: true
+      resolve_s3: true
+      tags: Name="Zabbix Lambda monitor Stack" Description="AWS CloudFormation Stack for the Zabbix Lambda monitor project"
+      parameter_overrides: ZBLambTransformationFunction=multi_trigger_transform
+      s3_prefix: ZBLambStackS3Resources
+  
+  package:
+    parameters:
+      resolve_s3: true
+
+  sync:
+    parameters:
+      watch: true
+
+  local_start_api:
+    parameters:
+      warm_containers: EAGER
+
+  local_start_lambda:
+    parameters:
+      warm_containers: EAGER
