@@ -53,11 +53,33 @@ Architecture:
 
 
 # TODO
+ - Resolve problems:
+    - Zabbix triggers wrong severity sometimes
+    - Changing priority of Lambda
+    - Do not send discovery of all lambdas from Transform Lambda
+        - only not yet discovered
+        - cache discovered lambdas
+    - "Time consistency"
+        - Parallel transform Lambda invocations -- allow or not?
+            - disable by setting Lambda timeout same as Firehose Buffering -- may be triggered early by size buffering setting
+        - out-of-order delivery on Zabbix
+            - Lambda invocation 0 has connectivity problems
+            - Lambda invocation 1 delivers metrics to Zabbix
+            - invocation delivers metrics -- after invoc 1! 
+            - Earlier metrics delivered later than current latest metrics
+            - Clock param of Zabbix Trapper protocol?
+
+ - Benchmark the infrastructure:
+    - 1000 active instances at once (at all times?)
+    - Transform lambda duration, parallelism?
+    - figure out good parameters -- Firehose buffering time and size, Lambda timeout, ...
+    - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
+
  - Setup Metric Stream
     - namespace: AWS/Lambda, metric: Error
     - Firehose source = DirectPUT, output based on one of approaches
     - CloudWatch sends accumulated metrics per 60 seconds, Firehose buffers incomming data for specified duration (Minimum = 60 min | 1MB data)
-    - CloudWatch -> Firehose -> S3 bucket -> Lambda -> Zabbix Protocol -> Zabbix Proxy
+    - CloudWatch -> Firehose -> S3 bucket -> Lambda -> Zabbix Protocol -> Zabbix Proxy/Server
         - Lambda:
             - downloads the metric JSON file, finds metrics per function name dimension ONLY -- one row = one json
             - gets ".values.sum" and ".timestamp"
