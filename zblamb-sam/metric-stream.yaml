@@ -267,6 +267,7 @@ Resources:
       Environment:
         Variables:
           ZBLAMB_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
+          LOG_LEVEL: INFO
       VpcConfig:
         SubnetIds:
           - !Ref ZBLambPrivSubnet
@@ -276,6 +277,7 @@ Resources:
         Name: Zabbix Lambda monitor Firehose stream transformation
         Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
         PRIO: 4
+        ZABBIX_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
 
 # Metric Stream
 
@@ -406,3 +408,14 @@ Resources:
           Value: Zabbix Lambda monitor Metric Stream 
         - Key: Description
           Value: The metric stream used to push AWS/Lambda Errors to Lambda pushing to Zabbix
+
+Outputs:
+  ZabbixIP:
+    Description: Private IP of the Zabbix server + frontend instance
+    Value: !GetAtt ZBLambZabServer.PrivateIp 
+
+  KeyID:
+    Description: >
+      ID of the SSH keypair to access the instances. 
+      Private key stored at /ec2/keypair/<KeyID> in Parameter Store
+    Value: !GetAtt ZBLambKeyPair.KeyPairId
