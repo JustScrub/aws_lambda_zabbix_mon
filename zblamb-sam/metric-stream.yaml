@@ -209,7 +209,10 @@ Resources:
             02_run_server_containers:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d
             03_configure_zabbix_infrastructure:
-              command: python3 /root/alzm/zabbix-scripts/zapi.py localhost 80 server
+              command: >-
+                python3 -m ensurepip
+                pip3 install -r /root/alzm/zabbix-scripts/requirements.txt
+                python3 /root/alzm/zabbix-scripts/zapi.py localhost 80 server
               ignoreErrors: "true"
 
 # Lambdas
