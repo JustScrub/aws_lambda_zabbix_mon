@@ -75,21 +75,31 @@ Architecture:
     - figure out good parameters -- Firehose buffering time and size, Lambda timeout, ...
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
 
+ - Central config for AWS and Zabbix
+
+ - create readable doc for the project
+
  - Setup Metric Stream
+    - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
+        - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
+
+ - configure Zabbix
+    - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
+
+ - Change paths of IAM roles
+ 
+ - move templates to SAM
+
+ - create network stack:
+    - VPC + IGW + NATGW
+    - Public Subnet + Private Subnet + Routing tables for both
+    - VPC endpoint (AWS PrivateLink) for Firehose
+
+# Done
+ - Setup Metric Stream:
     - namespace: AWS/Lambda, metric: Error
     - Firehose source = DirectPUT, output based on one of approaches
     - CloudWatch sends accumulated metrics per 60 seconds, Firehose buffers incomming data for specified duration (Minimum = 60 min | 1MB data)
-    - CloudWatch -> Firehose -> S3 bucket -> Lambda -> Zabbix Protocol -> Zabbix Proxy/Server
-        - Lambda:
-            - downloads the metric JSON file, finds metrics per function name dimension ONLY -- one row = one json
-            - gets ".values.sum" and ".timestamp"
-            - sends Zabbix packet to a Zabbix proxy
-                - contains: specific zabbix hostname (e.g. zabbix-lambda-errors), function name and "values.sum", timestamp
-    - CloudWatch -> Firehose -> HTTPS Endpoint -> Zabbix protocol -> Zabbix Proxy
-        - HTTPS Endpoint must have public IP address
-        - Firehose cannot currently access instances in a private VPC subnet
-            - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
-
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
         - Transformation Lambda:
             - is in VPC with Zabbix Proxy/Server -- can be private!
@@ -99,44 +109,6 @@ Architecture:
             - returns ``{"recordID": "provided ID by Firehose", "result": "Dropped", "data": ""}`` to Firehose
                 - Firehorse does not pass it forward to the destination
 
- - configure Zabbix
-    - add host (e.g. lambda.aws)
-    - possible flows:
-        - Per-Lambda trapper items via Low-Level Discovery
-            - host + discovery rule with key e.g. `discover.lambda.aws`
-            - item prototypes
-                - for each metric, with keys e.g. `error.metrics.lambda.aws[${FN_NAME}]`/`duration.metrics.lambda.aws[${FN_NAME}]`
-            - trigger prototypes
-                - problem: cannot dynamicly set severity
-                - create for each metric and each Zabbix priority one trigger
-                - all triggers have same expression, just the constants differ
-                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{#C_HIGH}")>=1`    
-                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{#C_WARN}")>=1`
-                - Lambdas are tagged in AWS with a severity/prioirty, e.g. `{PRIO=0}`
-                    - defined priority range/keywords (e.g. 0-9 / HIGH, WARN, INFO...)
-                    - each tag priority is mapped to trigger constant values
-                        - `PRIO=0` => `{#C_HIGH}=4`, `{#C_WARN}=2`, `{#C_INFO}=1000000`
-                        - put high constants to Zabbix severities to "disable" (e.g. above "disables" info trigger)
-                        - may use Zabbix "user macros with context"
-                            - `count(...,{$C_HIGH:"{#PRIO}"})>=1`
-                            - constants defined in Zabbix, not in "sender"
-                    - flag that 
-
-    - somehow visualize
-    - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
- 
- - Migrate from pure CloudFormation to SAM 
-
- - Change paths of IAM roles
-
- - create network stack:
-    - VPC + IGW + NATGW
-    - Public Subnet + Private Subnet + Routing tables for both
-    - VPC endpoint (AWS PrivateLink) for Firehose
-
-# Done
- - test template functionality
- - test scripts functionality
  - configure Zabbix infrastructure
     - passive agent --> proxy --> server
     - agent:
@@ -172,6 +144,58 @@ Architecture:
                     - Allow multiple triggers with correlation tag "Lambda Name"
                     - Allow manual close
                     - These setting wills report errors per-function
+        - Single-Host Multi-Trigger Per-Lambda trapper items via Low-Level Discovery
+            - Lambdas are tagged in AWS with a prioirty, e.g. `{PRIO=0}`
+            - host + discovery rule with key e.g. `discover.lambda.aws`
+            - mapping between Lambda priorities and Zabbix severities
+                - each Lambda priority maps to multiple Zabbix severities (or rather triggers)
+                - configuration: 2D table Lambda priorities × Zabbix severities, entries = Constants for triggers
+                    - constants say when a trigger for corresponding severity should trigger (for a function with corresponding priority)
+                    - can leave out some entries = the priority does not trigger the left out severity
+            - host macros
+                - for each metric and each severity, create macros with context
+                - context = lambda priority
+                - value = configuration table entry for that severity/priority
+                    - `PRIO=0` => `{#ERRORS_HIGH:0}=4`, `{#ERRORS_AVERAGE:0}=2`, `{#ERRORS_INFO:0}=1`
+                    - `PRIO=3` => `{#ERRORS_AVERAGE:3}=5`, `{#ERRORS_INFO:3}=1`
+                - do not create macros for left out entries
+                - each macro has a default value (without context) for non-classified functions (not known or no priority)
+                    - to "disable" these, put high number
+            - item prototypes
+                - for each metric, parametrized by function e.g. `error.metrics.lambda.aws[${FN_NAME}]`/`duration.metrics.lambda.aws[${FN_NAME}]`
+            - trigger prototypes
+                - create for each item and each Zabbix priority one trigger
+                    - e.g. `INFO.error.metrics.lambda.aws[${FN_NAME}]`/`AVERAGE.duration.metrics.lambda.aws[${FN_NAME}]`
+                - all triggers have same expression, just the constants differ
+                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{$ERROR_INFO:{#PRIO}}")>=1`    
+                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{$ERROR_HIGH:{#PRIO}}")>=1`
+                - do not create triggers for left out entries in the configuration table
+                    - using discovery rule Overrides
+
+        - Single-Host Single-Trigger Per-Lambda trapper items via Low-Level Discovery
+            - like Multi-Trigger, but simpler
+            - config: two simple mappings Lambda Priority -> Zabbix Severity, Lambda Priority -> Constant Value
+            - macros: for each metric and priority (with context), not for severities, according to Priority -> Constant mapping
+            - item prototypes: same as Multi-Trigger
+            - trigger prototypes:
+                - one trigger per item
+                - using discovery rule Overrides, change the severity during discovery to the one corresponding to Priority -> Severity mapping
+            - Priority -> Severity mapping tells what severity that priority has
+            - Priority -> Constant mapping tells when the trigger with that severity should set off
+
+
+# Abandoned Ideas
+ - Setup Metric Stream:
+    - CloudWatch -> Firehose -> S3 bucket -> Lambda -> Zabbix Protocol -> Zabbix Proxy/Server
+        - Lambda:
+            - downloads the metric JSON file, finds metrics per function name dimension ONLY -- one row = one json
+            - gets ".values.sum" and ".timestamp"
+            - sends Zabbix packet to a Zabbix proxy
+                - contains: specific zabbix hostname (e.g. zabbix-lambda-errors), function name and "values.sum", timestamp
+    - CloudWatch -> Firehose -> HTTPS Endpoint -> Zabbix protocol -> Zabbix Proxy
+        - HTTPS Endpoint must have public IP address
+        - Firehose cannot currently access instances in a private VPC subnet
+            - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
 
 # Useful links
  - AWS instances
