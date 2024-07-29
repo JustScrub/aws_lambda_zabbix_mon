@@ -82,6 +82,10 @@ Architecture:
  - Setup Metric Stream
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
         - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
+        - do not discover already discovered Lambdas in Zabbix
+            - "Cache" in Lambda tags:
+                - ZabbixMonitored Tag: timestamp of time of discovery
+                - Zabbix Keep Period tag or Transform lambda config: after how long Zabbix deletes the discovered objects 
 
  - configure Zabbix
     - RE-discovery
@@ -89,7 +93,7 @@ Architecture:
         - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
         - script: make a python script that 
             - updates the priority of a Lambda function, 
-            - deletes Zabbix triggers for the funtion (.*triggers.suffix\[FnName\]) and 
+            - deletes Zabbix triggers for the funtion (contains `triggers.<suffix>[<FnName>]`) and 
             - discovers it anew
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
 

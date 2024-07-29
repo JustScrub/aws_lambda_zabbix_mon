@@ -1,0 +1,1 @@
+from zbx_auto_discover import auto_discover

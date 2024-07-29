@@ -211,8 +211,8 @@ Resources:
             03_configure_zabbix_infrastructure:
               command: >-
                 python3 -m ensurepip
-                pip3 install -r /root/alzm/zabbix-scripts/requirements.txt
-                python3 /root/alzm/zabbix-scripts/zapi.py localhost 80 server
+                pip3 install -r /root/alzm/scripts/zapi/requirements.txt
+                python3 /root/alzm/scripts/zapi/zapi.py localhost 80 server
               ignoreErrors: "true"
 
 # Lambdas
