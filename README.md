@@ -84,6 +84,13 @@ Architecture:
         - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
 
  - configure Zabbix
+    - RE-discovery
+        - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changes (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
+        - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
+        - script: make a python script that 
+            - updates the priority of a Lambda function, 
+            - deletes Zabbix triggers for the funtion (.*triggers.suffix\[FnName\]) and 
+            - discovers it anew
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
 
  - Change paths of IAM roles
