@@ -7,6 +7,7 @@ import time
 PRIO_TAG="PRIO" # tag of lambda function assigning its priority
 ZBX_PRIO_MACRO="PRIO" # LLD macro for Zabbix that will be evaluated to the function priority
 ZBX_FN_NAME_MACRO="FN_NAME" # LLD macro for Zabbix that will be evaluated to the function name
+ZBX_MONITORED_TAG='ZabbixMonitored'
 ##### END CONFIG #####
 
 lambda_client = boto3.client("lambda")
@@ -29,17 +30,29 @@ def __catch_default(func,default,*args,**kwargs):
     except:
         return default
 
-def zbx_discover_packet(addr:Tuple[str,str],zabbix_host: str,jsons):
+def zbx_discover_packet(zabbix_host: str,jsons):
     function_names = [json['dimensions']['FunctionName'] for json in jsons]
-    tags = [
+    fn_tups = [
         (
             fn,
-            __catch_default(lambda_client.get_function,{'Tags':{}},FunctionName=fn).get('Tags',{})
-            # non-existent functions and functions without tags will be ignored
+            res.get('Tags',{}),
+            res.get('Configuration',{'FunctionArn':''}).get('FunctionArn','')
         )
-        for fn in function_names] # tuples of function name and its tags
-    untracked = set(filter(lambda e: PRIO_TAG not in e[1],tags)) # functions without the PRIO tag, non-existent functions and functions with no tags at all
-    tags = filter(lambda e: e[0] not in untracked, tags) # keep only functions with PRIO tag
+        for fn in function_names # tuples of function name and its tags
+        for res in list(__catch_default(lambda_client.get_function,{'Tags':{},'Configuration':{'FunctionArn':''}},FunctionName=fn))
+                                                                    # non-existent functions and functions without tags will be ignored
+    ]
+    fn_tups = filter(lambda e: ZBX_MONITORED_TAG not in e[1], fn_tups) # only discover new functions
+    
+    untracked = filter(lambda e: PRIO_TAG not in e[1],fn_tups) # functions without the PRIO tag, non-existent functions and functions with no tags at all
+    fn_tups = filter(lambda e: e[0] not in untracked, fn_tups) # keep only functions with PRIO tag
+    fn_tups = list(fn_tups)
+
+    for fn in fn_tups:
+        lambda_client.tag_resource(
+            Resource=fn[2],
+            Tags={ZBX_MONITORED_TAG: "true"}
+        )
 
     discovery_item = f"discover.{zabbix_host}"
     packet = j.dumps(
@@ -55,7 +68,7 @@ def zbx_discover_packet(addr:Tuple[str,str],zabbix_host: str,jsons):
                             f"{{#{ZBX_FN_NAME_MACRO}}}": function_name,
                             f"{{#{ZBX_PRIO_MACRO}}}": f"{fn_tags[PRIO_TAG]}"
                         }
-                        for function_name,fn_tags in tags
+                        for function_name,fn_tags in fn_tups
                     ])
                 }
             ]

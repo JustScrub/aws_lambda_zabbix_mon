@@ -29,7 +29,7 @@ def lambda_handler(e,c):
     data = extract_data(e)
 
     # discover functions
-    packet, ignored_functions = zbx_discover_packet(zbx_addr,zabbix_host,data)
+    packet, ignored_functions = zbx_discover_packet(zabbix_host,data)
     logger.info("Discovery packet: %s",packet)
     resp = zbx_send_packet(zbx_addr,packet)
     logger.info("Discovery response: %s",resp)
