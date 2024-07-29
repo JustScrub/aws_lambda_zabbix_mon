@@ -7,23 +7,33 @@ Architecture:
  - AWS Lambda --> AWS CloudWatch --> metrics to this project --> Zabbix Proxy --> Zabbix Server --> Dashboard
 
 # Config
+ - Central config script:
+    - prj_config.py
+    - guided config creation
+    - fill config parameters for the multi-trigger mapping of Lambda priorities to Zabbix severities
+    - textual parameters only! 
+    - the concrete mapping must be specified in the scripts/zapi/zapi.py script with MetricConfig for now
+        - see below
+    - sets common names (below) and template parameters JSON file
+
  - Zabbix: 
-    - zabbix-scripts/zapi.py
+    - scripts/zapi/zapi.py
         - select mapping (all-in-one item, single-trigger discovery, multi-trigger discovery)
         - create list of MetricConfig objects for the specific mapping
             - there can be multiple zabbix items/metrics for one metric in AWS Lambda
             - each is a separate instance of MetricConfig
-        - call function that populates zabbix
+        - call function that populates zabbix (e.g. `create_multi_trigger_mapping`)
 
  - AWS: 
     - zblamb-sam/
-        - template.yaml
+        - metric-stream.yaml
             - includes demo infrastructure, feel free to modify (remove EC2 instance...)
             - only Firehose transform Lambda, Firehose Data Stream and Meric Stream objects must remain
                 - Transform Lambda must have ZBLAMB_PROXY_IP environment variable defined!
                 - IP address of the Zabbix Server/Proxy it will be sending data to
                 - if the Zabbix Server/Proxy is in a private subnet in AWS VPC, the transform lambda must be "inside" as well
             - in Metric Stream, select which metric for Lambda to stream (e.g. 'Errors', 'Duration')
+                - to support more metrics, configure Zabbix with MetricConfig (above) and edit the Transformation Lambda source code (below)
             - can add more statistics (see AWS::CloudWatch::MetricStream documentation)
 
         - functions/
@@ -40,6 +50,7 @@ Architecture:
 
 - Common:
     - all 'names' (e.g. Zabbix item names, Zabbix host names or trigger names) must be same across Zabbix and AWS config!
+        - set with central config script (above)
         - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
         - all zabbix names are lower-case, except for Lambda function name (anything outside of `[]` is lower-case)
         - LLD rule under the host has (item) name `discovery.<suffix>`
@@ -76,6 +87,18 @@ Architecture:
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
 
  - Central config for AWS and Zabbix
+    - transformation configurable? Or hard-coded multi-trigger?
+    - central configure of zapi mapping
+        - MetricConfig list
+        - transformation??
+    - central configure of Transformation ??
+    - central configure of metrics to stream
+    - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List??
+        - MetricConfig also includes name of AWS metric (and statistic) it maps to zabbix items
+        - have python configuration file that would include just the MetricConfig List
+        - propagate this List to zapi.py (config module), SAM template (?? parameter?) and Transform Lambda (config script)
+    - Zabbix LLD keep period: propage to zapi and Transform Lambda (set in prj_config.py)
+    - Firehose Buffering, Lambda timeouts etc. in central config
 
  - create readable doc for the project
 
@@ -88,7 +111,7 @@ Architecture:
                 - Zabbix Keep Period tag or Transform lambda config: after how long Zabbix deletes the discovered objects 
 
  - configure Zabbix
-    - RE-discovery
+    - RE-discovery -- TEST
         - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changes (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
         - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
         - script: make a python script that 

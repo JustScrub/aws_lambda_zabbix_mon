@@ -1,9 +1,10 @@
 #!/bin/python
 import socket, struct, json
+from ..config import ZBX_SUFFIX,ZBX_PRIO_MACRO,ZBX_FN_NAME_MACRO
 
 
-def auto_discover(name_prio_tuples, zab_addr, suffix):
-    discovered = [{"{#FN_NAME}": f, "{#PRIO}":p} for f,p in name_prio_tuples]
+def auto_discover(name_prio_tuples, zab_addr, suffix=ZBX_SUFFIX):
+    discovered = [{f"{{#{ZBX_FN_NAME_MACRO}}}": f, f"{{#{ZBX_PRIO_MACRO}}}":p} for f,p in name_prio_tuples]
 
     d = json.dumps({
         "request": "sender data",
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     
     tups = [(f,p) for f,p in map(lambda arg: arg.split(','), sys.argv[1:])]
     addr = ("localhost", 10051)
-    suffix = "multi.lambda.zblamb"
+    suffix = ZBX_SUFFIX
 
     print(
         auto_discover(tups,addr,suffix)

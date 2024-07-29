@@ -1,6 +1,6 @@
 
 import os, logging
-from utils import extract_data, zbx_discover_packet, zbx_mass_item_packet, zbx_send_packet
+from utils import extract_data, zbx_discover_packet, zbx_mass_item_packet, zbx_send_packet, ZBX_SUFFIX
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOG_LEVEL', 'WARNING').upper())
 
@@ -9,7 +9,7 @@ metric2stat_map = { # map metric to desired statistic. See Lambda Metrics AWS do
     "Duration": ["max", "min"] # more values = push several statistics of 1 metric to Zabbix, items of metrics are <statistic>.<metric>.metrics.<host>[<function_name>]
 }
 
-zabbix_host = "multi.lambda.zblamb"
+zabbix_host = ZBX_SUFFIX
 def sender_data(metric,values,function_name):
     stats = metric2stat_map[metric]
     return [

@@ -1,7 +1,8 @@
 import sys, os
 from zapi_constructor import *
+from .. import config
 
-def ec2_get_local_addr():
+def imdsv2_get_local_addr():
     import requests
     tok = requests.request(
         method="PUT",
@@ -16,7 +17,7 @@ def ec2_get_local_addr():
     return ip.text
 
 def configure_zabbix_from_agent(zapi:ZabbixAPI, metrics:List[LLDMultiTriggerMetricConfig], proxy_addr:Tuple[str,int], local_addr:Tuple[str,int]=None):
-    local_addr = local_addr or (ec2_get_local_addr(),10050)
+    local_addr = local_addr or (imdsv2_get_local_addr(),10050)
 
     proxy_id=create_proxy(zapi,
                  "zblamb",
@@ -30,7 +31,7 @@ def configure_zabbix_from_agent(zapi:ZabbixAPI, metrics:List[LLDMultiTriggerMetr
     group_id=create_group(zapi,"zblamb")
     host_id=create_host(
         zapi,
-        "multi.lambda.zblamb",
+        config.ZBX_SUFFIX,
         [group_id],
 
         proxy_hostid=proxy_id,
@@ -45,7 +46,9 @@ def configure_zabbix_from_agent(zapi:ZabbixAPI, metrics:List[LLDMultiTriggerMetr
     create_multi_trigger_mapping(
         zapi,
         metrics,
-        "multi.lambda.zblamb",
+        config.ZBX_SUFFIX,
+        config.ZBX_PRIO_MACRO,
+        config.ZBX_FN_NAME_MACRO,
         group_id=group_id,
         host_id=host_id
     )
@@ -54,14 +57,14 @@ def configure_zabbix_from_server(zapi:ZabbixAPI,metrics:List[LLDMultiTriggerMetr
     group_id=create_group(zapi,"zblamb")
     host_id=create_host(
         zapi,
-        "multi.lambda.zblamb",
+        config.ZBX_SUFFIX,
         [group_id],
     )
 
     create_multi_trigger_mapping(
         zapi,
         metrics,
-        "multi.lambda.zblamb",
+        config.ZBX_SUFFIX,
         group_id=group_id,
         host_id=host_id
     )
@@ -103,4 +106,8 @@ if __name__ == "__main__":
     elif len(sys.argv)>3 and sys.argv[3]=="server":
         configure_zabbix_from_server(zapi,metrics)
     else:
-        create_multi_trigger_mapping(zapi,metrics,suffix="multi.lambda.zblamb",group_id=21)
+        create_multi_trigger_mapping(zapi,metrics,
+                                     suffix=config.ZBX_SUFFIX,
+                                     prio_tag=config.ZBX_PRIO_MACRO,
+                                     name_tag=config.ZBX_FN_NAME_MACRO,
+                                     group_id=21)

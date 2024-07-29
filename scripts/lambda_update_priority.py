@@ -3,11 +3,9 @@ from utility_scripts import auto_discover
 from zapi import LambdaPriority
 import boto3
 import json, sys, os
+from config import ZBX_SUFFIX, AWS_PRIO_TAG
 
-SUFFIX='multi.lambda.zblamb'
-PRIO_TAG='PRIO'
-
-def zbx_delete_triggers(zapi,function_name,suffix=SUFFIX):
+def zbx_delete_triggers(zapi,function_name,suffix=ZBX_SUFFIX):
     # get the trigger IDs
     ids = [ res['triggerid']
         for res in zapi.trigger.get(
@@ -27,7 +25,7 @@ def aws_lambda_set_prio_tag(lambda_client,function_name,prio:LambdaPriority):
     lambda_client.tag_resource(
         Resource=fn_arn,
         Tags={
-            PRIO_TAG: f"{prio.value}"
+            AWS_PRIO_TAG: f"{prio.value}"
         }
     )
 
@@ -35,9 +33,9 @@ def update_priority(zab_addr,function_name,priority:LambdaPriority):
     zapi = ZabbixAPI(f"http://{zab_addr[0]}:{zab_addr[1]}")
     lambda_client = boto3.client('lambda')
 
-    zbx_delete_triggers(zapi,function_name,SUFFIX)
+    zbx_delete_triggers(zapi,function_name,ZBX_SUFFIX)
     aws_lambda_set_prio_tag(lambda_client,function_name,priority)
-    auto_discover([(function_name,priority.value)],zab_addr,SUFFIX)
+    auto_discover([(function_name,priority.value)],zab_addr,ZBX_SUFFIX)
 
 
 if __name__=="__main__":

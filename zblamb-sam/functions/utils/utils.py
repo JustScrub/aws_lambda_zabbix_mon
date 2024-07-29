@@ -2,13 +2,7 @@ import json as j, base64, itertools as i, socket, struct
 from typing import Callable, Dict, Tuple,List,Set,Union
 import boto3
 import time
-
-##### CONFIG #######
-PRIO_TAG="PRIO" # tag of lambda function assigning its priority
-ZBX_PRIO_MACRO="PRIO" # LLD macro for Zabbix that will be evaluated to the function priority
-ZBX_FN_NAME_MACRO="FN_NAME" # LLD macro for Zabbix that will be evaluated to the function name
-ZBX_MONITORED_TAG='ZabbixMonitored'
-##### END CONFIG #####
+from config import *
 
 lambda_client = boto3.client("lambda")
 
@@ -44,7 +38,7 @@ def zbx_discover_packet(zabbix_host: str,jsons):
     ]
     fn_tups = filter(lambda e: ZBX_MONITORED_TAG not in e[1], fn_tups) # only discover new functions
     
-    untracked = filter(lambda e: PRIO_TAG not in e[1],fn_tups) # functions without the PRIO tag, non-existent functions and functions with no tags at all
+    untracked = filter(lambda e: AWS_PRIO_TAG not in e[1],fn_tups) # functions without the PRIO tag, non-existent functions and functions with no tags at all
     fn_tups = filter(lambda e: e[0] not in untracked, fn_tups) # keep only functions with PRIO tag
     fn_tups = list(fn_tups)
 
@@ -66,7 +60,7 @@ def zbx_discover_packet(zabbix_host: str,jsons):
                     "value": j.dumps([
                         {
                             f"{{#{ZBX_FN_NAME_MACRO}}}": function_name,
-                            f"{{#{ZBX_PRIO_MACRO}}}": f"{fn_tags[PRIO_TAG]}"
+                            f"{{#{ZBX_PRIO_MACRO}}}": f"{fn_tags[AWS_PRIO_TAG]}"
                         }
                         for function_name,fn_tags in fn_tups
                     ])

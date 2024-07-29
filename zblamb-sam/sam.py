@@ -2,35 +2,36 @@ import sys, os, shutil, json
 
 DRY=False
 TEMPLATE='./metric-stream.yaml'
-CONFIG='samconfig.yaml'
+SAMCONFIG='samconfig.yaml'
 
 BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
 
 def dict2arg_list(params):
     return " ".join([f"{k}={v}" for k,v in params.items()])
 
-
+BUILD_COPY_FILES = ['utils.py', 'requirements.txt', 'config.py']
 def build(params, args):
     transform = params['ZBLambTransformationFunction']
     param_list = dict2arg_list(params)
-    call = f"sam build -t {TEMPLATE} --config-file {CONFIG} --parameter-overrides {param_list} {args}"
+    call = f"sam build -t {TEMPLATE} --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
     
-    shutil.copy(f"./functions/utils/utils.py",f"./functions/{transform}/")
-    shutil.copy(f"./functions/utils/requirements.txt",f"./functions/{transform}/")
+
+    for file in BUILD_COPY_FILES:
+        shutil.copy(f"./functions/utils/{file}",f"./functions/{transform}/")
 
     print("calling:\n"+call)
     c=0
     if not DRY:
         c = os.system(call)
 
-    os.remove(f"./functions/{transform}/utils.py")
-    os.remove(f"./functions/{transform}/requirements.txt")
+    for file in BUILD_COPY_FILES:
+        os.remove(f"./functions/{transform}/{file}")
 
     return c
 
 def default_cmd(params,args):
     param_list = dict2arg_list(params)
-    call = f"sam deploy --config-file {CONFIG} --parameter-overrides {param_list} {args}"
+    call = f"sam deploy --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
 
     print("calling:\n"+call)
     c=0
