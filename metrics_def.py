@@ -1,11 +1,11 @@
-from scripts.zapi import LLDMultiTriggerMetricConfig 
-from scripts.zapi import LambdaPriority, ZabbixSeverity
+from .scripts.zapi import LLDMultiTriggerMetricConfig 
+from .scripts.zapi import LambdaPriority, ZabbixSeverity
 
 MetricConfigs = [
         LLDMultiTriggerMetricConfig(
             zbx_name="errors",
             zbx_value_type="int",
-            zbx_trigger_expression_pattern='count({},5m,"ge","{}")>=1',
+            zbx_trigger_expression_pattern='count({},5m,"ge","{}")>="1"',
             aws_metric_name='Errors',
             aws_statistic_name='sum',
             priority_mapping={
@@ -18,7 +18,7 @@ MetricConfigs = [
         LLDMultiTriggerMetricConfig(
             zbx_name="max.duration",
             zbx_value_type="float",
-            zbx_trigger_expression_pattern='last({})>={}',
+            zbx_trigger_expression_pattern='last({})>="{}"',
             aws_metric_name='Duration',
             aws_statistic_name='max',
             priority_mapping={
@@ -30,7 +30,7 @@ MetricConfigs = [
         LLDMultiTriggerMetricConfig(
             zbx_name="min.duration",
             zbx_value_type="float",
-            zbx_trigger_expression_pattern='last({})>={}',
+            zbx_trigger_expression_pattern='last({})>="{}"',
             aws_metric_name='Duration',
             aws_statistic_name='min',
             priority_mapping={
@@ -40,15 +40,18 @@ MetricConfigs = [
             }
         ),
         LLDMultiTriggerMetricConfig(
-            zbx_name="countmin.duration",
+            zbx_name="count_avg.duration",
             zbx_value_type="float",
-            zbx_trigger_expression_pattern="count({},5m,ge,500)>{}", # when the number of functions that took longer than 300 ms is more than <const>
+            # more than 4 invocations took longer than <const> ms or 
+            # the average of slowest invocations is greater than <const> ms 
+            # for the past 5 minutes
+            zbx_trigger_expression_pattern='count({0},5m,"ge","{1}")>4 or avg({0},5m)>"{1}"', 
             aws_metric_name="Duration",
-            aws_statistic_name="min",
+            aws_statistic_name="max",
 
             priority_mapping={
-                LambdaPriority(1): { ZabbixSeverity.DISASTER: 2,   ZabbixSeverity.HIGH: 1},    
-                LambdaPriority(2): { ZabbixSeverity.AVERAGE: 1},        
+                LambdaPriority(1): { ZabbixSeverity.HIGH: 500, ZabbixSeverity.AVERAGE: 400},    
+                LambdaPriority(2): { ZabbixSeverity.AVERAGE: 400},        
             }
         )
 ]

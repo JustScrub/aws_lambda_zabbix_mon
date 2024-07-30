@@ -1,5 +1,5 @@
 import sys, os
-from zapi_constructor import *
+from .zapi_constructor import *
 from .. import config
 from ...metrics_def import MetricConfigs
 

@@ -12,6 +12,12 @@ Architecture:
         - python script containig only a list of `LLDMultiTriggerMetricConfig` instances
         - list must be named `MetricConfigs`
         - create more instances based on the sample ones
+        - **TRIGGER EXPRESSION CONSTANTS MUST BE ENCLOSED IN DOUBLE QUOTES**
+            - i.e. `last({})>{}` **is not** correct, `last({})>"{}"` **is** correct
+            - first `{}` references the item, second the constant
+            - may be numbered as well for reverse order or multiple references:
+                - `"{1}"<last({0})` = last value is greater than constant
+                - `count({0},5m,"ge","{1}")>7 or avg({0},5m)>"{1}"` = number of function invocations with metric higher than constant was greater than 7 for the past 5 minutes or the average of metric value for the past 5 minutes is greater that the constant
         - The list serves as configuration of both Zabbix (discovery,items,triggers...) and AWS (what metrics to stream, how to transform to Zabbix items)
         - **crucial!!**
     - prj_config.py:
@@ -40,6 +46,10 @@ Architecture:
 
 
 # TODO
+ - Zabbix Discovery do not create all trigger prototypes
+    - Zabbix creates trigger prototypes for all severities (for an item)
+    - do not create triggers for unused severities
+
  - Resolve problems:
     - Zabbix triggers wrong severity sometimes
     - "Time consistency"

@@ -31,6 +31,7 @@ def aws_lambda_set_prio_tag(lambda_client,function_name,prio:LambdaPriority):
 
 def update_priority(zab_addr,function_name,priority:LambdaPriority):
     zapi = ZabbixAPI(f"http://{zab_addr[0]}:{zab_addr[1]}")
+    zapi.login("Admin", "zabbix")
     lambda_client = boto3.client('lambda')
 
     zbx_delete_triggers(zapi,function_name,ZBX_SUFFIX)
