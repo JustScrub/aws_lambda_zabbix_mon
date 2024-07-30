@@ -1,6 +1,7 @@
 import sys, os
 from zapi_constructor import *
 from .. import config
+from ...metrics_def import MetricConfigs
 
 def imdsv2_get_local_addr():
     import requests
@@ -83,19 +84,23 @@ if __name__ == "__main__":
     zapi = ZabbixAPI(url)
     zapi.login("Admin", "zabbix")
 
-    metrics = [
-        LLDMultiTriggerMetricConfig(
-            name="errors",
-            value_type="int",
-            trigger_expression_pattern='count({},5m,"ge","{}")>=1',
-            priority_mapping={
-                LambdaPriority(0): { ZabbixSeverity.DISASTER: 1 },                                                      # prio 0 triggers disaster on at least one fail
-                LambdaPriority(1): { ZabbixSeverity.DISASTER: 2,   ZabbixSeverity.HIGH: 1},                             # prio 1 triggers disaster on at least 2 fails and high on 1 fail
-                LambdaPriority(2): { ZabbixSeverity.DISASTER: None,ZabbixSeverity.HIGH: 2, ZabbixSeverity.AVERAGE: 1},  # prio 2 triggers high on at least 2 fails and average on 1 fail
-                LambdaPriority(-1): {severity: None for severity in list(ZabbixSeverity)}                               # undefined priority does not trigger anything
-            }
-        )
-    ]
+    #metrics = [
+    #    LLDMultiTriggerMetricConfig(
+    #        zbx_name="errors",
+    #        zbx_value_type="int",
+    #        zbx_trigger_expression_pattern='count({},5m,"ge","{}")>=1',
+    #        aws_metric_name='Errors',
+    #        aws_statistic_name='sum',
+    #        priority_mapping={
+    #            LambdaPriority(0): { ZabbixSeverity.DISASTER: 1 },                                                      # prio 0 triggers disaster on at least one fail
+    #            LambdaPriority(1): { ZabbixSeverity.DISASTER: 2,   ZabbixSeverity.HIGH: 1},                             # prio 1 triggers disaster on at least 2 fails and high on 1 fail
+    #            LambdaPriority(2): { ZabbixSeverity.DISASTER: None,ZabbixSeverity.HIGH: 2, ZabbixSeverity.AVERAGE: 1},  # prio 2 triggers high on at least 2 fails and average on 1 fail
+    #            LambdaPriority(-1): {severity: None for severity in list(ZabbixSeverity)}                               # undefined priority does not trigger anything
+    #        }
+    #    )
+    #]
+
+    metrics = MetricConfigs
 
     if len(sys.argv)>3 and sys.argv[3]=="agent":
         configure_zabbix_from_agent(

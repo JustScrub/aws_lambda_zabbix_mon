@@ -9,7 +9,7 @@ BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
 def dict2arg_list(params):
     return " ".join([f"{k}={v}" for k,v in params.items()])
 
-BUILD_COPY_FILES = ['utils.py', 'requirements.txt', 'config.py']
+BUILD_COPY_FILES = ['utils.py', 'requirements.txt', 'config.py', 'metric_map.json']
 def build(params, args):
     transform = params['ZBLambTransformationFunction']
     param_list = dict2arg_list(params)

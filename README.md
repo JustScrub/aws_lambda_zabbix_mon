@@ -66,10 +66,6 @@ Architecture:
 # TODO
  - Resolve problems:
     - Zabbix triggers wrong severity sometimes
-    - Changing priority of Lambda
-    - Do not send discovery of all lambdas from Transform Lambda
-        - only not yet discovered
-        - cache discovered lambdas
     - "Time consistency"
         - Parallel transform Lambda invocations -- allow or not?
             - disable by setting Lambda timeout same as Firehose Buffering -- may be triggered early by size buffering setting
@@ -88,15 +84,11 @@ Architecture:
 
  - Central config for AWS and Zabbix
     - transformation configurable? Or hard-coded multi-trigger?
-    - central configure of zapi mapping
-        - MetricConfig list
-        - transformation??
-    - central configure of Transformation ??
-    - central configure of metrics to stream
-    - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List??
+    - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List?? -- **TEST**
         - MetricConfig also includes name of AWS metric (and statistic) it maps to zabbix items
         - have python configuration file that would include just the MetricConfig List
-        - propagate this List to zapi.py (config module), SAM template (?? parameter?) and Transform Lambda (config script)
+        - propagate this List to zapi.py (config module), SAM template (parameter) and Transform Lambda (metric mapping AWS->Zabbix)
+            - Transform: from MetricConfigs, create JSON that maps AWS Metric + AWS statistic to Zabbix item name
     - Zabbix LLD keep period: propage to zapi and Transform Lambda (set in prj_config.py)
     - Firehose Buffering, Lambda timeouts etc. in central config
 
@@ -111,7 +103,7 @@ Architecture:
                 - Zabbix Keep Period tag or Transform lambda config: after how long Zabbix deletes the discovered objects 
 
  - configure Zabbix
-    - RE-discovery -- TEST
+    - RE-discovery -- **TEST**
         - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changes (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
         - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
         - script: make a python script that 

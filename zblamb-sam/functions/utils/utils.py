@@ -1,5 +1,5 @@
 import json as j, base64, itertools as i, socket, struct
-from typing import Callable, Dict, Tuple,List,Set,Union
+from typing import Dict,Tuple,Set,Union
 import boto3
 import time
 from config import *
@@ -70,32 +70,36 @@ def zbx_discover_packet(zabbix_host: str,jsons):
     ).encode("utf-8") # encode to bytes object for socket
     return packet, untracked
 
-def zbx_mass_item_packet(jsons,zbx_sender_data:Callable[[str,Dict,str],List[Dict]],ignore_names:Union[Set,None]=None):
+
+def __load_metric_map():
+    with open("metric_map.json", "r") as f:
+        return j.load(f)
+
+def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]=None):
     '''
     Creates a single monoliTHICC packet including all functions and metrics
     
     :param jsons: parsed json objects with extract_data
-    :param zbx_sender_data: function that accepts name of metric, its values and function name and returns 
-                            a list of dictionaries corresponding to the zabbix sender protocol data field
-                            - each has 'host' (zabbix host), 'key' (key of the item) and 'value' (value to push to the item).
-                            The function returns a list in case one AWS metric translates to more Zabbix metrics,
-                            e.g. the Duration metric may translate to max.duration and min.duration in zabbix, 
-                            thus the function returns two dictionaries
-    :param untracked_functions: set of function names to ignore
+    :param zabbix_host: name of the Zabbix host, from which item names are derived: <zbx_metric>.metrics.<zabbix_host>[<function_name>]
+    :param ignore_names: set of function names to ignore
     '''
     ignore_names = ignore_names or {}
+    metric_map = __load_metric_map()
     # get zabbix data objects for each metric and function, and update the objects with timestamps
     sender_data = [
-                list(map(lambda e: {
-                                **e,
-                                'clock': {int(json['timestamp'])//1000},          # timestamp in miliseconds -- extract seconds
-                                'ns': {(int(json['timestamp'])%1000)*1_000_000}  # exctract miliseconds and convert to nanoseconds
-                            },
-                         zbx_sender_data(json['metric_name'],json['value'],json['dimensions']['FunctionName'])
-                    ))
-                for json in jsons
-                if json['dimensions']['FunctionName'] not in ignore_names]
-    sender_data = list(i.chain(*sender_data))
+        {
+            "host": zabbix_host,
+            "key": f"{item}.metrics.{zabbix_host}[{json['dimensions']['FunctionName']}]",
+            "value": json['value'][stat],
+            'clock': {int(json['timestamp'])//1000},          # timestamp in miliseconds -- extract seconds
+            'ns': {(int(json['timestamp'])%1000)*1_000_000}  # exctract miliseconds and convert to nanoseconds
+        }
+        for json in jsons
+        for stats in metric_map[json['metric_name']]
+        for stat in stats
+        for item in stats[stat]
+        if json['dimensions']['FunctionName'] not in ignore_names
+    ]
     ts = time.time_ns()
 
 

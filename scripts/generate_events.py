@@ -56,7 +56,7 @@ def generate_metric_stream_data(functions):
             "metric_stream_name": "ZBLamb-MockLambda1-ErrorMetricStream",
             "namespace": "AWS/Lambda",
             "region": "eu-central-1",
-            "timestamp": time.time_ns() - random.randint(0,24*60*60*1000000000),
+            "timestamp": time.time_ns() - random.randrange(24*60*60*1000000000),
             "unit": unit,
             "value": {
                 "count": getval(1,10),

@@ -28,6 +28,9 @@ sam_parameters = {
 # "ZBLambTransformationFunction":{
 #		"value":'',
 #		"descr":'Transformation Function. '},
+# "ZBLambMetrics":{
+#       "value":'Errors,Duration',
+#       "descr": "Comma delimited list of AWS/Lamda metrics to send to Zabbix."},
   "ZBLambVPC":{
 		"value":'',
 		"descr":'The VPC ID under which to run EC2 instances.'},
@@ -65,28 +68,71 @@ sam_parameters = {
 
 def update_config(cfg_dict):
     for k in cfg_dict:
-        print(cfg_dict[k]['descr'])
-        cfg_dict[k]['value'] = input(f"{k} ({cfg_dict[k]['value']}): ") or cfg_dict[k]['value']
-        print()
+        try:
+            print(cfg_dict[k]['descr'])
+            cfg_dict[k]['value'] = input(f"{k} ({cfg_dict[k]['value']}): ") or cfg_dict[k]['value']
+            print()
+        except KeyboardInterrupt:
+            return False
+    return True
 
 def cfg2dict(cfg_dict):
     return map(lambda e: (e[0],e[1]['value'],e[1]['descr']), cfg_dict.items())
 
-if __name__ == "__main__":
-    print("Configuring python scripts\n")
-    update_config(py_configs)
-    lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2dict(py_configs)]
 
-    for f in PY_CONFIG_FILES:
-        with open(f,"w") as fi:
-            fi.writelines(lines)
+def metric_map():
+    from metrics_def import MetricConfigs
+    if len( set(type(metric) for metric in MetricConfigs) ) != 1:
+        print("Metrics in metrics_def.py MetricConfigs must be of one type and the list cannot be empty!")
+        exit(1)
+
+    json_dict = {}
+    for metric in MetricConfigs:
+        if metric.aws_metric not in json_dict:
+            json_dict[metric.aws_metric] = {
+                metric.aws_stat: [metric.name]
+            }
+            continue
+
+        if metric.aws_stat not in json_dict[metric.aws_metric]:
+            json_dict[metric.aws_metric][metric.aws_stat] = [metric.name]
+            continue
+
+        json_dict[metric.aws_metric][metric.aws_stat].append( metric.name )
+    
+    return json_dict
+        
+
+import json
+if __name__ == "__main__":
+    metmap = metric_map()
+    print("Python scripts and AWS SAM template parameters config.")
+    print("To cancel filling out a config, press CTRL+C - this will not write the config")
+    input("Press enter to continue")
+
+    print("Configuring python scripts\n")
+    if update_config(py_configs):
+        lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2dict(py_configs)]
+        for f in PY_CONFIG_FILES:
+            with open(f,"w") as fi:
+                fi.writelines(lines)
 
     print("Creating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
     print("By leaving parameters empty, running sam.py later will prompt you to fill them in")
-    update_config(sam_parameters)
-    lines = '{\n' + ',\n'.join([f'\t"{cfg}": "{val}"' for cfg,val,_ in cfg2dict(sam_parameters) if val]) + '\n}'
+    if update_config(sam_parameters):
+        zblamb_metrics = ','.join([met for met in metmap])
+        lines = {
+            cfg: val
+            for cfg,val,_ in cfg2dict(sam_parameters) if val
+        }
+        lines.update({"ZBLambMetrics":zblamb_metrics})
+        with open("zblamb-sam/template_params.json", "w") as f:
+            json.dump(lines,f,indent=2)
 
-    with open("zblamb-sam/template_params.json", "w") as f:
-        f.write(lines)
+    with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
+        json.dump(metmap,f,indent=2)
+    
+    print("Done!")
+
 
     

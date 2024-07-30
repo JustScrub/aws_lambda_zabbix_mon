@@ -78,7 +78,15 @@ def create_proxy(zapi,suffix,interface,active=False,**kwargs):
     )["proxyids"][0]
 
 class AllIn1MetricConfig:
-    def __init__(self,name:str,type:str,severity:ZabbixSeverity,trigger_exp:str, trigger_kwargs=None, item_kwargs=None):
+    def __init__(self,
+                 name:str,
+                 type:str,
+                 severity:ZabbixSeverity,
+                 trigger_exp:str, 
+                 aws_metric_name:str,
+                 aws_statistic_name:str = "sum",
+                 trigger_kwargs=None, 
+                 item_kwargs=None):
         """
         :param trigger_exp: trigger expression for this metric,  with '{}' in place of the server, e.g. `'last({})>=3'` or `'count({},5m,"ge","5")>=1'`
         :param trigger_kwargs: other settings for the trigger. See Zabbix API for possible fields
@@ -92,6 +100,8 @@ class AllIn1MetricConfig:
         self.severity=severity
         self.trigger_kwargs = trigger_kwargs or {}
         self.item_kwargs = item_kwargs or {}
+        self.aws_metric=aws_metric_name
+        self.aws_stat=aws_statistic_name
 
     def items(self,suffix,host_id):
         return {
@@ -156,6 +166,8 @@ class LLDSingleTriggerMetricConfig:
                  type:str, 
                  priority_map:Dict[LambdaPriority,Tuple[ZabbixSeverity,Union[int,float]]],
                  trigger_exp:str,
+                 aws_metric_name:str,
+                 aws_statistic_name:str = "sum",
                  trigger_kwargs:Dict[str,any]=None,
                  item_kwargs:Dict[str,any]=None):
         """
@@ -183,6 +195,8 @@ class LLDSingleTriggerMetricConfig:
         self.const = name.upper()
         self.trigger_kwargs=trigger_kwargs or {}
         self.item_kwargs=item_kwargs or {}
+        self.aws_metric=aws_metric_name
+        self.aws_stat=aws_statistic_name
 
 
     def _item_key(self,suffix,name_tag):
@@ -315,10 +329,12 @@ def create_single_trigger_mapping(
 class LLDMultiTriggerMetricConfig:
     def __init__(
             self,
-            name:str,
+            zbx_name:str,
             priority_mapping: Dict[LambdaPriority,Dict[ZabbixSeverity,Union[int,float,None]]],
-            trigger_expression_pattern: str,
-            value_type:str,
+            zbx_trigger_expression_pattern: str,
+            zbx_value_type:str,
+            aws_metric_name:str,
+            aws_statistic_name:str = "sum",
             trigger_kwargs:Dict[str,any]=None,
             item_kwargs:Dict[str,any]=None
     ):
@@ -329,11 +345,13 @@ class LLDMultiTriggerMetricConfig:
                                            e.g. `last({})>{}` or `count({},5m,"ge","{}")>=1` -- will be fed accordingly
         :param value_type: Zabbix value type (int,float,char,text,log)
         """
-        self.name=name
-        self.const = name.upper()
+        self.name=zbx_name
+        self.aws_metric = aws_metric_name
+        self.aws_stat = aws_statistic_name
+        self.const = zbx_name.upper()
         self.priority_map=priority_mapping
-        self.expr = trigger_expression_pattern
-        self.type = zabbix_type_dict[value_type]
+        self.expr = zbx_trigger_expression_pattern
+        self.type = zabbix_type_dict[zbx_value_type]
         self.trigger_kwargs=trigger_kwargs or {}
         self.item_kwargs=item_kwargs or {}
 

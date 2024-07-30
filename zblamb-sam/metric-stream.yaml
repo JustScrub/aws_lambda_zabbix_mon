@@ -12,6 +12,10 @@ Parameters:
       - multi_trigger_transform
       - all_in_one_item
     Default: multi_trigger_transform
+  ZBLambMetrics:
+    Type: CommaDelimitedList
+    Default: "Errors,Duration"
+    Description: Comma delimited list of AWS/Lamda metrics to send to Zabbix.
 
   # networking params
   ZBLambPrivSubnet:
@@ -402,7 +406,7 @@ Resources:
       OutputFormat: json
       IncludeFilters:
         - Namespace: "AWS/Lambda"
-          MetricNames: [ "Errors" ]
+          MetricNames: !Ref ZBLambMetrics
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Metric Stream 
