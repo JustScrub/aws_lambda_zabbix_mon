@@ -75,7 +75,7 @@ def cfg2dict(cfg_dict):
 
 
 def metric_map():
-    from metrics_def import MetricConfigs
+    from .metrics_def import MetricConfigs
     if len( set(type(metric) for metric in MetricConfigs) ) != 1:
         print("Metrics in metrics_def.py MetricConfigs must be of one type and the list cannot be empty!")
         exit(1)
