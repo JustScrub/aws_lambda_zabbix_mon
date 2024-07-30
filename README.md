@@ -7,23 +7,27 @@ Architecture:
 
 # Config
  - Central config script:
-    - prj_config.py
-    - guided config creation
-    - fill config parameters for the multi-trigger mapping of Lambda priorities to Zabbix severities
-    - textual parameters only! 
-    - the concrete mapping must be specified in the scripts/zapi/zapi.py script with MetricConfig for now
-        - see below
-    - sets common names (below) and template parameters JSON file
+    - two parts: `metrics_def.py` and running `prj_config.py`
+    - metrics_def.py:
+        - python script containig only a list of `LLDMultiTriggerMetricConfig` instances
+        - list must be named `MetricConfigs`
+        - create more instances based on the sample ones
+        - The list serves as configuration of both Zabbix (discovery,items,triggers...) and AWS (what metrics to stream, how to transform to Zabbix items)
+        - **crucial!!**
+    - prj_config.py:
+        - guided creation of config files and AWS SAM parameters JSON file
+        - config files include configs for naming things: The `<suffix>` in naming conventions, Zabbix LLD Macro names and AWS Lambda Tag names
+            - defaults are pre-defined and recommended
+        - AWS SAM parameter JSON includes parameters and values to the SAM template, in JSON format -- used as input to `sam.py` script
+            - defaults are pre-defined for some parameters
+            - feel free to change the values
+            - can leave out parameters without defaults -> you'll have to fill them in later
+            - AWS Metrics to be streamed are extracted from `metrics_def.py MetricConfigs`
+            - special statistics for metrics must be defined manually in `metric-stream.yaml` template (below)
+        - each of these (config files / parameter JSON file) can be skipped by pressing CTRL+C and the files won't be created
+        - also creates metric mapping (AWS Lambda metric + statistic -> Zabbix items) for `basic_handler` based on `MetricConfigs`
 
- - Zabbix: 
-    - scripts/zapi/zapi.py
-        - select mapping (all-in-one item, single-trigger discovery, multi-trigger discovery)
-        - create list of MetricConfig objects for the specific mapping
-            - there can be multiple zabbix items/metrics for one metric in AWS Lambda
-            - each is a separate instance of MetricConfig
-        - call function that populates zabbix (e.g. `create_multi_trigger_mapping`)
-
- - AWS: 
+ - AWS special config: 
     - zblamb-sam/
         - metric-stream.yaml
             - includes demo infrastructure, feel free to modify (remove EC2 instance...)
@@ -31,34 +35,8 @@ Architecture:
                 - Transform Lambda must have ZBLAMB_PROXY_IP environment variable defined!
                 - IP address of the Zabbix Server/Proxy it will be sending data to
                 - if the Zabbix Server/Proxy is in a private subnet in AWS VPC, the transform lambda must be "inside" as well
-            - in Metric Stream, select which metric for Lambda to stream (e.g. 'Errors', 'Duration')
-                - to support more metrics, configure Zabbix with MetricConfig (above) and edit the Transformation Lambda source code (below)
-            - can add more statistics (see AWS::CloudWatch::MetricStream documentation)
-
-        - functions/
-            - modify python function that generates Zabbix Sender items or modify variables used inside (e.g. `metric2stat_map` in multi_trigger_transform/app.py)
-                - the function recieves AWS metric name, dictionary of {statistic: value} and function name
-                - dictionary of statistics includes default statistics (min,max,sum,count) and those specified in template.yaml under Metric Stream
-                - returns <b>List</b> of dictionaries `{'host':zabbix host, 'key': item key, 'value': zabbix metric value}`
-                - The list may include more dictionaries, if one AWS metric produces more zabbix items/metrics
-                    - e.g. Zabbix may track the min and max statistic of the Duration AWS metric
-                    - the list would contain two such dictionaries, one with value equal to min and one with max
-                    - Zabbix items must be different as well
-                - <b>This function maps AWS metrics to Zabbix metrics</b>
-                - you can create whatever mapping you wish, Zabbix just has to be configured for it (have items and tiggers, LLD rules, etc.)
-
-- Common:
-    - all 'names' (e.g. Zabbix item names, Zabbix host names or trigger names) must be same across Zabbix and AWS config!
-        - set with central config script (above)
-        - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
-        - all zabbix names are lower-case, except for Lambda function name (anything outside of `[]` is lower-case)
-        - LLD rule under the host has (item) name `discovery.<suffix>`
-        - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]`
-            - if one AWS metric has more statistics tracked by zabbix, the convention would be `<statistic>.<aws_metric>.metrics.<suffix>[<function_name>]`, e.g. `max.duration.metrics.multi-trigger-mapping-zblamb[{#FN_NAME}]` for item prototype
-            - the real item name is defined while configuring the metric in `MetricConfigs` of `metrics_def.py`
-        - triggers have name `<severity>.<zabbix_metric>.triggers.<suffix>[<function_name>]` 
-        - proxy has name `proxy.<suffix>`
-        - host group has name `group.<suffix>` 
+            -  more statistics (see AWS::CloudWatch::MetricStream documentation) can be added manually to the Metric Stream
+                - only for Metrics defined in `metrics_def.py`
 
 
 # TODO
@@ -119,16 +97,30 @@ Architecture:
     - VPC endpoint (AWS PrivateLink) for Firehose
 
 # Done
+ - Naming Convention:
+    - all 'names' (e.g. Zabbix item names, Zabbix host names or trigger names) must be same across Zabbix and AWS config!
+        - set with central config script
+        - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
+        - all zabbix names are lower-case, except for Lambda function name (anything outside of `[]` is lower-case)
+        - LLD rule under the host has (item) name `discovery.<suffix>`
+        - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]`
+            - if one AWS metric has more statistics tracked by zabbix, the convention would be `<statistic>.<aws_metric>.metrics.<suffix>[<function_name>]`, e.g. `max.duration.metrics.multi-trigger-mapping-zblamb[{#FN_NAME}]` for item prototype
+            - the real item name is defined while configuring the metric in `MetricConfigs` of `metrics_def.py`
+        - triggers have name `<severity>.<zabbix_metric>.triggers.<suffix>[<function_name>]` 
+        - proxy has name `proxy.<suffix>`
+        - host group has name `group.<suffix>` 
+
  - Setup Metric Stream:
-    - namespace: AWS/Lambda, metric: Error
-    - Firehose source = DirectPUT, output based on one of approaches
-    - CloudWatch sends accumulated metrics per 60 seconds, Firehose buffers incomming data for specified duration (Minimum = 60 min | 1MB data)
+    - namespace: AWS/Lambda, metric: Errors, Duration
+    - Firehose source = DirectPUT
+    - CloudWatch sends accumulated metrics per 60 seconds
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
-        - Transformation Lambda:
-            - is in VPC with Zabbix Proxy/Server -- can be private!
+        - Transformation Lambda `basic_handler`:
+            - can be in VPC with Zabbix Proxy/Server if the proxy/server is in a private subnet on EC2
             - takes data "to transform"
-            - only extracts ".values.sum", ".timestamp" and ".dimensions.functionName" (from jsons with single dimension)
-            - sends extracted data to Zabbix Proxy/Server with a specific zabbix hostname (e.g. zabbix-lambda-errors) in a Zabbix packet
+            - extracts ".values", ".timestamp" and ".dimensions.functionName" (from jsons with single dimension)
+            - transforms extracted data to Zabbix Trapper packet based on configured metrics in `metrics_def.py`
+            - sends extracted data to Zabbix Proxy/Server 
             - returns ``{"recordID": "provided ID by Firehose", "result": "Dropped", "data": ""}`` to Firehose
                 - Firehorse does not pass it forward to the destination
 
@@ -152,12 +144,12 @@ Architecture:
         - https://www.zabbix.com/documentation/current/en/manual/distributed_monitoring/proxies
 
  - configure Zabbix metrics
-    - add host zblamb-lambda-errors
+    - add host with name `<suffix>` (e.g. zblamb)
         - no interface
     - possible flows:
         - Single-Host Multi-Trigger Per-Lambda trapper items via Low-Level Discovery
             - Lambdas are tagged in AWS with a prioirty, e.g. `{PRIO=0}`
-            - host + discovery rule with key e.g. `discover.lambda.aws`
+            - host + discovery rule with key e.g. `discovery.<suffix>`
             - mapping between Lambda priorities and Zabbix severities
                 - each Lambda priority maps to multiple Zabbix severities (or rather triggers)
                 - configuration: 2D table Lambda priorities × Zabbix severities, entries = Constants for triggers
@@ -173,35 +165,32 @@ Architecture:
                 - each macro has a default value (without context) for non-classified functions (not known or no priority)
                     - to "disable" these, put high number
             - item prototypes
-                - for each metric, parametrized by function e.g. `error.metrics.lambda.aws[${FN_NAME}]`/`duration.metrics.lambda.aws[${FN_NAME}]`
+                - for each metric, parametrized by function e.g. `error.metrics.<suffix>[${FN_NAME}]`/`min.duration.metrics.<suffix>[${FN_NAME}]`
             - trigger prototypes
                 - create for each item and each Zabbix priority one trigger
-                    - e.g. `INFO.error.metrics.lambda.aws[${FN_NAME}]`/`AVERAGE.duration.metrics.lambda.aws[${FN_NAME}]`
+                    - e.g. `INFO.error.metrics.<suffix>[${FN_NAME}]`/`AVERAGE.min.duration.metrics.<suffix>[${FN_NAME}]`
                 - all triggers have same expression, just the constants differ
-                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{$ERROR_INFO:{#PRIO}}")>=1`    
-                    - `count(/lambda.aws/errors.metrics.lambda.aws[{#FN_NAME}],5m,"ge","{$ERROR_HIGH:{#PRIO}}")>=1`
+                    - `count(/<suffix>/errors.metrics.<suffix>[{#FN_NAME}],5m,"ge","{$ERROR_INFO:{#PRIO}}")>=1`    
+                    - `count(/<suffix>/errors.metrics.<suffix>[{#FN_NAME}],5m,"ge","{$ERROR_HIGH:{#PRIO}}")>=1`
                 - do not create triggers for left out entries in the configuration table
                     - using discovery rule Overrides
-
-
 
 # Abandoned Ideas
  - Setup Metric Stream:
     - CloudWatch -> Firehose -> S3 bucket -> Lambda -> Zabbix Protocol -> Zabbix Proxy/Server
         - Lambda:
-            - downloads the metric JSON file, finds metrics per function name dimension ONLY -- one row = one json
-            - gets ".values.sum" and ".timestamp"
-            - sends Zabbix packet to a Zabbix proxy
-                - contains: specific zabbix hostname (e.g. zabbix-lambda-errors), function name and "values.sum", timestamp
+            - downloads the metric JSON(s) file(s)
+            - the rest is same as `basic_handler`, does not have to return anything
     - CloudWatch -> Firehose -> HTTPS Endpoint -> Zabbix protocol -> Zabbix Proxy
         - HTTPS Endpoint must have public IP address
+        - HTTPS Endpoint does the same as `basic_handler`, just complies with the endopoint mechanism
         - Firehose cannot currently access instances in a private VPC subnet
             - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
 
  - Configure Zabbix Metrics
     - possible flows:
         - aggregate functions
-            - add trapper items to the host:
+            - add trapper items to the host (`<suffix>=zblamb-lambda-errors`):
                 - error-stream: text entries, just a stream of AWS Lambda names that failed (with the correct number of failures from CloudWatch)
                 - error-log: log entries, contains severity, function name and number of failed invocations
                 - error-counts: number entries, just a number of failures, aggregated across all Lambda functions
