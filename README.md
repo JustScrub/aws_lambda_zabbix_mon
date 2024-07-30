@@ -50,6 +50,14 @@ Architecture:
     - Zabbix creates trigger prototypes for all severities (for an item)
     - do not create triggers for unused severities
 
+ - figure out how to effectively call python scripts...
+    - now in modules and referenced by relative imports
+    - must call with `python3 -m aws_lambda_zabbix_mon.<path.to.module>`
+    - must be outside the repo directory
+        - --> relative paths inside scripts don't work (or must be prefixed with name of repo directory)
+            - e.g. creating config files using prj_config
+        - use python path module to get absolute paths in scripts? 
+
  - Resolve problems:
     - Zabbix triggers wrong severity sometimes
     - "Time consistency"
