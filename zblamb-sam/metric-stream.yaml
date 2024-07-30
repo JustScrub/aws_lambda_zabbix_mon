@@ -6,12 +6,6 @@ Parameters:
     Type: String
     AllowedPattern: arn:.*
     Description: A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements.
-  ZBLambTransformationFunction:
-    Type: String
-    AllowedValues:
-      - multi_trigger_transform
-      - all_in_one_item
-    Default: multi_trigger_transform
   ZBLambMetrics:
     Type: CommaDelimitedList
     Default: "Errors,Duration"
@@ -263,7 +257,7 @@ Resources:
   ZBLambMetricStreamTransformLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: !Sub functions/${ZBLambTransformationFunction}/
+      CodeUri: functions/basic_handler/
       Handler: app.lambda_handler
       FunctionName: ZBLambFirehoseTransform
       Role: !GetAtt ZBLambFunctionRole.Arn

@@ -1,4 +1,4 @@
-from scripts.zapi import LLDMultiTriggerMetricConfig #, AllIn1MetricConfig, LLDSingleTriggerMetricConfig
+from scripts.zapi import LLDMultiTriggerMetricConfig 
 from scripts.zapi import LambdaPriority, ZabbixSeverity
 
 MetricConfigs = [

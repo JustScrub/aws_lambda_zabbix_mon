@@ -1,7 +1,6 @@
 # Zabbix Lambda Monitoring
 Monitoring AWS lambdas using Zabbix
 
-
 Architecture:
  - AWS side --> this project --> Zabbix side
  - AWS Lambda --> AWS CloudWatch --> metrics to this project --> Zabbix Proxy --> Zabbix Server --> Dashboard
@@ -54,11 +53,10 @@ Architecture:
         - main idea: the Zabbix host that manages its stuff has a 'simple' name or 'suffix', on which all other names are based
         - all zabbix names are lower-case, except for Lambda function name (anything outside of `[]` is lower-case)
         - LLD rule under the host has (item) name `discovery.<suffix>`
-        - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]` (or without `[]` part for non-discovery, e.g. all-in-one item)
+        - items have name `<zabbix_metric>.metrics.<suffix>[<function_name>]`
             - if one AWS metric has more statistics tracked by zabbix, the convention would be `<statistic>.<aws_metric>.metrics.<suffix>[<function_name>]`, e.g. `max.duration.metrics.multi-trigger-mapping-zblamb[{#FN_NAME}]` for item prototype
-            - multi_trigger_transform AWS lambda function counts on this
-            - but it's always up to you :-)
-        - triggers have name `<severity>.<zabbix_metric>.triggers.<suffix>[<function_name>]` or without `<severity>` for other than multi-trigger mapping and without `[]` for non-discovery
+            - the real item name is defined while configuring the metric in `MetricConfigs` of `metrics_def.py`
+        - triggers have name `<severity>.<zabbix_metric>.triggers.<suffix>[<function_name>]` 
         - proxy has name `proxy.<suffix>`
         - host group has name `group.<suffix>` 
 
@@ -83,7 +81,6 @@ Architecture:
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
 
  - Central config for AWS and Zabbix
-    - transformation configurable? Or hard-coded multi-trigger?
     - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List?? -- **TEST**
         - MetricConfig also includes name of AWS metric (and statistic) it maps to zabbix items
         - have python configuration file that would include just the MetricConfig List
@@ -158,18 +155,6 @@ Architecture:
     - add host zblamb-lambda-errors
         - no interface
     - possible flows:
-        - aggregate functions
-            - add trapper items to the host:
-                - error-stream: text entries, just a stream of AWS Lambda names that failed (with the correct number of failures from CloudWatch)
-                - error-log: log entries, contains severity, function name and number of failed invocations
-                - error-counts: number entries, just a number of failures, aggregated across all Lambda functions
-                - error-count-string: text entries, comma-delimited repetition of FnName, number of repetitions is number of failures
-            - create a trigger based on at least one of the items
-                - `count(/zblamb-lambda-errors/error-count-string, 5m, "([A-Za-z0-9]+),\1,\1",regex)>0` --> "A lambda keeps failing"
-                    - Tags: Key="Lambda Name", Value=` "{{ITEM.VALUE}.regsub(\"([A-Za-z0-9]+),\\1,\\1\", \"\\1\")}" `
-                    - Allow multiple triggers with correlation tag "Lambda Name"
-                    - Allow manual close
-                    - These setting wills report errors per-function
         - Single-Host Multi-Trigger Per-Lambda trapper items via Low-Level Discovery
             - Lambdas are tagged in AWS with a prioirty, e.g. `{PRIO=0}`
             - host + discovery rule with key e.g. `discover.lambda.aws`
@@ -198,16 +183,6 @@ Architecture:
                 - do not create triggers for left out entries in the configuration table
                     - using discovery rule Overrides
 
-        - Single-Host Single-Trigger Per-Lambda trapper items via Low-Level Discovery
-            - like Multi-Trigger, but simpler
-            - config: two simple mappings Lambda Priority -> Zabbix Severity, Lambda Priority -> Constant Value
-            - macros: for each metric and priority (with context), not for severities, according to Priority -> Constant mapping
-            - item prototypes: same as Multi-Trigger
-            - trigger prototypes:
-                - one trigger per item
-                - using discovery rule Overrides, change the severity during discovery to the one corresponding to Priority -> Severity mapping
-            - Priority -> Severity mapping tells what severity that priority has
-            - Priority -> Constant mapping tells when the trigger with that severity should set off
 
 
 # Abandoned Ideas
@@ -222,6 +197,31 @@ Architecture:
         - HTTPS Endpoint must have public IP address
         - Firehose cannot currently access instances in a private VPC subnet
             - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
+
+ - Configure Zabbix Metrics
+    - possible flows:
+        - aggregate functions
+            - add trapper items to the host:
+                - error-stream: text entries, just a stream of AWS Lambda names that failed (with the correct number of failures from CloudWatch)
+                - error-log: log entries, contains severity, function name and number of failed invocations
+                - error-counts: number entries, just a number of failures, aggregated across all Lambda functions
+                - error-count-string: text entries, comma-delimited repetition of FnName, number of repetitions is number of failures
+            - create a trigger based on at least one of the items
+                - `count(/zblamb-lambda-errors/error-count-string, 5m, "([A-Za-z0-9]+),\1,\1",regex)>0` --> "A lambda keeps failing"
+                    - Tags: Key="Lambda Name", Value=` "{{ITEM.VALUE}.regsub(\"([A-Za-z0-9]+),\\1,\\1\", \"\\1\")}" `
+                    - Allow multiple triggers with correlation tag "Lambda Name"
+                    - Allow manual close
+                    - These setting wills report errors per-function
+        - Single-Host Single-Trigger Per-Lambda trapper items via Low-Level Discovery
+            - like Multi-Trigger, but simpler
+            - config: two simple mappings Lambda Priority -> Zabbix Severity, Lambda Priority -> Constant Value
+            - macros: for each metric and priority (with context), not for severities, according to Priority -> Constant mapping
+            - item prototypes: same as Multi-Trigger
+            - trigger prototypes:
+                - one trigger per item
+                - using discovery rule Overrides, change the severity during discovery to the one corresponding to Priority -> Severity mapping
+            - Priority -> Severity mapping tells what severity that priority has
+            - Priority -> Constant mapping tells when the trigger with that severity should set off
 
 # Useful links
  - AWS instances

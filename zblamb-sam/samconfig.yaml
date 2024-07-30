@@ -24,7 +24,6 @@ default:
       confirm_changeset: true
       resolve_s3: true
       tags: Name="Zabbix Lambda monitor Stack" Description="AWS CloudFormation Stack for the Zabbix Lambda monitor project"
-      parameter_overrides: ZBLambTransformationFunction=multi_trigger_transform
       s3_prefix: ZBLambStackS3Resources
   
   package:

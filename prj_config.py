@@ -1,7 +1,7 @@
 
 py_configs = {
     "ZBX_SUFFIX":{
-		"value":'multi.lambda.zblamb',
+		"value":'zblamb',
 		"descr":'Zabbix objects base/root name'},
     "AWS_PRIO_TAG":{
 		"value":'PRIO',
@@ -25,12 +25,6 @@ sam_parameters = {
   "ZBLambDummyDeliveryStreamBucket":{
 		"value":'',
 		"descr":"A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements."},
-# "ZBLambTransformationFunction":{
-#		"value":'',
-#		"descr":'Transformation Function. '},
-# "ZBLambMetrics":{
-#       "value":'Errors,Duration',
-#       "descr": "Comma delimited list of AWS/Lamda metrics to send to Zabbix."},
   "ZBLambVPC":{
 		"value":'',
 		"descr":'The VPC ID under which to run EC2 instances.'},
@@ -133,6 +127,3 @@ if __name__ == "__main__":
         json.dump(metmap,f,indent=2)
     
     print("Done!")
-
-
-    

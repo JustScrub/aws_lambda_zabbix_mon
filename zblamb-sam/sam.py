@@ -3,21 +3,21 @@ import sys, os, shutil, json
 DRY=False
 TEMPLATE='./metric-stream.yaml'
 SAMCONFIG='samconfig.yaml'
-
+HANDLER_DIR = './functions/basic_handler/'
 BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
+
 
 def dict2arg_list(params):
     return " ".join([f"{k}={v}" for k,v in params.items()])
 
 BUILD_COPY_FILES = ['utils.py', 'requirements.txt', 'config.py', 'metric_map.json']
 def build(params, args):
-    transform = params['ZBLambTransformationFunction']
     param_list = dict2arg_list(params)
     call = f"sam build -t {TEMPLATE} --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
     
 
     for file in BUILD_COPY_FILES:
-        shutil.copy(f"./functions/utils/{file}",f"./functions/{transform}/")
+        shutil.copy(f"./functions/utils/{file}",HANDLER_DIR)
 
     print("calling:\n"+call)
     c=0
@@ -25,7 +25,7 @@ def build(params, args):
         c = os.system(call)
 
     for file in BUILD_COPY_FILES:
-        os.remove(f"./functions/{transform}/{file}")
+        os.remove(f"{HANDLER_DIR}{file}")
 
     return c
 
