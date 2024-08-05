@@ -432,12 +432,14 @@ def create_multi_trigger_mapping(
         suffix="lambda.zblamb", 
         prio_tag="PRIO", 
         name_tag="FN_NAME",
+        lifetime="30d",
         group_id=None,
         host_id=None):
     """
     :param: zapi ZabbixAPI instance
     :param: suffix Suffix to use for lambda discovery objects
     :param: metrics list of MetricConfig
+    :param lifetime: Time period after which items that are no longer discovered will be deleted. Accepts time unit with suffix
     :param: group_id Zabbix ID of the group to add the host to
     :param: host_id Zabbix ID of the host to add discovery to.
     """
@@ -450,6 +452,7 @@ def create_multi_trigger_mapping(
         name="Discover Lambda Functions with Multi-level Triggers",
         key_=f"discover.{suffix}",
         hostid=f"{trapper_host_id}",
+        lifetime=lifetime,
         type=2 # trapper
     )["itemids"][0]
 

@@ -15,6 +15,10 @@ py_configs = {
     "ZBX_MONITORED_TAG":{
 		"value":'ZabbixMonitored',
 		"descr":'Name of Lambda Function Tag that stores whether the function is already discovered'},
+    "ZBX_LLD_KEEP_PERIOD":{
+        "value": '30d',
+        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (seconds or number with s,m,h,d,w suffix)'
+    }
 }
 PY_CONFIG_FILES = [
         "scripts/config/__init__.py",
@@ -76,6 +80,20 @@ def update_config(cfg_dict):
 def cfg2dict(cfg_dict):
     return map(lambda e: (e[0],e[1]['value'],e[1]['descr']), cfg_dict.items())
 
+__time_unit_to_secs_dict = {
+    's': 1,
+    'm': 60,
+    'h': 3600,
+    'd': 86400,
+    'w': 604800
+}
+def __time_units_to_secs(value):
+    """
+    Converts time with unit suffix as specified by Zabbix documentation to seconds. 
+    :param value: string in format specified at https://www.zabbix.com/documentation/5.4/en/manual/appendix/suffixes
+    """
+    mult = __time_unit_to_secs_dict.get(value[-1],1)
+    return int(value[:-1])*mult
 
 def metric_map():
     from scripts.metrics_def import MetricConfigs
@@ -109,6 +127,14 @@ if __name__ == "__main__":
 
     print("Configuring python scripts\n")
     if update_config(py_configs):
+        # convert LLD keep period to seconds
+        py_configs.update({
+            "ZBX_LLD_KEEP_PERIOD": {
+                "value": __time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
+                "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
+            }
+        })
+
         lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2dict(py_configs)]
         for f in PY_CONFIG_FILES:
             with open(f,"w") as fi:
@@ -128,9 +154,5 @@ if __name__ == "__main__":
 
     with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)
-
-    # copy metrics_def.py to scripts so that zapi does not have to import from root of repo
-    from shutil import copy
-    copy("./metrics_def.py", "./scripts")
     
     print("Done!")

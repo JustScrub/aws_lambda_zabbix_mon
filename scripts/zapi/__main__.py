@@ -115,4 +115,5 @@ if __name__ == "__main__":
                                      suffix=config.ZBX_SUFFIX,
                                      prio_tag=config.ZBX_PRIO_MACRO,
                                      name_tag=config.ZBX_FN_NAME_MACRO,
+                                     lifetime=config.ZBX_LLD_KEEP_PERIOD,
                                      group_id=19)
