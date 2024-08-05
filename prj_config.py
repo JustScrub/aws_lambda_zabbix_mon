@@ -75,7 +75,7 @@ def cfg2dict(cfg_dict):
 
 
 def metric_map():
-    from .metrics_def import MetricConfigs
+    from scripts.metrics_def import MetricConfigs
     if len( set(type(metric) for metric in MetricConfigs) ) != 1:
         print("Metrics in metrics_def.py MetricConfigs must be of one type and the list cannot be empty!")
         exit(1)
@@ -125,5 +125,9 @@ if __name__ == "__main__":
 
     with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)
+
+    # copy metrics_def.py to scripts so that zapi does not have to import from root of repo
+    from shutil import copy
+    copy("./metrics_def.py", "./scripts")
     
     print("Done!")

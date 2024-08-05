@@ -1,7 +1,7 @@
 import sys, os
 from .zapi_constructor import *
 from .. import config
-from ...metrics_def import MetricConfigs
+from ..metrics_def import MetricConfigs
 
 def imdsv2_get_local_addr():
     import requests

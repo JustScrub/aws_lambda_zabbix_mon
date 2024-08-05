@@ -7,8 +7,8 @@ Architecture:
 
 # Config
  - Central config script:
-    - two parts: `metrics_def.py` and running `prj_config.py`
-    - metrics_def.py:
+    - two parts: `scripts/metrics_def.py` and running `prj_config.py`
+    - scripts/metrics_def.py:
         - python script containig only a list of `LLDMultiTriggerMetricConfig` instances
         - list must be named `MetricConfigs`
         - create more instances based on the sample ones
@@ -46,10 +46,6 @@ Architecture:
 
 
 # TODO
- - Zabbix Discovery do not create all trigger prototypes
-    - Zabbix creates trigger prototypes for all severities (for an item)
-    - do not create triggers for unused severities
-
  - figure out how to effectively call python scripts...
     - now in modules and referenced by relative imports
     - must call with `python3 -m aws_lambda_zabbix_mon.<path.to.module>`

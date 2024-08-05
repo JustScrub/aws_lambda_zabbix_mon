@@ -210,8 +210,8 @@ Resources:
               command: >-
                 python3 -m ensurepip
                 pip3 install -r /root/alzm/scripts/zapi/requirements.txt
-                cd /root
-                python3 -m alzm.scripts.zapi.zapi localhost 80 server
+                cd /root/alzm
+                python3 -m scripts.zapi localhost 80 server
               ignoreErrors: "true"
 
 # Lambdas

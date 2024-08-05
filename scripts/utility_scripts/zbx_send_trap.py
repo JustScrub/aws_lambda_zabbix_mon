@@ -73,13 +73,15 @@ if __name__ == "__main__":
     
     print(f"using range {vs}")
 
-    send_error_test_trap(
-        ('localhost',10051),
-        function=fn,
-        metric=metric,
-        rand_range=vs,
-        n_values=ireps,
-        n_packets=oreps,
-        time_update_s=0, # -10*60 # 10 minutes ago
-        suffix=ZBX_SUFFIX
+    print(
+        send_error_test_trap(
+            ('localhost',10051),
+            function=fn,
+            metric=metric,
+            rand_range=vs,
+            n_values=ireps,
+            n_packets=oreps,
+            time_update_s=0, # -10*60 # 10 minutes ago
+            suffix=ZBX_SUFFIX
+        )
     )
