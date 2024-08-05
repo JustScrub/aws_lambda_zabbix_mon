@@ -115,4 +115,4 @@ if __name__ == "__main__":
                                      suffix=config.ZBX_SUFFIX,
                                      prio_tag=config.ZBX_PRIO_MACRO,
                                      name_tag=config.ZBX_FN_NAME_MACRO,
-                                     group_id=21)
+                                     group_id=19)
