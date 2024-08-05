@@ -273,3 +273,6 @@ Architecture:
     - proxy (SQLite3): https://hub.docker.com/r/zabbix/zabbix-proxy-sqlite3
     - agent: https://hub.docker.com/r/zabbix/zabbix-agent
     - postgres: https://hub.docker.com/layers/library/postgres/13-alpine/images/sha256-0ee5d31fd23e9c749cdaba1e203512ffec8420791e561489d6ab7b038c5d75a0
+
+ - Calling python modules
+    - calling module already imported by parent: https://stackoverflow.com/questions/43393764/python-3-6-project-structure-leads-to-runtimewarning

@@ -26,9 +26,10 @@ def auto_discover(name_prio_tuples, zab_addr, suffix=ZBX_SUFFIX):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print(f"Usage: python zbx_auto_discover.py FnName,Priority [...]")
+        print(f"Usage: python3 -m scripts.utility_scripts.zbx_auto_discover FnName,Priority [...]")
         print("FnName: Name of Lambda Function")
         print("Priority: its priority")
+        exit(1)
     
     tups = [(f,p) for f,p in map(lambda arg: arg.split(','), sys.argv[1:])]
     addr = ("localhost", 10051)

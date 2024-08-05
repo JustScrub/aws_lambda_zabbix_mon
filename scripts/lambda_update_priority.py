@@ -1,5 +1,5 @@
 from pyzabbix import ZabbixAPI
-from utility_scripts import auto_discover
+from utility_scripts.zbx_auto_discover import auto_discover
 from zapi import LambdaPriority
 import boto3
 import json, sys, os
