@@ -392,7 +392,7 @@ class LLDMultiTriggerMetricConfig:
             ),
             "dependencies": [{"triggerid":f"{id}"} for id in depends_on_ids] if depends_on_ids else [],
             **self.trigger_kwargs
-        }
+        } if any(prio[severity] for prio in self.priority_map.values()) else {}
 
     def macros(self,severity:ZabbixSeverity,hostid):
         return [
@@ -416,11 +416,13 @@ class LLDMultiTriggerMetricConfig:
             {
                 "operationobject": "1", # trigger
                 "operator": 2,
-                "value": self.triggers(severity,suffix,name_tag=name_tag)["description"].split('[')[0],
+                "value": trigger["description"].split('[')[0],
                 "opstatus": {"status":1}, # don't create
                 "opdiscover":{"discover":1} # don't discover
             }
             for severity in list(ZabbixSeverity)
+            for trigger in [self.triggers(severity,suffix,name_tag=name_tag)]
+            if trigger
             if self.priority_map[priority][severity] is None
         ]
     
@@ -461,11 +463,11 @@ def create_multi_trigger_mapping(
 
         depends_on_ids=[]
         for severity in reversed(list(ZabbixSeverity)): # highest severity first
-            depends_on_ids.append(
-                zapi.triggerprototype.create(
-                    metric.triggers(severity,suffix,depends_on_ids,None,name_tag,prio_tag)
-                )["triggerids"][0]
-            )
+            trigger = metric.triggers(severity,suffix,depends_on_ids,None,name_tag,prio_tag)
+            if trigger:
+                depends_on_ids.append(
+                    zapi.triggerprototype.create( trigger )["triggerids"][0]
+                )
 
     # add overrides to LLD rules -- maps lambda priorities to zabbix severity (how severe a trigger is)
     #                            -- one for each priority, each updates severity for every metric trigger

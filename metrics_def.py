@@ -43,7 +43,7 @@ MetricConfigs = [
             zbx_name="count_avg.duration",
             zbx_value_type="float",
             # more than 4 invocations took longer than <const> ms or 
-            # the average of slowest invocations is greater than <const> ms 
+            # the average of slowest (= max duariton) invocations is greater than <const> ms 
             # for the past 5 minutes
             zbx_trigger_expression_pattern='count({0},5m,"ge","{1}")>4 or avg({0},5m)>"{1}"', 
             aws_metric_name="Duration",
