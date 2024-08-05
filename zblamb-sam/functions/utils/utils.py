@@ -24,6 +24,10 @@ def __catch_default(func,default,*args,**kwargs):
     except:
         return default
 
+def __should_discover(fn_tup):
+    t = int(fn_tup[1].get(ZBX_MONITORED_TAG,0)) # get expiry timestamp or the value 0, if timestamp tag does not exist
+    return t < time.time_ns()                   # time.time_ns() is always greater than zero
+
 def zbx_discover_packet(zabbix_host: str,jsons):
     function_names = [json['dimensions']['FunctionName'] for json in jsons]
     fn_tups = [
@@ -36,17 +40,30 @@ def zbx_discover_packet(zabbix_host: str,jsons):
         for res in list(__catch_default(lambda_client.get_function,{'Tags':{},'Configuration':{'FunctionArn':''}},FunctionName=fn))
                                                                     # non-existent functions and functions without tags will be ignored
     ]
-    fn_tups = filter(lambda e: ZBX_MONITORED_TAG not in e[1], fn_tups) # only discover new functions
     
-    untracked = filter(lambda e: AWS_PRIO_TAG not in e[1],fn_tups) # functions without the PRIO tag, non-existent functions and functions with no tags at all
+    untracked = set(filter(lambda e: AWS_PRIO_TAG not in e[1],fn_tups)) # functions without the PRIO tag, non-existent functions and functions with no tags at all
     fn_tups = filter(lambda e: e[0] not in untracked, fn_tups) # keep only functions with PRIO tag
+    fn_tups = filter(__should_discover, fn_tups) # only discover new and possibly expired functions
     fn_tups = list(fn_tups)
 
     for fn in fn_tups:
         lambda_client.tag_resource(
             Resource=fn[2],
-            Tags={ZBX_MONITORED_TAG: "true"}
+            Tags={ZBX_MONITORED_TAG: f"{time.time_ns() + int(ZBX_LLD_KEEP_PERIOD)*1_000_000_000}"} # convert period to nanoseconds
         )
+        # NOTE: The tag will not be updated with each metric update.
+        #       This will result in sending discovery after the specified ZBX_LLD_KEEP_PERIOD unconditionally.
+        #       It cannot break anything, just imposes unnecessary communication (discovery) after the period,
+        #       but eliminates the need to update the tag each time a metric is sent, 
+        #       which too would impose more communication, yet even more frequent
+
+        # NOTE: The timestamp tag should be updated BEFORE sending discovery to Zabbix (as it currently is).
+        #       The tag will contain current time, but the discovery packet will arrive at a later time.
+        #       This means a discovery packet will be sent BEFORE it actually expires in Zabbix
+        #       and Zabbix will not lose any metrics due to dropped discovered items. 
+        #       If it were the other way, tag timestamp would be later than actual expiry time in Zabbix
+        #       and discovery would not be sent to already dropped items, so the metrics would be lost, 
+        #       since Zabbix no longer knows the items.
 
     discovery_item = f"discover.{zabbix_host}"
     packet = j.dumps(

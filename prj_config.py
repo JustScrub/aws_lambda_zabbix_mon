@@ -13,11 +13,11 @@ py_configs = {
 		"value":'FN_NAME',
 		"descr":'Zabbix LLD Macro that yields the discovered function name'},
     "ZBX_MONITORED_TAG":{
-		"value":'ZabbixMonitored',
-		"descr":'Name of Lambda Function Tag that stores whether the function is already discovered'},
+		"value":'ZabbixMonitorExpireTime',
+		"descr":'Name of Lambda Function Tag that stores nanosecond timestamp after which Zabbix will un-discover the function'},
     "ZBX_LLD_KEEP_PERIOD":{
         "value": '30d',
-        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (seconds or number with s,m,h,d,w suffix)'
+        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (seconds or number with s,m,h,d,w suffix). Minimum 1 hour, or 0 not to expire.'
     }
 }
 PY_CONFIG_FILES = [
