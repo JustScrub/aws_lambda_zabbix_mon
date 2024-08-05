@@ -197,7 +197,7 @@ Resources:
               command: !Sub >-
                 export ZBLAMB_FRONTEND_HNAME=${ZBLambZabServer.PrivateIp};
                 export ZBLAMB_PROXY_IP=${ZBLambZabProxy.PrivateIp};
-                python3 /root/alzm/zabbix-scripts/zapi.py $ZBLAMB_FRONTEND_HNAME 80 agent
+                python3 -m alzm.scripts.zapi.zapi $ZBLAMB_FRONTEND_HNAME 80 agent
               ignoreErrors: "true"
 
   # cfn-hup utility for stack updates -- not needed (hopefully)
