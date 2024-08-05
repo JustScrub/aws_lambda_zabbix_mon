@@ -4,6 +4,10 @@ Monitoring AWS lambdas using Zabbix
 Architecture:
  - AWS side --> this project --> Zabbix side
  - AWS Lambda --> AWS CloudWatch --> metrics to this project --> Zabbix Proxy --> Zabbix Server --> Dashboard
+    - Lambda sends metrics to CW in 1-minute intervals
+
+Firehose Buffering:
+ - Metric Sream --> Firehose Transform buffering --> Lambda --> Firehose buffering --> destination
 
 # Config
  - Central config script:
@@ -46,13 +50,13 @@ Architecture:
 
 
 # TODO
- - figure out how to effectively call python scripts...
-    - now in modules and referenced by relative imports
-    - must call with `python3 -m aws_lambda_zabbix_mon.<path.to.module>`
-    - must be outside the repo directory
-        - --> relative paths inside scripts don't work (or must be prefixed with name of repo directory)
-            - e.g. creating config files using prj_config
-        - use python path module to get absolute paths in scripts? 
+ - **TEST** if sending discovery packet to discovery rule resets LLD Keep timer
+    - possibilities: only item updates (via trapper packet) reset, or both item updates and discovery with same LLD macros does
+    - min keep time: 3600 (1h)
+
+ - Central config script:
+    - configure metrics inside the script somehow
+    - now defined in scrips/metrics_def.py
 
  - Resolve problems:
     - Zabbix triggers wrong severity sometimes
@@ -73,32 +77,20 @@ Architecture:
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
 
  - Central config for AWS and Zabbix
-    - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List?? -- **TEST**
-        - MetricConfig also includes name of AWS metric (and statistic) it maps to zabbix items
-        - have python configuration file that would include just the MetricConfig List
-        - propagate this List to zapi.py (config module), SAM template (parameter) and Transform Lambda (metric mapping AWS->Zabbix)
-            - Transform: from MetricConfigs, create JSON that maps AWS Metric + AWS statistic to Zabbix item name
     - Zabbix LLD keep period: propage to zapi and Transform Lambda (set in prj_config.py)
-    - Firehose Buffering, Lambda timeouts etc. in central config
+    - more params in template: Lambda timeouts etc. in central config
 
  - create readable doc for the project
 
  - Setup Metric Stream
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
         - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
-        - do not discover already discovered Lambdas in Zabbix
+        - do not discover already discovered Lambdas in Zabbix -- **TEST**
             - "Cache" in Lambda tags:
                 - ZabbixMonitored Tag: timestamp of time of discovery
-                - Zabbix Keep Period tag or Transform lambda config: after how long Zabbix deletes the discovered objects 
+                - Transform lambda config: after how long Zabbix deletes the discovered objects 
 
  - configure Zabbix
-    - RE-discovery -- **TEST**
-        - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changes (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
-        - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
-        - script: make a python script that 
-            - updates the priority of a Lambda function, 
-            - deletes Zabbix triggers for the funtion (contains `triggers.<suffix>[<FnName>]`) and 
-            - discovers it anew
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
 
  - Change paths of IAM roles
@@ -138,24 +130,13 @@ Architecture:
             - returns ``{"recordID": "provided ID by Firehose", "result": "Dropped", "data": ""}`` to Firehose
                 - Firehorse does not pass it forward to the destination
 
- - configure Zabbix infrastructure
-    - passive agent --> proxy --> server
-    - agent:
-        - `Hostname` (for server/proxy) config already set via compose
-            - and also not needed for passive checks
-            - zblamb-agent
-        - `Server` config already set via compose to proxy's private IP
-    - proxy:
-        - configure: https://www.zabbix.com/documentation/current/en/manual/appendix/config/zabbix_proxy
-        - docker image: https://hub.docker.com/r/zabbix/zabbix-proxy-sqlite3
-        - `Server` config already set to server's private IP
-        - `Hostname` config set to zblamb-proxy
-    - server:
-        - add passive proxy:  (hostname, passive mode, interface)
-        - add host group
-        - add host monitored by proxy
-        - add template to host
-        - https://www.zabbix.com/documentation/current/en/manual/distributed_monitoring/proxies
+ - Central cofiguration script
+    - scripts config, template params
+    - configure zapi mapping, transformation and metrics to stream using just single MetricConfig List
+        - MetricConfig also includes name of AWS metric (and statistic) it maps to zabbix items
+        - have python configuration file that would include just the MetricConfig List
+        - propagate this List to zapi.py (config module), SAM template (metrics parameter) and Transform Lambda (metric mapping AWS->Zabbix)
+            - Transform: from MetricConfigs, create JSON that maps AWS Metric + AWS statistic to Zabbix item name
 
  - configure Zabbix metrics
     - add host with name `<suffix>` (e.g. zblamb)
@@ -188,6 +169,32 @@ Architecture:
                     - `count(/<suffix>/errors.metrics.<suffix>[{#FN_NAME}],5m,"ge","{$ERROR_HIGH:{#PRIO}}")>=1`
                 - do not create triggers for left out entries in the configuration table
                     - using discovery rule Overrides
+    - RE-discovery
+        - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changed (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
+        - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
+        - solution = scripts/lambda_update_priority.py script:
+            - deletes Zabbix triggers for the funtion (contains `triggers.<suffix>[<FnName>]`),
+            - updates the priority of a Lambda function, 
+            - discovers it anew
+
+ - configure Zabbix infrastructure
+    - passive agent --> proxy --> server
+    - agent:
+        - `Hostname` (for server/proxy) config already set via compose
+            - and also not needed for passive checks
+            - zblamb-agent
+        - `Server` config already set via compose to proxy's private IP
+    - proxy:
+        - configure: https://www.zabbix.com/documentation/current/en/manual/appendix/config/zabbix_proxy
+        - docker image: https://hub.docker.com/r/zabbix/zabbix-proxy-sqlite3
+        - `Server` config already set to server's private IP
+        - `Hostname` config set to zblamb-proxy
+    - server:
+        - add passive proxy:  (hostname, passive mode, interface)
+        - add host group
+        - add host monitored by proxy
+        - add template to host
+        - https://www.zabbix.com/documentation/current/en/manual/distributed_monitoring/proxies
 
 # Abandoned Ideas
  - Setup Metric Stream:
@@ -240,6 +247,7 @@ Architecture:
     - Basics: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-metric-streams-setup.html
     - CloudFormation create: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-metric-streams-setup-datalake.html#CloudWatch-metric-streams-setup-datalake-CFN
     - CloudFormation object:  https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudwatch-metricstream.html
+    - Lambda Metrics: https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics.html
 
  - Data Firehose:
     - basic create: https://docs.aws.amazon.com/firehose/latest/dev/basic-create.html
