@@ -25,6 +25,9 @@ sam_parameters = {
   "ZBLambDummyDeliveryStreamBucket":{
 		"value":'',
 		"descr":"A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements."},
+  "ZBLambTransformBufferingSeconds":{
+    "descr": "Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda",
+    "value": "60"},
   "ZBLambVPC":{
 		"value":'',
 		"descr":'The VPC ID under which to run EC2 instances.'},

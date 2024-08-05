@@ -10,6 +10,12 @@ Parameters:
     Type: CommaDelimitedList
     Default: "Errors,Duration"
     Description: Comma delimited list of AWS/Lamda metrics to send to Zabbix.
+  ZBLambTransformBufferingSeconds:
+    Type: Number
+    Description: Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda
+    MinValue: 0
+    MaxValue: 900
+    Default: 60
 
   # networking params
   ZBLambPrivSubnet:
@@ -336,7 +342,7 @@ Resources:
       ExtendedS3DestinationConfiguration:
         BucketARN: !Ref ZBLambDummyDeliveryStreamBucket
         BufferingHints:
-          IntervalInSeconds: 0 # 300 # 5 min
+          IntervalInSeconds: 0 # buffering after transform -- we do not care about this, all pakcets will be dropped, so flush right away
         CloudWatchLoggingOptions:
           Enabled: false
         CompressionFormat: UNCOMPRESSED
@@ -352,10 +358,10 @@ Resources:
               Parameters: 
                 - ParameterName: LambdaArn
                   ParameterValue: !GetAtt ZBLambMetricStreamTransformLambda.Arn
-                #- ParameterName: BufferIntervalInSeconds
-                #  ParameterValue: "1"
-                #- ParameterName: BufferSizeInMBs
-                #  ParameterValue: "1"
+                - ParameterName: BufferIntervalInSeconds # buffering of MetricStream data before entering the Transform Lambda
+                  ParameterValue: !Ref ZBLambTransformBufferingSeconds
+                - ParameterName: BufferSizeInMBs # must be specified with time buffering
+                  ParameterValue: "1"
                 - ParameterName: CompressionFormat
                   ParameterValue: UNCOMPRESSED
       Tags:
