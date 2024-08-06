@@ -17,7 +17,8 @@ py_configs = {
 		"descr":'Name of Lambda Function Tag that stores nanosecond timestamp after which Zabbix will un-discover the function'},
     "ZBX_LLD_KEEP_PERIOD":{
         "value": '30d',
-        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (seconds or number with s,m,h,d,w suffix). Minimum 1 hour, or 0 not to expire.'
+        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (number of seconds or a number with s,m,h,d,w as suffix). Minimum 1 hour, or 0 not to expire.',
+        "check": lambda v: v == 0 or (60 <= v and v <= 788400000), "fallback": 2592000
     }
 }
 PY_CONFIG_FILES = [
@@ -30,8 +31,9 @@ sam_parameters = {
 		"value":'',
 		"descr":"A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements."},
   "ZBLambTransformBufferingSeconds":{
-    "descr": "Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda",
-    "value": "60"},
+    "descr": "Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0-900 (both inclusive)",
+    "value": "60",
+    "check": lambda v: 0 <= int(v) and int(v) <= 900, "fallback": 60},
   "ZBLambVPC":{
 		"value":'',
 		"descr":'The VPC ID under which to run EC2 instances.'},
@@ -77,7 +79,19 @@ def update_config(cfg_dict):
             return False
     return True
 
-def cfg2dict(cfg_dict):
+def cfg_checks(cfg_dict):
+    for k in cfg_dict:
+        if not "check" in cfg_dict[k]: continue
+        try:
+            passed = cfg_dict[k]["check"](cfg_dict[k]["value"])
+        except:
+            passed = False
+        if passed: continue
+        print(f"Illegal value of {k}: {cfg_dict[k]['value']}. Falling back to default: {cfg_dict[k]['fallback']}")
+        cfg_dict[k]['value'] = cfg_dict[k]['fallback']
+
+
+def cfg2tup(cfg_dict):
     return map(lambda e: (e[0],e[1]['value'],e[1]['descr']), cfg_dict.items())
 
 __time_unit_to_secs_dict = {
@@ -93,10 +107,13 @@ def __time_units_to_secs(value):
     :param value: string in format specified at https://www.zabbix.com/documentation/5.4/en/manual/appendix/suffixes
     """
     mult = __time_unit_to_secs_dict.get(value[-1],1)
-    return int(value[:-1])*mult
+    try:
+        return int(value[:-1])*mult
+    except:
+        return value
 
 def metric_map():
-    from scripts.metrics_def import MetricConfigs
+    from metrics_def import MetricConfigs
     if len( set(type(metric) for metric in MetricConfigs) ) != 1:
         print("Metrics in metrics_def.py MetricConfigs must be of one type and the list cannot be empty!")
         exit(1)
@@ -134,8 +151,8 @@ if __name__ == "__main__":
                 "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
             }
         })
-
-        lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2dict(py_configs)]
+        cfg_checks(py_configs)
+        lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2tup(py_configs)]
         for f in PY_CONFIG_FILES:
             with open(f,"w") as fi:
                 fi.writelines(lines)
@@ -143,10 +160,11 @@ if __name__ == "__main__":
     print("Creating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
     print("By leaving parameters empty, running sam.py later will prompt you to fill them in")
     if update_config(sam_parameters):
+        cfg_checks(sam_parameters)
         zblamb_metrics = ','.join([met for met in metmap])
         lines = {
             cfg: val
-            for cfg,val,_ in cfg2dict(sam_parameters) if val
+            for cfg,val,_ in cfg2tup(sam_parameters) if val
         }
         lines.update({"ZBLambMetrics":zblamb_metrics})
         with open("zblamb-sam/template_params.json", "w") as f:
@@ -154,5 +172,8 @@ if __name__ == "__main__":
 
     with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)
+
+    from shutil import copy
+    copy("./metrics_def.py", "./scripts/")
     
     print("Done!")

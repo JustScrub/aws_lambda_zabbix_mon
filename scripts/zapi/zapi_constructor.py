@@ -26,7 +26,7 @@ class LambdaPriority:
     num_priorities=5
     def __init__(self,prio:int):
         if prio < -1 or prio > self.num_priorities:
-            raise ValueError("Priority must be in range [0,5) or -1 for untracked")
+            raise ValueError(f"Priority must be in range [0,{self.num_priorities}) or -1 for untracked")
         self.value = prio
 
     @classmethod

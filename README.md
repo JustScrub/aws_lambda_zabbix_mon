@@ -11,8 +11,8 @@ Firehose Buffering:
 
 # Config
  - Central config script:
-    - two parts: `scripts/metrics_def.py` and running `prj_config.py`
-    - scripts/metrics_def.py:
+    - two parts: `metrics_def.py` and running `prj_config.py`
+    - metrics_def.py:
         - python script containig only a list of `LLDMultiTriggerMetricConfig` instances
         - list must be named `MetricConfigs`
         - create more instances based on the sample ones
@@ -36,6 +36,7 @@ Firehose Buffering:
             - special statistics for metrics must be defined manually in `metric-stream.yaml` template (below)
         - each of these (config files / parameter JSON file) can be skipped by pressing CTRL+C and the files won't be created
         - also creates metric mapping (AWS Lambda metric + statistic -> Zabbix items) for `basic_handler` based on `MetricConfigs`
+        - finally copies `metrics_def.py` to `scripts` directory for the `zapi` module to be able to create initialize Zabbix
 
  - AWS special config: 
     - zblamb-sam/
@@ -53,10 +54,6 @@ Firehose Buffering:
  - **TEST** if sending discovery packet to discovery rule resets LLD Keep timer
     - possibilities: only item updates (via trapper packet) reset, or both item updates and discovery with same LLD macros does
     - min keep time: 3600 (1h)
-
- - Central config script:
-    - configure metrics inside the script somehow
-    - now defined in scrips/metrics_def.py
 
  - Resolve problems:
     - Zabbix triggers wrong severity sometimes
@@ -77,7 +74,6 @@ Firehose Buffering:
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
 
  - Central config for AWS and Zabbix
-    - Zabbix LLD keep period: propage to zapi and Transform Lambda (set in prj_config.py)
     - more params in template: Lambda timeouts etc. in central config
 
  - create readable doc for the project
