@@ -17,8 +17,13 @@ py_configs = {
 		"descr":'Name of Lambda Function Tag that stores nanosecond timestamp after which Zabbix will un-discover the function'},
     "ZBX_LLD_KEEP_PERIOD":{
         "value": '30d',
-        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (number of seconds or a number with s,m,h,d,w as suffix). Minimum 1 hour, or 0 not to expire.',
-        "check": lambda v: v == 0 or (60 <= v and v <= 788400000), "fallback": 2592000
+        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (number of seconds or a number with s,m,h,d,w as suffix). Minimum 1 hour, or 0 to expire immediately.',
+        "check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
+    },
+    "AWS_TRANSFORM_TIMEOUT":{
+        "value": '3s',
+        "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
+        "check": lambda v: 1 <= v or v <= 900, "fallback": 3
     }
 }
 PY_CONFIG_FILES = [
@@ -106,9 +111,10 @@ def __time_units_to_secs(value):
     Converts time with unit suffix as specified by Zabbix documentation to seconds. 
     :param value: string in format specified at https://www.zabbix.com/documentation/5.4/en/manual/appendix/suffixes
     """
-    mult = __time_unit_to_secs_dict.get(value[-1],1)
+    if type(value) == int: return value
+    mult = __time_unit_to_secs_dict.get(value[-1],0)
     try:
-        return int(value[:-1])*mult
+        return int(value[:-1])*mult if mult else int(value)
     except:
         return value
 
@@ -151,6 +157,13 @@ if __name__ == "__main__":
                 "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
             }
         })
+        # convert Transform Timeout to seconds
+        py_configs.update({
+            "AWS_TRANSFORM_TIMEOUT": {
+                "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
+                "descr": 'Timeout of the Transformation Lambda'
+            }
+        })
         cfg_checks(py_configs)
         lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2tup(py_configs)]
         for f in PY_CONFIG_FILES:
@@ -167,6 +180,7 @@ if __name__ == "__main__":
             for cfg,val,_ in cfg2tup(sam_parameters) if val
         }
         lines.update({"ZBLambMetrics":zblamb_metrics})
+        lines.update({"ZBLambTransformTimeout":__time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value'])})
         with open("zblamb-sam/template_params.json", "w") as f:
             json.dump(lines,f,indent=2)
 

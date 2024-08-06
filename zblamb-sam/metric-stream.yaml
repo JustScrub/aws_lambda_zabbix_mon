@@ -16,6 +16,12 @@ Parameters:
     MinValue: 0
     MaxValue: 900
     Default: 60
+  ZBLambTransformTimeout:
+    Type: Number
+    Description: Timeout of the Transformation Lambda in seconds, from range 1-900 (both inclusive)
+    Default: 3
+    MinValue: 1
+    MaxValue: 900
 
   # networking params
   ZBLambPrivSubnet:
@@ -269,6 +275,7 @@ Resources:
       FunctionName: ZBLambFirehoseTransform
       Role: !GetAtt ZBLambFunctionRole.Arn
       Runtime: python3.8
+      Timeout: !Ref ZBLambTransformTimeout
       Environment:
         Variables:
           ZBLAMB_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
