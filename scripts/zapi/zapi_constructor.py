@@ -382,6 +382,7 @@ class LLDMultiTriggerMetricConfig:
     
     def triggers(self,severity:ZabbixSeverity,suffix:str,depends_on_ids=None,zabbix_host=None,name_tag="FN_NAME",prio_tag="PRIO",manual_close=True):
         zabbix_host = zabbix_host or suffix
+        dependencies = {"dependencies": [{"triggerid":f"{id}"} for id in depends_on_ids]} if depends_on_ids else {}
         return {
             "description": f"{severity.name}.{self.name}.triggers.{suffix}[{{#{name_tag}}}]",
             "manual_close": int(manual_close),
@@ -390,7 +391,7 @@ class LLDMultiTriggerMetricConfig:
                 f"/{zabbix_host}/{self.items(suffix,0,0,name_tag)['key_']}",
                 "{$%s_%s:\\\"{#%s}\\\"}" % (self.const,severity.name,prio_tag) # f-string: "{{${self.const}:\\\"{{#{prio_tag}}}\\\"}}"
             ),
-            "dependencies": [{"triggerid":f"{id}"} for id in depends_on_ids] if depends_on_ids else [],
+            **dependencies,
             **self.trigger_kwargs
         } if any(prio[severity] for prio in self.priority_map.values()) else {}
 
