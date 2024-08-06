@@ -46,23 +46,24 @@ def zbx_discover_packet(zabbix_host: str,jsons):
     fn_tups = filter(__should_discover, fn_tups) # only discover new and possibly expired functions
     fn_tups = list(fn_tups)
 
+    # if len(fn_tups) == 0: return None,untracked
+
     for fn in fn_tups:
         lambda_client.tag_resource(
             Resource=fn[2],
-            Tags={ZBX_MONITORED_TAG: f"{time.time_ns() + int(ZBX_LLD_KEEP_PERIOD)*1_000_000_000}"} # convert period to nanoseconds
+            Tags={ZBX_MONITORED_TAG: f"{time.time_ns() + int(ZBX_LLD_KEEP_PERIOD)*500_000_000}"} # convert half of the ZBX_LLD_KEEP_PERIOD to nanoseconds (P=2 => 63.21 % chance of re-discovery of least frequent, see README.md)
         )
-        # NOTE: The tag will not be updated with each metric update.
-        #       This will result in sending discovery after the specified ZBX_LLD_KEEP_PERIOD unconditionally.
-        #       It cannot break anything, just imposes unnecessary communication (discovery) after the period,
-        #       but eliminates the need to update the tag each time a metric is sent, 
-        #       which too would impose more communication, yet even more frequent
+        # NOTE: The tag will not be updated and function will not be discovered with each metric update.
+        #       The Lambda function will be re-discovered in half of the period
+        #       If ZBX_LLD_KEEP_PERIOD is set to the expected invocation period of the least frequent function,
+        #       the probability of falsely deleting it in Zabbix is ~ 37 %.
+        #       Probability of more frequent functions getting falsely deleted is lower -- the higher the frequency, the lower the probability
 
         # NOTE: The timestamp tag should be updated BEFORE sending discovery to Zabbix (as it currently is).
         #       The tag will contain current time, but the discovery packet will arrive at a later time.
-        #       This means a discovery packet will be sent BEFORE it actually expires in Zabbix
-        #       and Zabbix will not lose any metrics due to dropped discovered items. 
+        #       This means re-discovery has slightly more time and the probability of false deletion in Zabbix is lowered.
         #       If it were the other way, tag timestamp would be later than actual expiry time in Zabbix
-        #       and discovery would not be sent to already dropped items, so the metrics would be lost, 
+        #       and discovery might not be sent to already dropped items, so the metrics would be lost, 
         #       since Zabbix no longer knows the items.
 
     discovery_item = f"discover.{zabbix_host}"
