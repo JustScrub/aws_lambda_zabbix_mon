@@ -31,7 +31,7 @@ def build(params, args):
 
 def default_cmd(params,args):
     param_list = dict2arg_list(params)
-    call = f"sam deploy --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
+    call = f"sam {sys.argv[1]} --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
 
     print("calling:\n"+call)
     c=0

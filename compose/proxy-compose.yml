@@ -4,7 +4,7 @@ services:
     restart: always
     environment:
       - ZBX_PROXYMODE=1 # passive proxy
-      - ZBX_HOSTNAME=zblamb-proxy
+      - ZBX_HOSTNAME=proxy.${ZBX_SUFFIX}
       - ZBX_SERVER_HOST=${ZBX_SERVER_HOST}
     ports:
       - "10051:10051"

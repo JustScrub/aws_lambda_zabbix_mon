@@ -74,6 +74,13 @@ sam_parameters = {
 #		"descr":''},
 }
 
+docker_env = {
+    "PHP_TZ": {
+        "value": "Europe/Prague",
+        "descr": "Zabbix Timezone in PHP format"
+    }
+}
+
 def update_config(cfg_dict):
     for k in cfg_dict:
         try:
@@ -150,18 +157,21 @@ if __name__ == "__main__":
 
     print("Configuring python scripts\n")
     if update_config(py_configs):
-        # convert LLD keep period to seconds
         py_configs.update({
+            # convert LLD keep period to seconds
             "ZBX_LLD_KEEP_PERIOD": {
                 "value": __time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
                 "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
-            }
-        })
-        # convert Transform Timeout to seconds
-        py_configs.update({
+            },
+            # convert Transform Timeout to seconds
             "AWS_TRANSFORM_TIMEOUT": {
                 "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
                 "descr": 'Timeout of the Transformation Lambda'
+            },
+            # set number of Lambda priorities
+            "N_LAMBDA_PRIORITIES": {
+                "value": 5,
+                "descr": "Number of Lambda priorities"
             }
         })
         cfg_checks(py_configs)
@@ -183,6 +193,20 @@ if __name__ == "__main__":
         lines.update({"ZBLambTransformTimeout":__time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value'])})
         with open("zblamb-sam/template_params.json", "w") as f:
             json.dump(lines,f,indent=2)
+
+    # Docker compose .env file
+    docker_env.update(
+        {
+            "ZBX_SERVER_HOST": { "value": "zabbix-server", "descr":""},
+            "POSTGRES_USER": { "value": "pg-user", "descr":""},
+            "POSTGRES_PASSWORD": { "value": "pg-pwd", "descr":""},
+            "POSTGRES_DB": { "value": "zabbix", "descr":""},
+            "ZBX_SUFFIX": {"value": py_configs["ZBX_SUFFIX"]["value"], "descr":""}
+        }
+    )
+    lines = [f"{cfg}={val}\n" for cfg,val,_ in cfg2tup(docker_env)]
+    with open("compose/.env", "w") as f:
+        f.writelines(lines)
 
     with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)

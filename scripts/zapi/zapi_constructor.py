@@ -1,6 +1,7 @@
 from pyzabbix import ZabbixAPI, ZabbixAPIException
 from typing import List, Dict, Tuple, Union
 from enum import Enum
+from scripts.config import N_LAMBDA_PRIORITIES
 import itertools
 
 zabbix_type_dict = {
@@ -23,7 +24,7 @@ class ZabbixSeverity(Enum):
         return f"Zˢ({self.name})"
 
 class LambdaPriority:
-    num_priorities=5
+    num_priorities=int(N_LAMBDA_PRIORITIES)
     def __init__(self,prio:int):
         if prio < -1 or prio > self.num_priorities:
             raise ValueError(f"Priority must be in range [0,{self.num_priorities}) or -1 for untracked")

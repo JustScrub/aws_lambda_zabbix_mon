@@ -5,3 +5,4 @@ ZBX_FN_NAME_MACRO="FN_NAME" # Zabbix LLD Macro that yields the discovered functi
 ZBX_MONITORED_TAG="ZabbixMonitorExpireTime" # Name of Lambda Function Tag that stores nanosecond timestamp after which Zabbix will un-discover the function
 ZBX_LLD_KEEP_PERIOD="2592000" # How long Zabbix keeps discovered entities in seconds if no new data have been recieved
 AWS_TRANSFORM_TIMEOUT="3" # Timeout of the Transformation Lambda
+N_LAMBDA_PRIORITIES="5" # Number of Lambda priorities
