@@ -37,11 +37,15 @@ def zbx_discover_packet(zabbix_host: str,jsons):
             res.get('Configuration',{'FunctionArn':''}).get('FunctionArn','')
         )
         for fn in function_names # tuples of function name and its tags
-        for res in list(__catch_default(lambda_client.get_function,{'Tags':{},'Configuration':{'FunctionArn':''}},FunctionName=fn))
+        for res in [__catch_default(lambda_client.get_function,{'Tags':{},'Configuration':{'FunctionArn':''}},FunctionName=fn)]
                                                                     # non-existent functions and functions without tags will be ignored
     ]
     
-    untracked = set(filter(lambda e: AWS_PRIO_TAG not in e[1],fn_tups)) # functions without the PRIO tag, non-existent functions and functions with no tags at all
+    untracked = set(
+            map(lambda e: e[0], 
+                filter(lambda e: AWS_PRIO_TAG not in e[1],fn_tups)
+                )
+            ) # names of functions without the PRIO tag, non-existent functions and functions with no tags at all
     fn_tups = filter(lambda e: e[0] not in untracked, fn_tups) # keep only functions with PRIO tag
     fn_tups = filter(__should_discover, fn_tups) # only discover new and possibly expired functions
     fn_tups = list(fn_tups)
@@ -80,7 +84,7 @@ def zbx_discover_packet(zabbix_host: str,jsons):
                             f"{{#{ZBX_FN_NAME_MACRO}}}": function_name,
                             f"{{#{ZBX_PRIO_MACRO}}}": f"{fn_tags[AWS_PRIO_TAG]}"
                         }
-                        for function_name,fn_tags in fn_tups
+                        for function_name,fn_tags,_ in fn_tups
                     ])
                 }
             ]
@@ -109,13 +113,13 @@ def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]=None):
             "host": zabbix_host,
             "key": f"{item}.metrics.{zabbix_host}[{json['dimensions']['FunctionName']}]",
             "value": json['value'][stat],
-            'clock': {int(json['timestamp'])//1000},          # timestamp in miliseconds -- extract seconds
-            'ns': {(int(json['timestamp'])%1000)*1_000_000}  # exctract miliseconds and convert to nanoseconds
+            'clock': f"{int(json['timestamp'])//1000}",          # timestamp in miliseconds -- extract seconds
+            'ns': f"{(int(json['timestamp'])%1000)*1_000_000}"  # exctract miliseconds and convert to nanoseconds
         }
         for json in jsons
-        for stats in metric_map[json['metric_name']]
-        for stat in stats
-        for item in stats[stat]
+        for metric in [metric_map[json['metric_name']]]
+        for stat in metric
+        for item in metric[stat]
         if json['dimensions']['FunctionName'] not in ignore_names
     ]
     ts = time.time_ns()
@@ -131,7 +135,7 @@ def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]=None):
     ).encode("utf-8") # encode to bytes object for socket
 
 def zbx_send_packet(addr:Tuple[str,str],data: bytes):
-    s=socket.create_connection(addr)
+    s=socket.create_connection(addr,timeout=1)
     s.sendall(b"ZBXD\1" + struct.pack("<II",len(data),0) + data)
     o = s.recv(1024)
     s.close()

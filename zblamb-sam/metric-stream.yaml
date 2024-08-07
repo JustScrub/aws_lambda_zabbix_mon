@@ -16,6 +16,12 @@ Parameters:
     MinValue: 0
     MaxValue: 900
     Default: 60
+  ZBLambTransformBufferingMegabytes:
+    Type: Number
+    Description: Data size in MBs (2^20 B) how much Metric Stream Firehose buffers data before sending them to the Transformation lambda
+    MinValue: 0.2
+    MaxValue: 3
+    Default: 1
   ZBLambTransformTimeout:
     Type: Number
     Description: Timeout of the Transformation Lambda in seconds, from range 1-900 (both inclusive)
@@ -220,11 +226,12 @@ Resources:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d
             03_configure_zabbix_infrastructure:
               command: >-
-                python3 -m ensurepip
-                pip3 install -r /root/alzm/scripts/zapi/requirements.txt
-                cd /root/alzm
+                python3 -m ensurepip &&
+                pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
+                cd /root/alzm &&
                 python3 -m scripts.zapi localhost 80 server
               ignoreErrors: "true"
+              # might need to call by hand (can be locally): python3 -m scripts.zapi <server_ip> 80 server
 
 # Lambdas
 
@@ -243,7 +250,20 @@ Resources:
       Path: "/"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole # transformation Lambda is inside VPC
-        - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess # transformation Lambda may need to read Lambda tags
+        - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess # discovery Lambda reads Lambda tags
+      Policies:
+        - PolicyName: TagWriteLambdaResource # discovery Lambda writes tags
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement: [{      
+                      "Effect": "Allow",      
+                      "Action": [
+                          "lambda:TagResource"
+                      ],      
+                      "Resource": [        
+                          "*"
+                      ]    
+                  }]
       Tags:
         - Key: Name
           Value: Zabbix Lambda monitor Lambda function IAM role
@@ -368,7 +388,7 @@ Resources:
                 - ParameterName: BufferIntervalInSeconds # buffering of MetricStream data before entering the Transform Lambda
                   ParameterValue: !Ref ZBLambTransformBufferingSeconds
                 - ParameterName: BufferSizeInMBs # must be specified with time buffering
-                  ParameterValue: "1"
+                  ParameterValue: !Ref "ZBLambTransformBufferingMegabytes"
                 - ParameterName: CompressionFormat
                   ParameterValue: UNCOMPRESSED
       Tags:

@@ -53,7 +53,7 @@ def generate_metric_stream_data(functions):
             "account_id": "0123456789",
             "dimensions": d,
             "metric_name": metric,
-            "metric_stream_name": "ZBLamb-MockLambda1-ErrorMetricStream",
+            "metric_stream_name": "ZBLambMetricStream",
             "namespace": "AWS/Lambda",
             "region": "eu-central-1",
             "timestamp": time.time_ns() - random.randrange(24*60*60*1000000000),
@@ -85,7 +85,7 @@ def generate_events(functions,n_events=None,n_records=None,n_functions=None):
                     "data": base64.b64encode('\n'.join(map(
                             json.dumps,
                             generate_metric_stream_data(random.sample(functions,random.randrange(1,n_functions)))
-                        )).encode('utf-8')),
+                        )).encode('utf-8')).decode(),
                     "recordId": f"{i}"
                 }
                 for i in range(random.randrange(n_records))
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     functions = get_functions()
     events = [json.dumps(evt) for evt in generate_events(functions,**ns)]
 
-    if len(sys.argv < 5):
+    if len(sys.argv) < 5:
         for event in events:
             print(event)
             exit(0)
@@ -132,4 +132,4 @@ if __name__ == "__main__":
     shift=int(math.log10(ns['n_events']))
     for i,event in enumerate(events):
         with open(f"{sys.argv[4]}_{str(i).zfill(shift)}.json","w") as file:
-            json.dump(event,file)
+            file.write(event)

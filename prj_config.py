@@ -18,12 +18,10 @@ py_configs = {
     "ZBX_LLD_KEEP_PERIOD":{
         "value": '30d',
         "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (number of seconds or a number with s,m,h,d,w as suffix). Minimum 1 hour, or 0 to expire immediately.',
-        "check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
     },
     "AWS_TRANSFORM_TIMEOUT":{
         "value": '3s',
         "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
-        "check": lambda v: 1 <= v or v <= 900, "fallback": 3
     }
 }
 PY_CONFIG_FILES = [
@@ -39,6 +37,10 @@ sam_parameters = {
     "descr": "Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0-900 (both inclusive)",
     "value": "60",
     "check": lambda v: 0 <= int(v) and int(v) <= 900, "fallback": 60},
+  "ZBLambTransformBufferingMegabytes":{
+    "descr": "Data size in MBs (2^20 B) how much Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0.2-3 (both inclusive)",
+    "value": "1.0",
+    "check": lambda v: 0.2 <= float(v) and float(v) <= 3.0, "fallback": 1.0},
   "ZBLambVPC":{
 		"value":'',
 		"descr":'The VPC ID under which to run EC2 instances.'},
@@ -161,12 +163,14 @@ if __name__ == "__main__":
             # convert LLD keep period to seconds
             "ZBX_LLD_KEEP_PERIOD": {
                 "value": __time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
-                "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
+                "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved',
+                "check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
             },
             # convert Transform Timeout to seconds
             "AWS_TRANSFORM_TIMEOUT": {
                 "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
-                "descr": 'Timeout of the Transformation Lambda'
+                "descr": 'Timeout of the Transformation Lambda',
+                "check": lambda v: 1 <= v or v <= 900, "fallback": 3
             },
             # set number of Lambda priorities
             "N_LAMBDA_PRIORITIES": {

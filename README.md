@@ -62,12 +62,18 @@ Firehose Buffering:
             - Earlier metrics delivered later than current latest metrics
             - Clock param of Zabbix Trapper protocol?
             - solve by eliminating parallelism?
+    
+    - end with error in Transform lambda, if error in Zabbix **!!**
+    - Documentation **!!**
+    - controll packet size going to Zabbix
+    - billing??
 
  - Benchmark the infrastructure:
     - 1000 active instances at once (at all times?)
     - Transform lambda duration, parallelism?
     - figure out good parameters -- Firehose buffering time and size, Lambda timeout, ...
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
+    - overload Trapper and Transform Lambda (how much required to overload) **!!**
 
  - Templates:
     - networking template -- VPC, Subnets
