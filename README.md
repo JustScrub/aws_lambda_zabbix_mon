@@ -51,27 +51,35 @@ Firehose Buffering:
 
 
 # TODO
- - **TEST** if sending discovery packet to discovery rule resets LLD Keep timer
-    - possibilities: only item updates (via trapper packet) reset, or both item updates and discovery with same LLD macros does
-    - min keep time: 3600 (1h)
-
  - Resolve problems:
-    - Zabbix triggers wrong severity sometimes
     - "Time consistency"
         - Parallel transform Lambda invocations -- allow or not?
-            - disable by setting Lambda timeout same as Firehose Buffering -- may be triggered early by size buffering setting
+            - disable by setting Lambda timeout <= Firehose Buffering -- may be triggered early by size buffering setting
         - out-of-order delivery on Zabbix
             - Lambda invocation 0 has connectivity problems
             - Lambda invocation 1 delivers metrics to Zabbix
             - invocation delivers metrics -- after invoc 1! 
             - Earlier metrics delivered later than current latest metrics
             - Clock param of Zabbix Trapper protocol?
+            - solve by eliminating parallelism?
 
  - Benchmark the infrastructure:
     - 1000 active instances at once (at all times?)
     - Transform lambda duration, parallelism?
     - figure out good parameters -- Firehose buffering time and size, Lambda timeout, ...
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
+
+ - Templates:
+    - networking template -- VPC, Subnets
+        - export VPC, subnet IDs
+    - Zabbix template
+        - Server: Public Subnet (or private with VPN)
+        - Proxy: private subnet
+        - possibly Agent: private
+        - SSH keys, Security Groups
+    - Metric Stream template
+        - Metric Stream, Firehose, Transform Lambda (inside VPC)
+        - Mock lambda? Or separate template?
 
  - Central config for AWS and Zabbix
     - more params in template: Lambda timeouts etc. in central config

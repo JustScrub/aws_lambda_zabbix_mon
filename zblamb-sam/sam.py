@@ -31,7 +31,7 @@ def build(params, args):
 
 def default_cmd(params,args):
     param_list = dict2arg_list(params)
-    call = f"sam {sys.argv[1]} --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
+    call = f"sam {sys.argv[1]} {args} --config-file {SAMCONFIG} --parameter-overrides {param_list}"
 
     print("calling:\n"+call)
     c=0
@@ -42,9 +42,12 @@ def default_cmd(params,args):
 
 
 def print_usage():
-    print("usage: python3 sam.py <command> <path_to_template_parameters.json> [other AWS SAM CLI args]")
-    print("<command>: AWS SAM CLI command")
-    print("for build, template is 'metric-stream.yaml'")
+    print("Call AWS SAM CLI with specified command and arguments, automatically filling in the --config-file argument and --parameter-overrides argument based on a JSON file with template parameters\n")
+    print("usage: python3 sam.py <command> [other AWS SAM CLI args] <path_to_template_parameters.json>")
+    print("\t<command>: AWS SAM CLI command")
+    print("\t\tfor build, template is set to 'metric-stream.yaml'")
+    print("\t<path_to_template_parameters.json>: Path to JSON file with mapping of template parameters to values")
+    print("\tThe order must be kept!")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -53,10 +56,10 @@ if __name__ == "__main__":
 
     cmd = sys.argv[1]
 
-    with open(sys.argv[2]) as parf:
+    with open(sys.argv[-1]) as parf:
         params = json.load(parf)
 
-    args = " ".join(sys.argv[3:])
+    args = " ".join(sys.argv[2:-1])
     exit( globals().get(cmd,default_cmd)(params,args) )
 
     
