@@ -113,8 +113,8 @@ def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]=None):
             "host": zabbix_host,
             "key": f"{item}.metrics.{zabbix_host}[{json['dimensions']['FunctionName']}]",
             "value": json['value'][stat],
-            'clock': f"{int(json['timestamp'])//1000}",          # timestamp in miliseconds -- extract seconds
-            'ns': f"{(int(json['timestamp'])%1000)*1_000_000}"  # exctract miliseconds and convert to nanoseconds
+            'clock': int(json['timestamp'])//1000,          # timestamp in miliseconds -- extract seconds
+            'ns': (int(json['timestamp'])%1000)*1_000_000  # exctract miliseconds and convert to nanoseconds
         }
         for json in jsons
         for metric in [metric_map[json['metric_name']]]

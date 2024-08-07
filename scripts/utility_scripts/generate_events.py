@@ -56,7 +56,7 @@ def generate_metric_stream_data(functions):
             "metric_stream_name": "ZBLambMetricStream",
             "namespace": "AWS/Lambda",
             "region": "eu-central-1",
-            "timestamp": time.time_ns() - random.randrange(24*60*60*1000000000),
+            "timestamp": time.time_ns()//1_000_000 - random.randrange(24*60*60*1000), # timestamp is in miliseconds
             "unit": unit,
             "value": {
                 "count": getval(1,10),
