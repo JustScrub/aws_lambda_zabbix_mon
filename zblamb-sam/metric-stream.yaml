@@ -328,8 +328,12 @@ Resources:
       Handler: app.lambda_handler
       FunctionName: ZBLambDiscoveryLambda
       #Role: !GetAtt ZBLambFunctionRole.Arn
+      Events:
+        - Type: Schedule
+          Properties:
+            Schedule: 'rate(1 minute)'
       Policies:
-        - AWSLambdaBasicExecutionRole 
+        - AWSLambdaVPCAccessExecutionRole 
         - Version: '2012-10-17'
           Statement:       
             - Effect: "Allow",      
@@ -349,8 +353,8 @@ Resources:
         SecurityGroupIds:
           - !Ref ZBLambZabbixSecGroup
       Tags:
-        Name: Zabbix Lambda monitor Firehose stream transformation
-        Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+        Name: Zabbix Lambda monitor Lambda Discovery function
+        Description: Lambda function used to discover Lambda functions with priority tag inside Zabbix
         PRIO: 4
         ZABBIX_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
 
