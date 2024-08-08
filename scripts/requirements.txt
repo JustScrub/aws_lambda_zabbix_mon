@@ -1,2 +1,2 @@
-pyzabbix
-boto3
+-r utility_scripts/requirements.txt
+-r zapi/requirements.txt
