@@ -1,28 +1,66 @@
 import sys, os, json
 
 DRY=False
-TEMPLATE='./metric-stream.yaml'
+DEFAULT_TEMPLATE='./templates/metric-stream.yaml'
 SAMCONFIG='samconfig.yaml'
 HANDLER_DIR = './functions/basic_handler/'
 BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
 
+param_in_templates = {
+  "ZBLambDummyDeliveryStreamBucket":["metric-stream"],
+  "ZBLambTransformBufferingSeconds":["metric-stream"],
+  "ZBLambTransformBufferingMegabytes":["metric-stream"],
+  "ZBLambMetrics":["metric-stream"],
+  "ZBLambCreateMockLambda":["metric-stream"],
+  "ZBLambTransformTimeout":["metric-stream"],
+  "ZBLambZabbixIP":["metric-stream"],
+  "ZBLambVPC":[ "zbx_server_proxy"],
+  "ZBLambPrivSubnet":["metric-stream", "zbx_server_proxy"],
+  "ZBLambPubSubnet":[ "zbx_server_proxy"],
+  "ZBLambSSHRange":[ "zbx_server_proxy"],
+  "ZBLambHTTPRange":[ "zbx_server_proxy"],
+  "ZBLambZBXPortRange":[ "zbx_server_proxy"],
+  "ZBLambInstanceType":[ "zbx_server_proxy"],
+  "ZBLambImage":[ "zbx_server_proxy"],
+  "ZBLambDBUser":[ "zbx_server_proxy"],
+  "ZBLambDBPwd":[ "zbx_server_proxy"],
+  "ZBLambCreditSpec":[ "zbx_server_proxy"],
+  "ZBLambCreateProxy":[ "zbx_server_proxy"]
+}
 
 def dict2arg_list(params):
     return " ".join([f"{k}={v}" for k,v in params.items()])
 
-def build(params, args):
-    param_list = dict2arg_list(params)
-    call = f"sam build -t {TEMPLATE} --config-file {SAMCONFIG} --parameter-overrides {param_list} {args}"
+def get_template(args):
+    if "--template" in args:
+        return args[args.index('--template')+1]
+    elif "-t" in args:
+        return args[args.index('-t')+1]
+    else:
+        return None
 
-    print("calling:\n"+call)
-    c=0
-    if not DRY:
-        c = os.system(call)
-    return c
+def filter_template_params(template, params):
+    for t in ["metric-stream", "zbx_server_proxy"]:
+        if t in template:
+            template = t
+            break
+
+    params = {
+        k: v
+        for k,v in params.items()
+        if template in param_in_templates[k]
+    }
+    return params
 
 def default_cmd(params,args):
+    template = get_template(args)
+    t_arg = ""
+    if template is None:
+        template = DEFAULT_TEMPLATE
+        t_arg = f"-t {template}"
+    params = filter_template_params(template,params)
     param_list = dict2arg_list(params)
-    call = f"sam {sys.argv[1]} {args} --config-file {SAMCONFIG} --parameter-overrides {param_list}"
+    call = f"sam {sys.argv[1]} {args} {t_arg} --config-file {SAMCONFIG} --parameter-overrides {param_list}"
 
     print("calling:\n"+call)
     c=0

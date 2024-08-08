@@ -1,0 +1,276 @@
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  # metric stream params
+  ZBLambDummyDeliveryStreamBucket:
+    Type: String
+    AllowedPattern: arn:.*
+    Description: A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements.
+  ZBLambMetrics:
+    Type: CommaDelimitedList
+    Default: "Errors,Duration"
+    Description: Comma delimited list of AWS/Lamda metrics to send to Zabbix.
+  ZBLambTransformBufferingSeconds:
+    Type: Number
+    Description: Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda
+    MinValue: 0
+    MaxValue: 900
+    Default: 60
+  ZBLambTransformBufferingMegabytes:
+    Type: Number
+    Description: Data size in MBs (2^20 B) how much Metric Stream Firehose buffers data before sending them to the Transformation lambda
+    MinValue: 0.2
+    MaxValue: 3
+    Default: 1
+  ZBLambTransformTimeout:
+    Type: Number
+    Description: Timeout of the Transformation Lambda in seconds, from range 1-900 (both inclusive)
+    Default: 3
+    MinValue: 1
+    MaxValue: 900
+  ZBLambCreateMockLambda:
+    Type: String
+    AllowedValues:
+      - "yes"
+      - "no"
+    Default: "yes"
+    Description: Whether to create the Mock Lambda, a lambda that can fail in various ways or pass on demand
+  ZBLambZabbixIP:
+    Type: String
+    Description: IP address or DNS name of Zabbix Server/Proxy to push data to (discovery + metrics)
+    Default: ''
+
+  # networking params
+  ZBLambPrivSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: A private subnet from which the Zabbix Server/Proxy can be reached
+    Default: ''
+
+Conditions:
+  CreateMockLambda: !Equals
+    - !Ref ZBLambCreateMockLambda
+    - "yes"
+  Defined-ZBLambPrivSubnet: !Not [ !Equals [!Ref ZBLambPrivSubnet, '']]
+  Defined-ZBLambZabbixIP: !Not [ !Equals [!Ref ZBLambZabbixIP, '']]
+
+
+Resources:
+
+# Lambdas
+
+  ZBLambMockLambda1:
+    Type: "AWS::Serverless::Function"
+    Condition: CreateMockLambda
+    Properties:
+      FunctionName: ZBLambMockLambda1
+      Description: |
+        Lambda function that passes or fails on demand.
+        Input: { 'result': 'pass' / 'raise' / 'fail' / 'timeout' }
+      CodeUri: functions/fail_lambda/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 2
+      Policies: 
+        - AWSLambdaBasicExecutionRole
+      Tags:
+        Name: Zabbix Lambda monitor Mock Lambda function
+        Description: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
+        PRIO: 1
+
+  ZBLambMetricStreamTransformLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/basic_handler/
+      Handler: app.lambda_handler
+      FunctionName: ZBLambFirehoseTransform
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole 
+        - Version: '2012-10-17'
+          Statement:       
+            - Effect: "Allow"
+              Action: 
+                - lambda:Get* # needs to get TAGs and check if AWS_PRIO_TAG is present
+              Resource: '*'
+      Runtime: python3.8
+      Timeout: !Ref ZBLambTransformTimeout
+      Environment:
+        Variables:
+          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+          LOG_LEVEL: INFO
+      VpcConfig:
+        SubnetIds: !If
+          - Defined-ZBLambPrivSubnet
+          - !Ref ZBLambPrivSubnet
+          - !ImportValue ZBLamb::PrivateSubnetId
+      Tags:
+        Name: Zabbix Lambda monitor Firehose stream transformation
+        Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+        PRIO: 4
+        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+      
+  ZBLambFunctionDiscoveryLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/discovery_handler/
+      Handler: app.lambda_handler
+      FunctionName: ZBLambDiscoveryLambda
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(1 minute)' # 'cron(* * * * *)'
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole 
+        - Version: '2012-10-17'
+          Statement:       
+            - Effect: "Allow"
+              Action: 
+                - lambda:Get*  # get Tags and check if AWS_PRIO_TAG present
+                - lambda:List* # list all functions in account
+              Resource: '*'
+      Runtime: python3.8
+      Timeout: !Ref ZBLambTransformTimeout
+      Environment:
+        Variables:
+          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+          LOG_LEVEL: INFO
+      VpcConfig:
+        SubnetIds: !If
+          - Defined-ZBLambPrivSubnet
+          - !Ref ZBLambPrivSubnet
+          - !ImportValue ZBLamb::PrivateSubnetId
+      Tags:
+        Name: Zabbix Lambda monitor Lambda Discovery function
+        Description: Lambda function used to discover Lambda functions with priority tag inside Zabbix
+        PRIO: 4
+        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+
+# Metric Stream
+
+  ZBLambMetricStreamFirehoseIAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "firehose.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+          }]
+      Path: "/"
+      Policies:
+      - PolicyName: FirehorseToS3Policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement: [{      
+                    "Effect": "Allow",      
+                    "Action": [
+                        "s3:AbortMultipartUpload",
+                        "s3:GetBucketLocation",
+                        "s3:GetObject",
+                        "s3:ListBucket",
+                        "s3:ListBucketMultipartUploads",
+                        "s3:PutObject"
+                    ],      
+                    "Resource": [        
+                        "Ref": "ZBLambDummyDeliveryStreamBucket",
+                        "Fn::Sub": "${ZBLambDummyDeliveryStreamBucket}/*"
+                    ]    
+                },        
+                {
+                    "Effect": "Allow", 
+                    "Action": [
+                        "lambda:InvokeFunction", 
+                        "lambda:GetFunctionConfiguration" 
+                    ],
+                    "Resource": [
+                        "Fn::GetAtt": [ "ZBLambMetricStreamTransformLambda", "Arn" ]
+                    ]
+              }]
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Mock Lambda function IAM role
+        - Key: Description
+          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
+
+  ZBLambMetricStreamFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref ZBLambDummyDeliveryStreamBucket
+        BufferingHints:
+          IntervalInSeconds: 0 # buffering after transform -- we do not care about this, all pakcets will be dropped, so flush right away
+        CloudWatchLoggingOptions:
+          Enabled: false
+        CompressionFormat: UNCOMPRESSED
+        EncryptionConfiguration: 
+          NoEncryptionConfig: "NoEncryption"
+        S3BackupMode: "Disabled"
+        RoleARN: !GetAtt ZBLambMetricStreamFirehoseIAM.Arn
+
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Type: Lambda
+              Parameters: 
+                - ParameterName: LambdaArn
+                  ParameterValue: !GetAtt ZBLambMetricStreamTransformLambda.Arn
+                - ParameterName: BufferIntervalInSeconds # buffering of MetricStream data before entering the Transform Lambda
+                  ParameterValue: !Ref ZBLambTransformBufferingSeconds
+                - ParameterName: BufferSizeInMBs # must be specified with time buffering
+                  ParameterValue: !Ref "ZBLambTransformBufferingMegabytes"
+                - ParameterName: CompressionFormat
+                  ParameterValue: UNCOMPRESSED
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Delivery Stream
+        - Key: Description
+          Value: The Firehose stream that streams metrics from CloudWatch to the S3 bucket / HTTP Endpoint
+
+  ZBLambMetricStreamIAM:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - streams.metrics.cloudwatch.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: FirehoseAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - firehose:PutRecord
+            - firehose:PutRecordBatch
+            Resource: !GetAtt ZBLambMetricStreamFirehose.Arn
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream IAM permission
+        - Key: Description
+          Value: IAM role of the metric stream to access the Firehose
+ 
+  ZBLambMetricStream:
+    Type: AWS::CloudWatch::MetricStream
+    Properties:
+      FirehoseArn: !GetAtt ZBLambMetricStreamFirehose.Arn
+      RoleArn: !GetAtt ZBLambMetricStreamIAM.Arn
+      OutputFormat: json
+      IncludeFilters:
+        - Namespace: "AWS/Lambda"
+          MetricNames: !Ref ZBLambMetrics
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Metric Stream 
+        - Key: Description
+          Value: The metric stream used to push AWS/Lambda Errors to Lambda pushing to Zabbix

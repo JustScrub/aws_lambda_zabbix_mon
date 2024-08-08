@@ -86,6 +86,11 @@ Firehose Buffering:
     - Metric Stream template
         - Metric Stream, Firehose, Transform Lambda (inside VPC)
         - Mock lambda? Or separate template?
+    - use conditions:
+        - `!If: [<param_x>_defined, !Ref <param_x>, !ImportValue ZBLamb::<param_x>]`
+        - how to define condition `<param_x>_defined??`
+        - zapi depends on whether proxy is created! propagate with prj_config
+    - can SAM deploy template without building? (vanilla CF template)
 
  - Central config for AWS and Zabbix
     - more params in template: Lambda timeouts etc. in central config

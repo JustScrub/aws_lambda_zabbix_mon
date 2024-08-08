@@ -128,14 +128,14 @@ Outputs:
     Description: ID of the public subnet
     Value: !Ref ZBLambPubSubnet
     Export: 
-      Name: !Sub ${AWS::StackName}-PublicSubnet
+      Name: ZBLamb::PublicSubnetId
   PrivateSubnetId:
     Description: ID of the private subnet
     Value: !Ref ZBLambPrivSubnet
     Export: 
-      Name: !Sub ${AWS::StackName}-PrivateSubnet
+      Name: ZBLamb::PrivateSubnetId
   VpcId:
     Description: ID of the VPC
     Value: !Ref ZBLambVPC
     Export: 
-      Name: !Sub ${AWS::StackName}-VPC
+      Name: ZBLamb::VpcId
