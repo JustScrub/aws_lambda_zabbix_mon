@@ -2,7 +2,8 @@
 .vscode
 __pycache__
 zblamb-sam/.aws-sam
-zblamb-sam/functions/utils/metric_map.json
+zblamb-sam/**/config.py
+zblamb-sam/functions/basic_handler/metric_map.json
 zblamb-sam/template_params.json
 zblamb-sam/events
 concr_configs

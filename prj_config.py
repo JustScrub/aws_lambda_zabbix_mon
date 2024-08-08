@@ -26,7 +26,8 @@ py_configs = {
 }
 PY_CONFIG_FILES = [
         "scripts/config/__init__.py",
-        "zblamb-sam/functions/utils/config.py"
+        "zblamb-sam/functions/basic_handler/config.py",
+        "zblamb-sam/functions/discovery_handler/config.py"
         ]
 
 sam_parameters = {
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     with open("compose/.env", "w") as f:
         f.writelines(lines)
 
-    with open("zblamb-sam/functions/utils/metric_map.json", "w") as f:
+    with open("zblamb-sam/functions/basic_handler/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)
 
     from shutil import copy

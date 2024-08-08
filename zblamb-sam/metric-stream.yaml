@@ -235,40 +235,40 @@ Resources:
 
 # Lambdas
 
-  ZBLambFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole # transformation Lambda is inside VPC
-        - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess # discovery Lambda reads Lambda tags
-      Policies:
-        - PolicyName: TagWriteLambdaResource # discovery Lambda writes tags
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement: [{      
-                      "Effect": "Allow",      
-                      "Action": [
-                          "lambda:TagResource"
-                      ],      
-                      "Resource": [        
-                          "*"
-                      ]    
-                  }]
-      Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor Lambda function IAM role
-        - Key: Description
-          Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
+  #ZBLambFunctionRole:
+  #  Type: AWS::IAM::Role
+  #  Properties:
+  #    AssumeRolePolicyDocument:
+  #      Version: '2012-10-17'
+  #      Statement:
+  #      - Effect: Allow
+  #        Principal:
+  #          Service:
+  #          - lambda.amazonaws.com
+  #        Action:
+  #        - sts:AssumeRole
+  #    Path: "/"
+  #    ManagedPolicyArns:
+  #      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole # transformation Lambda is inside VPC
+  #      - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess # discovery Lambda reads Lambda tags
+  #    Policies:
+  #      - PolicyName: TagWriteLambdaResource # discovery Lambda writes tags
+  #        PolicyDocument:
+  #          Version: '2012-10-17'
+  #          Statement: [{      
+  #                    "Effect": "Allow",      
+  #                    "Action": [
+  #                        "lambda:TagResource"
+  #                    ],      
+  #                    "Resource": [        
+  #                        "*"
+  #                    ]    
+  #                }]
+  #    Tags:
+  #      - Key: Name
+  #        Value: Zabbix Lambda monitor Lambda function IAM role
+  #      - Key: Description
+  #        Value: IAM role of monitored Lambda functions allowing some operations for CloudWatch
 
   ZBLambMockLambda1:
     Type: "AWS::Serverless::Function"
@@ -281,7 +281,9 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.8
       Timeout: 2
-      Role: !GetAtt ZBLambFunctionRole.Arn
+      #Role: !GetAtt ZBLambFunctionRole.Arn
+      Policies: 
+        - AWSLambdaBasicExecutionRole
       Tags:
         Name: Zabbix Lambda monitor Mock Lambda function
         Description: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
@@ -293,7 +295,48 @@ Resources:
       CodeUri: functions/basic_handler/
       Handler: app.lambda_handler
       FunctionName: ZBLambFirehoseTransform
-      Role: !GetAtt ZBLambFunctionRole.Arn
+      #Role: !GetAtt ZBLambFunctionRole.Arn
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole 
+        - Version: '2012-10-17'
+          Statement:       
+            - Effect: "Allow",      
+              Action: 
+                - lambda:Get* # needs to get TAGs and check if AWS_PRIO_TAG is present
+              Resource: *
+      Runtime: python3.8
+      Timeout: !Ref ZBLambTransformTimeout
+      Environment:
+        Variables:
+          ZBLAMB_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
+          LOG_LEVEL: INFO
+      VpcConfig:
+        SubnetIds:
+          - !Ref ZBLambPrivSubnet
+        SecurityGroupIds:
+          - !Ref ZBLambZabbixSecGroup
+      Tags:
+        Name: Zabbix Lambda monitor Firehose stream transformation
+        Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
+        PRIO: 4
+        ZABBIX_PROXY_IP: !GetAtt ZBLambZabServer.PrivateIp
+      
+  ZBLambFunctionDiscoveryLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/discovery_handler/
+      Handler: app.lambda_handler
+      FunctionName: ZBLambDiscoveryLambda
+      #Role: !GetAtt ZBLambFunctionRole.Arn
+      Policies:
+        - AWSLambdaBasicExecutionRole 
+        - Version: '2012-10-17'
+          Statement:       
+            - Effect: "Allow",      
+              Action: 
+                - lambda:Get*  # get Tags and check if AWS_PRIO_TAG present
+                - lambda:List* # list all functions in account
+              Resource: *
       Runtime: python3.8
       Timeout: !Ref ZBLambTransformTimeout
       Environment:
