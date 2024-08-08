@@ -1,26 +1,13 @@
 #!/bin/python
-import socket, struct, json
+import json
+from zappix.sender import Sender
 from ..config import ZBX_SUFFIX,ZBX_PRIO_MACRO,ZBX_FN_NAME_MACRO
 
 
 def auto_discover(name_prio_tuples, zab_addr, suffix=ZBX_SUFFIX):
     discovered = [{f"{{#{ZBX_FN_NAME_MACRO}}}": f, f"{{#{ZBX_PRIO_MACRO}}}":p} for f,p in name_prio_tuples]
-
-    d = json.dumps({
-        "request": "sender data",
-        "data": [
-            {
-                "host": f"{suffix}",
-                "key": f"discover.{suffix}",
-                "value": json.dumps(discovered)
-            }
-        ]
-    }).encode("utf-8")
-
-    s=socket.create_connection(zab_addr)
-    s.sendall(b"ZBXD\1" + struct.pack("<II",len(d),0) + d)
-    resp = s.recv(1024)
-    s.close()
+    s = Sender(*zab_addr)
+    resp = s.send_value(suffix,f"discover.{suffix}",json.dumps(discovered))
     return resp
 
 if __name__ == "__main__":
