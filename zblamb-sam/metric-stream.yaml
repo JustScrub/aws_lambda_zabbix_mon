@@ -300,10 +300,10 @@ Resources:
         - AWSLambdaVPCAccessExecutionRole 
         - Version: '2012-10-17'
           Statement:       
-            - Effect: "Allow",      
+            - Effect: "Allow"
               Action: 
                 - lambda:Get* # needs to get TAGs and check if AWS_PRIO_TAG is present
-              Resource: *
+              Resource: '*'
       Runtime: python3.8
       Timeout: !Ref ZBLambTransformTimeout
       Environment:
@@ -329,18 +329,19 @@ Resources:
       FunctionName: ZBLambDiscoveryLambda
       #Role: !GetAtt ZBLambFunctionRole.Arn
       Events:
-        - Type: Schedule
+        ScheduleEvent:
+          Type: Schedule
           Properties:
-            Schedule: 'rate(1 minute)'
+            Schedule: 'rate(1 minute)' # 'cron(* * * * *)'
       Policies:
         - AWSLambdaVPCAccessExecutionRole 
         - Version: '2012-10-17'
           Statement:       
-            - Effect: "Allow",      
+            - Effect: "Allow"
               Action: 
                 - lambda:Get*  # get Tags and check if AWS_PRIO_TAG present
                 - lambda:List* # list all functions in account
-              Resource: *
+              Resource: '*'
       Runtime: python3.8
       Timeout: !Ref ZBLambTransformTimeout
       Environment:

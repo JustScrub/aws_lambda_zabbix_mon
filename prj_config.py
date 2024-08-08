@@ -12,13 +12,6 @@ py_configs = {
     "ZBX_FN_NAME_MACRO":{
 		"value":'FN_NAME',
 		"descr":'Zabbix LLD Macro that yields the discovered function name'},
-    "ZBX_MONITORED_TAG":{
-		"value":'ZabbixMonitorExpireTime',
-		"descr":'Name of Lambda Function Tag that stores nanosecond timestamp after which Zabbix will un-discover the function'},
-    "ZBX_LLD_KEEP_PERIOD":{
-        "value": '30d',
-        "descr": 'How long Zabbix keeps discovered entities if no new data have been recieved, in zabbix time unit format (number of seconds or a number with s,m,h,d,w as suffix). Minimum 1 hour, or 0 to expire immediately.',
-    },
     "AWS_TRANSFORM_TIMEOUT":{
         "value": '3s',
         "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
@@ -163,9 +156,9 @@ if __name__ == "__main__":
         py_configs.update({
             # convert LLD keep period to seconds
             "ZBX_LLD_KEEP_PERIOD": {
-                "value": __time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
-                "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved',
-                "check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
+                "value": 0, #__time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
+                "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
+                #"check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
             },
             # convert Transform Timeout to seconds
             "AWS_TRANSFORM_TIMEOUT": {

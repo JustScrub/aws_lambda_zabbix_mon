@@ -21,7 +21,7 @@ def zbx_discover_all():
     ] # tuples of function name, ARN and Tags field
 
     functions = list(filter(
-        lambda name,tags: AWS_PRIO_TAG in tags,
+        lambda e: AWS_PRIO_TAG in e[1],
         functions
     )) # only discover functions with the AWS_PRIO_TAG tag -- the rest are untracked by Zabbix
     
@@ -35,10 +35,12 @@ def zbx_discover_all():
     return packet
 
 def lambda_handler(e,c):
-    discovery_value = zbx_discover_all(),
-    logger.info("Discovered functions: %s", str(discovery_value))
+    discovery_value = zbx_discover_all()
+    discovery_str = j.dumps(discovery_value)
+    logger.info("Discovered functions: %s", discovery_str)
     sender = Sender(os.environ['ZBLAMB_PROXY_IP'],10051)
-    resp = sender.send_value(ZBX_SUFFIX,f"discover.{ZBX_SUFFIX}",j.dumps(discovery_value))
+    sender.set_timeout(0.5)
+    resp = sender.send_value(ZBX_SUFFIX,f"discover.{ZBX_SUFFIX}",discovery_str)
     logger.info("Response: %s",str(resp))
 
     err = resp.response != 'success'
@@ -48,11 +50,8 @@ def lambda_handler(e,c):
     if resp.total == 0 and len(discovery_value) > 0:
         logger.fatal(f"No functions discovered! Is the Zabbix sender packet correct?")
         err = True
-    elif resp.total < len(discovery_value):
-        logger.error(f"Zabbix dropped {len(discovery_value) - resp.total} functions to discover (nor processed, nor failed)!")
-        err = True
 
-    logger.info(f"Zabbix took {resp.seconds.spent} seconds on the request.")
+    logger.info(f"Zabbix took {resp.seconds_spent} seconds on the request.")
 
     exit( int(err) ) # exit with 1 (=FAIL) in case of failure
 

@@ -29,6 +29,7 @@ def send_test_trap(zbx_addr,function,metric,rand_range,n_values,time_update_s=0,
         for _ in range(n_values)]
 
     s=Sender(*zbx_addr)
+    s.set_timeout(3)
     resp = s.send_bulk(M,True)
     return resp
 

@@ -27,7 +27,7 @@ def ignore_fns(jsons):
         name
         for json in jsons
         for name in [json['dimensions']['FunctionName']]
-        if AWS_PRIO_TAG in lc.get_function(FunctionName=name).get('Tags',{})
+        if AWS_PRIO_TAG not in lc.get_function(FunctionName=name).get('Tags',{})
     }
     lc.close()
     return ignores
@@ -80,16 +80,19 @@ def lambda_handler(e,c):
     zbx_addr = (os.environ['ZBLAMB_PROXY_IP'],10051)
 
     # extract metrics
-    data = extract_data(e)
+    sender_data = extract_data(e)
 
     # send metrics to Zabbix
-    ignored = ignore_fns()
+    ignored = ignore_fns(sender_data)
     logger.info("Ignoring functions: %s",ignored)
-    sender_data = zbx_mass_item_packet(data,ZBX_SUFFIX,ignored)
+
+    sender_data = zbx_mass_item_packet(sender_data,ZBX_SUFFIX,ignored)
     logger.info("Item data: %s",list(map(str,sender_data)))
+
     sender = Sender(*zbx_addr)
+    sender.set_timeout(0.5)
     resp = sender.send_bulk(sender_data,with_timestamps=True)
-    logger.info("Item response: %s",str(resp))
+    logger.info("Item response: %s",resp)
 
     err = resp.response != "success"
     if resp.failed > 0:
@@ -101,6 +104,7 @@ def lambda_handler(e,c):
     elif resp.total < len(sender_data):
         logger.error(f"Zabbix dropped {len(sender_data) - resp.total} metrics (nor processed, nor failed)!")
         err = True
+    logger.info(f"Zabbix took {resp.seconds_spent} seconds on the request.")
 
     if err: exit(1)
     return {'records': [{'recordId': r['recordId'],'result': 'Dropped','data': ''} for r in e['records']]} # drop all data, do not send it further via firehose

@@ -95,56 +95,18 @@ Firehose Buffering:
  - Setup Metric Stream
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
         - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
-        - do not discover already discovered Lambdas in Zabbix
-            - "Cache" in Lambda tags:
-                - ZabbixMonitored Tag: timestamp of time of discovery
-                - Transform lambda config: after how long Zabbix deletes the discovered objects 
-                - Transform lambda could (should) re-discover before Zabbix keep period expires
-            - Zabbix discovered objects have state: discovered, no longer discovered
-                - state changes to "discovered" when last discovery packet includes its LLD macros
-                - state changes to "no longer discovered" when last discovery packet does not include its LLD macros
-                - when new discovery packet arrives without its LLD macros in "no longer discovered" state and keep period expires, the object is deleted
-            - optimal values:
-                - ZBX_LLD_KEEP_PERIOD: 
-                    1. find expected rate d (= 1/period) of least frequent Lambda Function
-                    1. using exponential distribution with rate=d, find time interval T, in which it is highly probable that the least frequent function will get invoked
-                        - e.g. 99.99 percentile = 9.210340/d = ~ 9 times the period
-                        - 99.9 percentile = 6.907755/d = ~ 7 times the period
-                        - p percentile = ln(1/(1-p))/d = ln(1/(1-p)) times the period
-                    1. set ZBX_LLD_KEEP_PERIOD >= T
-                        - very high probability that even the least frequent function is invoked prior to expiration in Zabbix
-                - AWS re-discovery period for Lambda function F:
-                    - for all functions, including the least frequent one
-                    1. find expected rate Fd of function F
-                    1. get time interval FT, in which F is very likely to get invoked (same percentile as with ZBX_LLD_KEEP_PERIOD)
-                        - FT = ln(1/(1-p))/d, p is same as chosen in ZBX_LLD_KEEP_PERIOD, d is characteristic of F
-                    1. set re-discovery period for F to ZBX_LLD_KEEP_PERIOD - FT
-                        - => the least frequent function will have re-discovery period of 0 => re-discover each time
-                        - not true if ZBX_LLD_KEEP_PERIOD > T
-                - expiration of ZBX_LLD_KEEP_PERIOD in Zabbix is very likely for functions that do not exist anymore
-                - assumption of exponential behavior! For better results, find conrete rate distribution of each function
-                - ZBX_LLD_KEEP_PERIOD > T reduces communication, but deleted functions may pend longer in Zabbix
-            - Configuration -- **TEST**:
-                - pick ZBX_LLD_KEEP_PERIOD > P*expected_max_period and set AWS re-descovery period to ZBX_LLD_KEEP_PERIOD/P
-                    - probability of re-discovery of least frequent is 1-e^(1-P), assuming exponential behavior
-                        - P=2 => 63.21 %, P=7 => 99.91 %
-                    - all functions invoked more frequently than the least frequent one will be re-discovered unnecessarilly often, but it should be very unlikely that a function will get unintentionally deleted
-                    - the higher P, the less likely are faulty deletions, but the higher is amount communication
-                    - also the higher P, the longer it takes Zabbix to remove a function (they might pend for a long time)
-                    - currently set to P=2 (ZBX_LLD_KEEP_PERIOD should be configured accordingly)
-
-            - other approach: periodically discover all Lambdas
-                - after a specific period, crawl through all Lambda functions and discover them
-                - ZBX_LLD_KEEP_PERIOD=0, since re-discovers only existing functions and not deleted in AWS
-                - in Transform lambda (`if should_rediscover(): rediscover()`) or new Lambda, invoked periodically
-                - no need to worry about faulty deletions in Zabbix
-                - deleted functions in AWS might pend in Zabbix for a long time (deleted in beggining of re-discovery period)
-                - must ensure discovery of new functions
-                    - just a boolean ZabbixMonitored Lambda Tag?
-                    - discovering just this function would delete every other function (ZBX_LLD_KEEP_PERIOD=0)
-                    - must ensure all functions are re-discovered with new function
-                    - either postpone or skip sending metrics of new function until discovered in periodic process, or send discovery packet with every function once a new function is found
-                - priority updates: either just update the priority in AWS and wait until next discovery period or update in AWS and send discovery packet with all functions in AWS
+        - periodically discover all Lambdas -- **TEST**
+            - after a specific period, crawl through all Lambda functions and discover them
+            - ZBX_LLD_KEEP_PERIOD=0, since re-discovers only existing functions and not deleted in AWS
+            - in Transform lambda (`if should_rediscover(): rediscover()`) or new Lambda, invoked periodically
+            - no need to worry about faulty deletions in Zabbix
+            - deleted functions in AWS might pend in Zabbix for a long time (deleted in beggining of re-discovery period)
+            - must ensure discovery of new functions
+                - just a boolean ZabbixMonitored Lambda Tag?
+                - discovering just this function would delete every other function (ZBX_LLD_KEEP_PERIOD=0)
+                - must ensure all functions are re-discovered with new function
+                - either postpone or skip sending metrics of new function until discovered in periodic process, or send discovery packet with every function once a new function is found
+            - priority updates: just update the priority in AWS and wait until next discovery period
 
  - configure Zabbix
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
@@ -263,6 +225,47 @@ Firehose Buffering:
         - HTTPS Endpoint does the same as `basic_handler`, just complies with the endopoint mechanism
         - Firehose cannot currently access instances in a private VPC subnet
             - https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-http
+ 
+ - Setup Metric Stream
+    - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
+        - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
+        - do not discover already discovered Lambdas in Zabbix
+            - "Cache" in Lambda tags:
+                - ZabbixMonitored Tag: timestamp of time of discovery
+                - Transform lambda config: after how long Zabbix deletes the discovered objects 
+                - Transform lambda could (should) re-discover before Zabbix keep period expires
+            - Zabbix discovered objects have state: discovered, no longer discovered
+                - state changes to "discovered" when last discovery packet includes its LLD macros
+                - state changes to "no longer discovered" when last discovery packet does not include its LLD macros
+                - when new discovery packet arrives without its LLD macros in "no longer discovered" state and keep period expires, the object is deleted
+            - optimal values:
+                - ZBX_LLD_KEEP_PERIOD: 
+                    1. find expected rate d (= 1/period) of least frequent Lambda Function
+                    1. using exponential distribution with rate=d, find time interval T, in which it is highly probable that the least frequent function will get invoked
+                        - e.g. 99.99 percentile = 9.210340/d = ~ 9 times the period
+                        - 99.9 percentile = 6.907755/d = ~ 7 times the period
+                        - p percentile = ln(1/(1-p))/d = ln(1/(1-p)) times the period
+                    1. set ZBX_LLD_KEEP_PERIOD >= T
+                        - very high probability that even the least frequent function is invoked prior to expiration in Zabbix
+                - AWS re-discovery period for Lambda function F:
+                    - for all functions, including the least frequent one
+                    1. find expected rate Fd of function F
+                    1. get time interval FT, in which F is very likely to get invoked (same percentile as with ZBX_LLD_KEEP_PERIOD)
+                        - FT = ln(1/(1-p))/d, p is same as chosen in ZBX_LLD_KEEP_PERIOD, d is characteristic of F
+                    1. set re-discovery period for F to ZBX_LLD_KEEP_PERIOD - FT
+                        - => the least frequent function will have re-discovery period of 0 => re-discover each time
+                        - not true if ZBX_LLD_KEEP_PERIOD > T
+                - expiration of ZBX_LLD_KEEP_PERIOD in Zabbix is very likely for functions that do not exist anymore
+                - assumption of exponential behavior! For better results, find conrete rate distribution of each function
+                - ZBX_LLD_KEEP_PERIOD > T reduces communication, but deleted functions may pend longer in Zabbix
+            - Configuration:
+                - pick ZBX_LLD_KEEP_PERIOD > P*expected_max_period and set AWS re-descovery period to ZBX_LLD_KEEP_PERIOD/P
+                    - probability of re-discovery of least frequent is 1-e^(1-P), assuming exponential behavior
+                        - P=2 => 63.21 %, P=7 => 99.91 %
+                    - all functions invoked more frequently than the least frequent one will be re-discovered unnecessarilly often, but it should be very unlikely that a function will get unintentionally deleted
+                    - the higher P, the less likely are faulty deletions, but the higher is amount communication
+                    - also the higher P, the longer it takes Zabbix to remove a function (they might pend for a long time)
+                    - currently set to P=2 (ZBX_LLD_KEEP_PERIOD should be configured accordingly)
 
  - Configure Zabbix Metrics
     - possible flows:
