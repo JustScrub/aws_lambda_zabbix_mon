@@ -52,6 +52,9 @@ Firehose Buffering:
 
 # TODO
  - Resolve problems:
+    - SPECIFY PROXY
+        - when not creating proxy in Zabbix, have an option to create host with already created proxy
+        - or create the proxy, just with same interface as some other existing proxy?
     - "Time consistency"
         - Parallel transform Lambda invocations -- allow or not?
             - disable by setting Lambda timeout <= Firehose Buffering -- may be triggered early by size buffering setting
