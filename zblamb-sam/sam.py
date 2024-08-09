@@ -32,7 +32,8 @@ param_in_templates = {
 def dict2arg_list(params):
     return " ".join([f"{k}={v}" for k,v in params.items()])
 
-def get_template(args):
+def get_template():
+    args = sys.argv
     if "--template" in args:
         return args[args.index('--template')+1]
     elif "-t" in args:
@@ -41,7 +42,7 @@ def get_template(args):
         return None
 
 def filter_template_params(template, params):
-    for t in ["metric-stream", "zbx_server_proxy"]:
+    for t in ["metric-stream", "zbx_server_proxy", "demo"]:
         if t in template:
             template = t
             break
@@ -54,14 +55,15 @@ def filter_template_params(template, params):
     return params
 
 def default_cmd(params,args):
-    template = get_template(args)
+    template = get_template()
     t_arg = ""
     if template is None:
         template = DEFAULT_TEMPLATE
         t_arg = f"-t {template}"
+    print("using template:", template)
     params = filter_template_params(template,params)
     param_list = dict2arg_list(params)
-    call = f"sam {sys.argv[1]} {args} {t_arg} --config-file {SAMCONFIG} --parameter-overrides {param_list}"
+    call = f"sam {sys.argv[1]} {args} {t_arg} --config-file {SAMCONFIG} {'--parameter-overrides' if param_list else ''} {param_list}"
 
     print("calling:\n"+call)
     c=0
@@ -71,18 +73,19 @@ def default_cmd(params,args):
 
 # deploying requires the built template, which has name "template.yaml" --> must recognize the actual template to pass parameters to
 def deploy(params, args):
-    template = get_template(args)
+    template = get_template()
     if template is None:
         with open(BUILT_TEMPLATE, 'r') as tf:
             # name of the template is on the third line of each template, starting at column 17 (numbered from 1)
             tf.readline()
             tf.readline()
-            template = tf.readline()[16:]
+            template = tf.readline()[16:].strip()
 
     params = filter_template_params(template,params)
     params = dict2arg_list(params)
-    call = f"sam {sys.argv[1]} {args} --config-file {SAMCONFIG} --parameter-overrides {params}"
+    call = f"sam {sys.argv[1]} {args} --config-file {SAMCONFIG} {'--parameter-overrides' if params else ''} {params}"
 
+    print("using template:", template)
     print("calling:\n"+call)
     c=0
     if not DRY:
