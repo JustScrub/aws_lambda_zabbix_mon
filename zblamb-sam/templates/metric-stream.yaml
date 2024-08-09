@@ -1,4 +1,6 @@
 Transform: AWS::Serverless-2016-10-31
+Metadata:
+  TemplateName: metric-stream
 
 Parameters:
   # metric stream params

@@ -1,3 +1,7 @@
+
+Metadata:
+  TemplateName: networking
+
 Resources:
   ZBLambVPC:
     Type: AWS::EC2::VPC

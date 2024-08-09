@@ -1,0 +1,99 @@
+Transform: AWS::Serverless-2016-10-31
+Metadata:
+  TemplateName: demo
+
+Parameters:
+  # Zabbix
+  ZBLambPrivSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: A private subnet. Must belong to ZBLambVPC.
+    Default: ''
+  ZBLambPubSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet. Must belong to ZBLambVPC.
+    Default: ''
+  ZBLambVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC under which to run the instances.
+    Default: ''
+  ZBLambCreateProxy:
+    Type: String
+    AllowedValues:
+      - "yes"
+      - "no"
+    Default: "yes"
+    Description: Whether to create the Zabbix Proxy
+
+    # Metric Stream
+  ZBLambDummyDeliveryStreamBucket:
+    Type: String
+    AllowedPattern: arn:.*
+    Description: A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements.
+  ZBLambMetrics:
+    Type: CommaDelimitedList
+    Default: "Errors,Duration"
+    Description: Comma delimited list of AWS/Lamda metrics to send to Zabbix.
+  ZBLambCreateMockLambda:
+    Type: String
+    AllowedValues:
+      - "yes"
+      - "no"
+    Default: "yes"
+    Description: Whether to create the Mock Lambda, a lambda that can fail in various ways or pass on demand
+
+  DemoCreateNetwork:
+    Type: String
+    AllowedValues:
+      - "yes"
+      - "no"
+    Default: "no"
+    Description: Whether to create VPC and Private and Public subnets
+
+Conditions:
+  CreateNetwork: !Equals [ !Ref DemoCreateNetwork, "yes" ]
+  Defined-ZBLambPrivSubnet: !Not [ !Equals [!Ref ZBLambPrivSubnet, '']]
+  Defined-ZBLambPubSubnet: !Not [ !Equals [!Ref ZBLambPubSubnet, '']]
+  Defined-ZBLambVPC: !Not [ !Equals [!Ref ZBLambVPC, '']]
+
+Resources:
+
+  Network:
+    Type: AWS::Serverless::Application
+    Condition: CreateNetwork
+    Properties:
+      Location: ./networking.yaml
+      TimeoutInMinutes: 5
+      Tags:
+        Name: Zabbix Lambda monitor Networking Stack
+        Description: CloudFormation Stack defining a VPC and a private and public subnets inside
+
+  ZabbixApp:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./zbx_server_proxy.yaml
+      TimeoutInMinutes: 20 # each instance has 10 minutes timeouts
+      Parameters:
+        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
+        ZBLambPubSubnet: !If [CreateNetwork, !GetAtt Network.PublicSubnetId, !If [Defined-ZBLambPubSubnet, !Ref ZBLambPubSubnet, !ImportValue ZBLamb::PublicSubnetId] ]
+        ZBLambVPC: !If [CreateNetwork, !GetAtt Network.VpcId, !If [Defined-ZBLambVPC, !Ref ZBLambVPC, !ImportValue ZBLamb::VpcId] ]
+        ZBLambCreateProxy: !Ref ZBLambCreateProxy
+        # everything else is default
+      Tags:
+        Name: Zabbix Lambda monitor Zabbix Stack
+        Description: CloudFormation Stack defining Zabbix infrastructure, a Server and possibly a Proxy
+
+  MetricStream:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./metric-stream.yaml
+      TimeoutInMinutes: 5
+      Parameters:
+        ZBLambDummyDeliveryStreamBucket: !Ref ZBLambDummyDeliveryStreamBucket
+        ZBLambMetrics: !Ref ZBLambMetrics
+        ZBLambCreateMockLambda: !Ref ZBLambCreateMockLambd
+        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
+        ZBLambZabbixIP: !GetAtt ZabbixApp.ProxyPrivateIp
+        # everything else is default
+      Tags:
+        Name: Zabbix Lambda monitor Metric Stream Stack
+        Description: CloudFormation Stack defining a Metric Stream, Kinesis Firehose, Discovery Lambda to discover Lambda functions to Zabbix, Transformation Lambda to push metrics to Zabbix and possibly a Mock Lambda that can fail or pass on demand.

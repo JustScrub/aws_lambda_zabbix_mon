@@ -1,3 +1,7 @@
+
+Metadata:
+  TemplateName: zbx_server_proxy
+
 Parameters:
   # networking params
   ZBLambPrivSubnet:

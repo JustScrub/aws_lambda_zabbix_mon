@@ -7,16 +7,16 @@ HANDLER_DIR = './functions/basic_handler/'
 BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
 
 param_in_templates = {
-  "ZBLambDummyDeliveryStreamBucket":["metric-stream"],
+  "ZBLambDummyDeliveryStreamBucket":["metric-stream", "demo"],
   "ZBLambTransformBufferingSeconds":["metric-stream"],
   "ZBLambTransformBufferingMegabytes":["metric-stream"],
-  "ZBLambMetrics":["metric-stream"],
-  "ZBLambCreateMockLambda":["metric-stream"],
+  "ZBLambMetrics":["metric-stream", "demo"],
+  "ZBLambCreateMockLambda":["metric-stream", "demo"],
   "ZBLambTransformTimeout":["metric-stream"],
   "ZBLambZabbixIP":["metric-stream"],
-  "ZBLambVPC":[ "zbx_server_proxy"],
-  "ZBLambPrivSubnet":["metric-stream", "zbx_server_proxy"],
-  "ZBLambPubSubnet":[ "zbx_server_proxy"],
+  "ZBLambVPC":[ "zbx_server_proxy", "demo"],
+  "ZBLambPrivSubnet":["metric-stream", "zbx_server_proxy", "demo"],
+  "ZBLambPubSubnet":[ "zbx_server_proxy", "demo"],
   "ZBLambSSHRange":[ "zbx_server_proxy"],
   "ZBLambHTTPRange":[ "zbx_server_proxy"],
   "ZBLambZBXPortRange":[ "zbx_server_proxy"],
@@ -25,7 +25,8 @@ param_in_templates = {
   "ZBLambDBUser":[ "zbx_server_proxy"],
   "ZBLambDBPwd":[ "zbx_server_proxy"],
   "ZBLambCreditSpec":[ "zbx_server_proxy"],
-  "ZBLambCreateProxy":[ "zbx_server_proxy"]
+  "ZBLambCreateProxy":[ "zbx_server_proxy", "demo"],
+  "DemoCreateNetwork": ["demo"],
 }
 
 def dict2arg_list(params):
@@ -61,6 +62,26 @@ def default_cmd(params,args):
     params = filter_template_params(template,params)
     param_list = dict2arg_list(params)
     call = f"sam {sys.argv[1]} {args} {t_arg} --config-file {SAMCONFIG} --parameter-overrides {param_list}"
+
+    print("calling:\n"+call)
+    c=0
+    if not DRY:
+        c= os.system(call)
+    return c
+
+# deploying requires the built template, which has name "template.yaml" --> must recognize the actual template to pass parameters to
+def deploy(params, args):
+    template = get_template(args)
+    if template is None:
+        with open(BUILT_TEMPLATE, 'r') as tf:
+            # name of the template is on the third line of each template, starting at column 17 (numbered from 1)
+            tf.readline()
+            tf.readline()
+            template = tf.readline()[16:]
+
+    params = filter_template_params(template,params)
+    params = dict2arg_list(params)
+    call = f"sam {sys.argv[1]} {args} --config-file {SAMCONFIG} --parameter-overrides {params}"
 
     print("calling:\n"+call)
     c=0

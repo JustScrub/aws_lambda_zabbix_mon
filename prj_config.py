@@ -35,15 +35,26 @@ sam_parameters = {
     "descr": "Data size in MBs (2^20 B) how much Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0.2-3 (both inclusive)",
     "value": "1.0",
     "check": lambda v: 0.2 <= float(v) and float(v) <= 3.0, "fallback": 1.0},
+  "ZBLambCreateMockLambda":{
+      "value": 'yes',
+      "descr": "Whether to create a Lambda function that can fail or pass on demand",
+      "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
+  "ZBLambTransformTimeout":{
+      "value": 3,
+      "descr": "Timeout of the Transforlm Lambda in seconds",
+      "check": lambda v: int(v) > 0 and int(v) <= 900, "fallback": 3},
+  "ZBLambZabbixIP": {
+      "value": '',
+      "descr": "IP address or DNS name of Zabbix Proxy/Server. If you plan to create Zabbix EC2 instance(s), leave this blank."},
   "ZBLambVPC":{
 		"value":'',
-		"descr":'The VPC ID under which to run EC2 instances.'},
+		"descr":'The VPC ID under which to run EC2 instances. If creating network, leave blank.'},
   "ZBLambPrivSubnet":{
 		"value":'',
-		"descr":'A private subnet ID. Must belong to ZBLambVPC.'},
+		"descr":'A private subnet ID. Must belong to ZBLambVPC. If creating network, leave blank.'},
   "ZBLambPubSubnet":{
 		"value":'',
-		"descr":'A public subnet ID. Must belong to ZBLambVPC.\nIf you have a way to connect to a VPC instance other than public IP (e.g. VPN), you may specify ID of a private subnet in ZBLambVPC.'},
+		"descr":'A public subnet ID. Must belong to ZBLambVPC. If creating network, leave blank.\nIf you have a way to connect to a VPC instance other than public IP (e.g. VPN), you may specify ID of a private subnet in ZBLambVPC.'},
   "ZBLambSSHRange":{
 		"value":'0.0.0.0/0',
 		"descr":'CIDR range of IP addresses able to connect via SSH'},
@@ -65,9 +76,18 @@ sam_parameters = {
   "ZBLambDBPwd":{
 		"value":'zabbix',
 		"descr":'Zabbix DB user password'},
+  "ZBLambCreateProxy":{
+      "value": 'yes',
+      "descr": "Whether to create Zabbix Proxy (or just Zabbix Server)",
+      "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
+  "DemoCreateNetwork":{
+      "value": 'no',
+      "descr": "Whether to create VPC and subnets in demo template",
+      "check": lambda v: v in ["yes", "no"], "fallback": "no"},
 #  "ZBLambCreditSpec":{
 #		"value":'standard',
-#		"descr":''},
+#		"descr":'',
+#       "check": lambda v: v in ["standard", "unlimited"], "fallback": "standard"},
 }
 
 docker_env = {
