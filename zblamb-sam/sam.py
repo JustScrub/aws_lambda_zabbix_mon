@@ -1,8 +1,8 @@
 import sys, os, json
 
 DRY=False
-DEFAULT_TEMPLATE='./templates/metric-stream.yaml'
-SAMCONFIG='samconfig.yaml'
+DEFAULT_TEMPLATE='metric-stream.yaml'
+SAMCONFIG='samconfig.yaml' # relative to template path, all templates in ./templates/ dir
 HANDLER_DIR = './functions/basic_handler/'
 BUILT_TEMPLATE='./.aws-sam/build/template.yaml'
 

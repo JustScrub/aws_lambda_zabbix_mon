@@ -86,11 +86,6 @@ Resources:
       RouteTableId: !Ref ZBLambRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref ZBLambInternetGateway  
-      Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor VPC Public routing table
-        - Key: Description
-          Value: Routing internet traffic via Internet Gateway
 
   ZBLambPrivRouteTable:
     Type: AWS::EC2::RouteTable
@@ -109,23 +104,18 @@ Resources:
       RouteTableId: !Ref ZBLambPrivRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref ZBLambNATGateway
-      Tags:
-        - Key: Name
-          Value: Zabbix Lambda monitor NAT default route
-        - Key: Description
-          Value: Routing internet traffic via NAT Gateway
   
   AssocRTtoPrivSubnet:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref ZBLambPrivRouteTable
-      SubnetId: !Ref ZBlambPrivSubnet
+      SubnetId: !Ref ZBLambPrivSubnet
   
   AssocRTtoPubSubnet:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref ZBLambRouteTable
-      SubnetId: !Ref ZBlambPubSubnet  
+      SubnetId: !Ref ZBLambPubSubnet  
 
 Outputs:
   PublicSubnetId:

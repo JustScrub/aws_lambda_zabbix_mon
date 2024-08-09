@@ -34,7 +34,7 @@ Parameters:
     Type: String
     Default: t3a.micro
   ZBLambImage:
-    Type: String
+    Type: AWS::EC2::Image::Id
     Default: ami-04f1b917806393faa # AMD image!
     ConstraintDescription: >
       Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
@@ -215,17 +215,19 @@ Resources:
             02_run_server_containers:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d
             03_configure_zabbix_infrastructure:
-              command: >-
-                python3 -m ensurepip &&
-                pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
-                cd /root/alzm &&
-                python3 -m scripts.zapi localhost 80 server
+              command: !If
+                - CreateProxy
+                - echo "I am done :-)"
+                - >-
+                  python3 -m ensurepip &&
+                  pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
+                  cd /root/alzm &&
+                  python3 -m scripts.zapi localhost 80 server
               ignoreErrors: "true"
               # might need to call by hand (can be locally): python3 -m scripts.zapi <server_ip> 80 server
   
   ZBLambZabProxy:
     Type: "AWS::EC2::Instance"
-    DependsOn: ZBLambZabServer
     Condition: CreateProxy
     Properties:
       InstanceType: !Ref ZBLambInstanceType
@@ -285,6 +287,14 @@ Resources:
                 - ServIP: !GetAtt ZBLambZabServer.PrivateIp
             02_run_proxy_container:
               command: docker compose -f /root/alzm/compose/proxy-compose.yml up -d  
+            03_configure_zabbix_infrastructure:
+              command: !Sub >-
+                python3 -m ensurepip &&
+                pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
+                cd /root/alzm &&
+                python3 -m scripts.zapi ${ZBLambZabServer.PrivateIp} 80 proxy 
+              ignoreErrors: "true"
+              # might need to call by hand (can be locally): python3 -m scripts.zapi <server_ip> 80 proxy <proxy_ip>
 
 Outputs:
   ZabbixServerPrivateIP:

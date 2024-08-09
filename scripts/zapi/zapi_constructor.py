@@ -1,7 +1,7 @@
 from pyzabbix import ZabbixAPI, ZabbixAPIException
 from typing import List, Dict, Tuple, Union
 from enum import Enum
-from scripts.config import N_LAMBDA_PRIORITIES
+from scripts.config import N_LAMBDA_PRIORITIES, ZBX_LLD_KEEP_PERIOD
 import itertools
 
 zabbix_type_dict = {
@@ -434,7 +434,6 @@ def create_multi_trigger_mapping(
         suffix="lambda.zblamb", 
         prio_tag="PRIO", 
         name_tag="FN_NAME",
-        lifetime="30d",
         group_id=None,
         host_id=None):
     """
@@ -454,7 +453,7 @@ def create_multi_trigger_mapping(
         name="Discover Lambda Functions with Multi-level Triggers",
         key_=f"discover.{suffix}",
         hostid=f"{trapper_host_id}",
-        lifetime=lifetime,
+        lifetime=ZBX_LLD_KEEP_PERIOD,
         type=2 # trapper
     )["itemids"][0]
 

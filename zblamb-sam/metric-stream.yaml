@@ -97,7 +97,7 @@ Resources:
       Timeout: !Ref ZBLambTransformTimeout
       Environment:
         Variables:
-          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
           LOG_LEVEL: INFO
       VpcConfig:
         SubnetIds: !If
@@ -108,7 +108,7 @@ Resources:
         Name: Zabbix Lambda monitor Firehose stream transformation
         Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
         PRIO: 4
-        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
       
   ZBLambFunctionDiscoveryLambda:
     Type: AWS::Serverless::Function
@@ -134,7 +134,7 @@ Resources:
       Timeout: !Ref ZBLambTransformTimeout
       Environment:
         Variables:
-          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+          ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
           LOG_LEVEL: INFO
       VpcConfig:
         SubnetIds: !If
@@ -145,7 +145,7 @@ Resources:
         Name: Zabbix Lambda monitor Lambda Discovery function
         Description: Lambda function used to discover Lambda functions with priority tag inside Zabbix
         PRIO: 4
-        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIp, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
+        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
 
 # Metric Stream
 
