@@ -14,12 +14,12 @@ param_in_templates = {
   "ZBLambCreateMockLambda":["metric-stream", "demo"],
   "ZBLambTransformTimeout":["metric-stream"],
   "ZBLambZabbixIP":["metric-stream"],
-  "ZBLambVPC":[ "zbx_server_proxy", "demo"],
+  "ZBLambVPC":[ "zbx_server_proxy", "demo", "metric-stream"],
   "ZBLambPrivSubnet":["metric-stream", "zbx_server_proxy", "demo"],
   "ZBLambPubSubnet":[ "zbx_server_proxy", "demo"],
   "ZBLambSSHRange":[ "zbx_server_proxy"],
   "ZBLambHTTPRange":[ "zbx_server_proxy"],
-  "ZBLambZBXPortRange":[ "zbx_server_proxy"],
+  "ZBLambZBXPortRange":[ "zbx_server_proxy", "metric-stream"],
   "ZBLambInstanceType":[ "zbx_server_proxy"],
   "ZBLambImage":[ "zbx_server_proxy"],
   "ZBLambDBUser":[ "zbx_server_proxy"],
@@ -76,10 +76,10 @@ def deploy(params, args):
     template = get_template()
     if template is None:
         with open(BUILT_TEMPLATE, 'r') as tf:
-            # name of the template is on the third line of each template, starting at column 17 (numbered from 1)
-            tf.readline()
-            tf.readline()
-            template = tf.readline()[16:].strip()
+            for line in tf:
+                if "TemplateName:" in line:
+                    template = line[16:].strip()
+                    break
 
     params = filter_template_params(template,params)
     params = dict2arg_list(params)

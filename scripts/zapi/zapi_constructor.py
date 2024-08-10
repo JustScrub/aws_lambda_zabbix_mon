@@ -57,7 +57,7 @@ def interface_dict(addr,port,use_ip=True):
     return {
         "ip": f"{addr if use_ip else ''}",
         "dns": f"{addr if not use_ip else ''}",
-        "useip": ["1","0"][int(use_ip)],
+        "useip": f"{int(use_ip)}",
         "port": f"{port}"
     }
 

@@ -47,16 +47,47 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
     Description: A private subnet from which the Zabbix Server/Proxy can be reached
     Default: ''
+  ZBLambVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC under which to run the instances.
+    Default: ''
+  ZBLambZBXPortRange:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051. Recommended the range of specified VPC.
 
 Conditions:
   CreateMockLambda: !Equals
     - !Ref ZBLambCreateMockLambda
     - "yes"
   Defined-ZBLambPrivSubnet: !Not [ !Equals [!Ref ZBLambPrivSubnet, '']]
+  Defined-ZBLambVPC: !Not [ !Equals [!Ref ZBLambVPC, '']]
   Defined-ZBLambZabbixIP: !Not [ !Equals [!Ref ZBLambZabbixIP, '']]
 
 
 Resources:
+
+# VPC sec group
+
+  ZBLambZabbixLambdaSecGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Zabbix access
+      VpcId: !If [ Defined-ZBLambVPC, !Ref ZBLambVPC, !ImportValue ZBLamb::VpcId ]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 10050
+          ToPort: 10050
+          CidrIp: !Ref ZBLambZBXPortRange
+        - IpProtocol: tcp
+          FromPort: 10051
+          ToPort: 10051
+          CidrIp: !Ref ZBLambZBXPortRange
+      Tags:
+        - Key: Name
+          Value: Zabbix Lambda monitor Lambda Zabbix security group
+        - Key: Description
+          Value: EC2 security group for Lambda functions allowing connections to ports 10050 and 10051 from parametrized IP CIDR range
 
 # Lambdas
 
@@ -102,8 +133,10 @@ Resources:
       VpcConfig:
         SubnetIds: !If
           - Defined-ZBLambPrivSubnet
-          - !Ref ZBLambPrivSubnet
-          - !ImportValue ZBLamb::PrivateSubnetId
+          - - !Ref ZBLambPrivSubnet
+          - - !ImportValue ZBLamb::PrivateSubnetId
+        SecurityGroupIds:
+          - !Ref ZBLambZabbixLambdaSecGroup
       Tags:
         Name: Zabbix Lambda monitor Firehose stream transformation
         Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
@@ -139,8 +172,10 @@ Resources:
       VpcConfig:
         SubnetIds: !If
           - Defined-ZBLambPrivSubnet
-          - !Ref ZBLambPrivSubnet
-          - !ImportValue ZBLamb::PrivateSubnetId
+          - - !Ref ZBLambPrivSubnet
+          - - !ImportValue ZBLamb::PrivateSubnetId
+        SecurityGroupIds:
+          - !Ref ZBLambZabbixLambdaSecGroup
       Tags:
         Name: Zabbix Lambda monitor Lambda Discovery function
         Description: Lambda function used to discover Lambda functions with priority tag inside Zabbix

@@ -73,9 +73,9 @@ Resources:
       Location: ./zbx_server_proxy.yaml
       TimeoutInMinutes: 20 # each instance has 10 minutes timeouts
       Parameters:
-        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
-        ZBLambPubSubnet: !If [CreateNetwork, !GetAtt Network.PublicSubnetId, !If [Defined-ZBLambPubSubnet, !Ref ZBLambPubSubnet, !ImportValue ZBLamb::PublicSubnetId] ]
-        ZBLambVPC: !If [CreateNetwork, !GetAtt Network.VpcId, !If [Defined-ZBLambVPC, !Ref ZBLambVPC, !ImportValue ZBLamb::VpcId] ]
+        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
+        ZBLambPubSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PublicSubnetId, !If [Defined-ZBLambPubSubnet, !Ref ZBLambPubSubnet, !ImportValue ZBLamb::PublicSubnetId] ]
+        ZBLambVPC: !If [CreateNetwork, !GetAtt Network.Outputs.VpcId, !If [Defined-ZBLambVPC, !Ref ZBLambVPC, !ImportValue ZBLamb::VpcId] ]
         ZBLambCreateProxy: !Ref ZBLambCreateProxy
         # everything else is default
       Tags:
@@ -89,10 +89,10 @@ Resources:
       TimeoutInMinutes: 5
       Parameters:
         ZBLambDummyDeliveryStreamBucket: !Ref ZBLambDummyDeliveryStreamBucket
-        ZBLambMetrics: !Ref ZBLambMetrics
+        ZBLambMetrics: !Join [ ",", !Ref ZBLambMetrics ] # https://repost.aws/knowledge-center/cloudformation-parameters-nested-stacks
         ZBLambCreateMockLambda: !Ref ZBLambCreateMockLambda
-        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
-        ZBLambZabbixIP: !GetAtt ZabbixApp.ProxyPrivateIp
+        ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
+        ZBLambZabbixIP: !GetAtt ZabbixApp.Outputs.ZabbixProxyPrivateIP
         # everything else is default
       Tags:
         Name: Zabbix Lambda monitor Metric Stream Stack

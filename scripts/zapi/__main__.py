@@ -8,7 +8,7 @@ def imdsv2_get_local_addr():
     tok = requests.request(
         method="PUT",
         url="http://169.254.169.254/latest/api/token",
-        headers={ 'X-aws-ec2-metadata-token-ttl-seconds': 10, "content-type": "application/json"}
+        headers={ 'X-aws-ec2-metadata-token-ttl-seconds': "10", "content-type": "application/json"}
     )
     ip = requests.request(
         method="GET",
@@ -74,7 +74,7 @@ def configure_zabbix_server(zapi:ZabbixAPI,metrics:List[LLDMultiTriggerMetricCon
 
 def configure_zabbix_server_proxy(zapi:ZabbixAPI,metrics:List[LLDMultiTriggerMetricConfig], proxy_addr):
     if not proxy_addr[0]:
-        proxy_addr = (imdsv2_get_local_addr(),10050)
+        proxy_addr = (imdsv2_get_local_addr(),10051)
     proxy_id=create_proxy(zapi,
                  config.ZBX_SUFFIX,
                  interface_dict(

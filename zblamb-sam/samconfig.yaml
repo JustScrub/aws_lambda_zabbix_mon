@@ -20,7 +20,7 @@ default:
   deploy:
     parameters:
       stack_name: ZBLambStack
-      capabilities: "CAPABILITY_IAM"
+      capabilities: "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
       confirm_changeset: true
       resolve_s3: true
       tags: Name="Zabbix Lambda monitor Stack" Description="AWS CloudFormation Stack for the Zabbix Lambda monitor project"

@@ -120,16 +120,16 @@ Resources:
 Outputs:
   PublicSubnetId:
     Description: ID of the public subnet
-    Value: !Ref ZBLambPubSubnet
+    Value: !GetAtt ZBLambPubSubnet.SubnetId
     Export: 
       Name: ZBLamb::PublicSubnetId
   PrivateSubnetId:
     Description: ID of the private subnet
-    Value: !Ref ZBLambPrivSubnet
+    Value: !GetAtt ZBLambPrivSubnet.SubnetId
     Export: 
       Name: ZBLamb::PrivateSubnetId
   VpcId:
     Description: ID of the VPC
-    Value: !Ref ZBLambVPC
+    Value: !GetAtt ZBLambVPC.VpcId
     Export: 
       Name: ZBLamb::VpcId
