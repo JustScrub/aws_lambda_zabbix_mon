@@ -6,14 +6,8 @@ py_configs = {
     "AWS_PRIO_TAG":{
 		"value":'PRIO',
 		"descr":'Name of Lambda Functions Tag that yields the function\'s priority'},
-    "ZBX_PRIO_MACRO":{
-		"value":'PRIO',
-		"descr":'Zabbix LLD Macro that yields the discovered function priority'},
-    "ZBX_FN_NAME_MACRO":{
-		"value":'FN_NAME',
-		"descr":'Zabbix LLD Macro that yields the discovered function name'},
     "AWS_TRANSFORM_TIMEOUT":{
-        "value": '3s',
+        "value": '5s',
         "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
     }
 }
@@ -41,8 +35,12 @@ sam_parameters = {
       "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
   "ZBLambTransformTimeout":{
       "value": 3,
-      "descr": "Timeout of the Transforlm Lambda in seconds",
+      "descr": "Timeout of the Transform and Discovery Lambdas in seconds",
       "check": lambda v: int(v) > 0 and int(v) <= 900, "fallback": 3},
+  "ZBLambDiscoveryRate":{
+      "value": 60,
+      "descr": "The rate of invoking the Discovery Lambda (how often to discover functions in AWS), in minutes. Must be more than 1.",
+      "check": lambda v: int(v)>1, "fallback": 60},
   "ZBLambZabbixIP": {
       "value": '',
       "descr": "IP address or DNS name of Zabbix Proxy/Server. If you plan to create Zabbix EC2 instance(s), leave this blank."},
@@ -166,7 +164,6 @@ def metric_map():
 
 import json
 if __name__ == "__main__":
-    metmap = metric_map()
     print("Python scripts and AWS SAM template parameters config.")
     print("To cancel filling out a config, press CTRL+C - this will not write the config")
     input("Press enter to continue")
@@ -174,11 +171,19 @@ if __name__ == "__main__":
     print("Configuring python scripts\n")
     if update_config(py_configs):
         py_configs.update({
-            # convert LLD keep period to seconds
+            # ZBX configs the user does not need to know about
             "ZBX_LLD_KEEP_PERIOD": {
                 "value": 0, #__time_units_to_secs(py_configs['ZBX_LLD_KEEP_PERIOD']['value']),
                 "descr": 'How long Zabbix keeps discovered entities in seconds if no new data have been recieved'
                 #"check": lambda v: v == 0 or (3600 <= v and v <= 788400000), "fallback": 2592000
+            },
+            "ZBX_PRIO_MACRO":{
+                "value":'PRIO',
+                "descr":'Zabbix LLD Macro that yields the discovered function priority'
+            },
+            "ZBX_FN_NAME_MACRO":{
+                "value":'FN_NAME',
+                "descr":'Zabbix LLD Macro that yields the discovered function name'
             },
             # convert Transform Timeout to seconds
             "AWS_TRANSFORM_TIMEOUT": {
@@ -190,6 +195,11 @@ if __name__ == "__main__":
             "N_LAMBDA_PRIORITIES": {
                 "value": 5,
                 "descr": "Number of Lambda priorities"
+            },
+            # Lambda Tag Name that tags the functions it is discovered in Zabbix
+            "AWS_DISCOVERED_TAG": {
+                "value": "ZBXdiscovered",
+                "descr": "Name of Lambda Tag that specifies the function is discovered in Zabbix"
             }
         })
         cfg_checks(py_configs)
@@ -198,6 +208,7 @@ if __name__ == "__main__":
             with open(f,"w") as fi:
                 fi.writelines(lines)
 
+    metmap = metric_map()
     print("Creating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
     print("By leaving parameters empty, running sam.py later will prompt you to fill them in")
     if update_config(sam_parameters):

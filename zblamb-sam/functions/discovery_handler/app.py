@@ -14,23 +14,31 @@ def __catch_default(func,default,*args,**kwargs):       # use in case lambda_cli
 
 def zbx_discover_all():
     functions =  [
-        (name, tags)
+        (name, arn, tags)
         for page in lambda_client.get_paginator('list_functions').paginate()
-        for name in map(lambda fn: fn['FunctionName'], page['Functions'])
+        for name, arn in map(lambda fn: (fn['FunctionName'],fn['FunctionArn']), page['Functions'])
         for tags in [lambda_client.get_function(FunctionName=name).get('Tags',{})]
     ] # tuples of function name, ARN and Tags field
 
     functions = list(filter(
-        lambda e: AWS_PRIO_TAG in e[1],
+        lambda e: AWS_PRIO_TAG in e[2],
         functions
     )) # only discover functions with the AWS_PRIO_TAG tag -- the rest are untracked by Zabbix
+
+    # tag the discovered functions
+    for name,arn,tags in functions:
+        if AWS_DISCOVERED_TAG in tags: continue # only add tag to new functions, not yet discovered
+        lambda_client.tag_resource(
+            Resource=arn,
+            Tags={AWS_DISCOVERED_TAG: "true"} 
+        )
     
     packet = [
                 {
                     f"{{#{ZBX_FN_NAME_MACRO}}}": name,
                     f"{{#{ZBX_PRIO_MACRO}}}": f"{tags[AWS_PRIO_TAG]}"
                 }
-                for name,tags in functions
+                for name,arn,tags in functions
             ]
     return packet
 
@@ -53,5 +61,8 @@ def lambda_handler(e,c):
 
     logger.info(f"Zabbix took {resp.seconds_spent} seconds on the request.")
 
-    exit( int(err) ) # exit with 1 (=FAIL) in case of failure
+    if err:
+        exit(1)
+    else:
+        return {"status": "ok", "discovered": len(discovery_value)}
 

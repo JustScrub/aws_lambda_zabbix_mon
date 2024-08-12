@@ -27,7 +27,8 @@ def ignore_fns(jsons):
         name
         for json in jsons
         for name in [json['dimensions']['FunctionName']]
-        if AWS_PRIO_TAG not in lc.get_function(FunctionName=name).get('Tags',{})
+        for tags in [lc.get_function(FunctionName=name).get('Tags',{})]
+        if AWS_PRIO_TAG not in tags or AWS_DISCOVERED_TAG not in tags
     }
     lc.close()
     return ignores
@@ -87,7 +88,7 @@ def lambda_handler(e,c):
     logger.info("Ignoring functions: %s",ignored)
 
     sender_data = zbx_mass_item_packet(sender_data,ZBX_SUFFIX,ignored)
-    logger.info("Item data: %s",list(map(str,sender_data)))
+    logger.info("Item data: %s",sender_data)
 
     sender = Sender(*zbx_addr)
     sender.set_timeout(0.5)
@@ -96,7 +97,7 @@ def lambda_handler(e,c):
 
     err = resp.response != "success"
     if resp.failed > 0:
-        logger.error(f"Zabbix discovery failed for {resp.failed} metrics!")
+        logger.error(f"Zabbix item processing failed for {resp.failed} metrics!")
         err = True
     if resp.total == 0 and len(sender_data) > 0:
         logger.fatal(f"No metrics delivered! Is the Zabbix sender packet correct?")
