@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     print(
         send_test_trap(
-            ('10.60.4.236',10051),
+            ('localhost',10051),
             function=fn,
             metric=metric,
             rand_range=vs,
