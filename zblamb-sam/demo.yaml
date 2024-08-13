@@ -4,16 +4,18 @@ Metadata:
 
 Parameters:
   # Zabbix
+  ZBLambZabbixSuffix:
+    Type: String
   ZBLambPrivSubnet:
-    Type: AWS::EC2::Subnet::Id
+    Type: String
     Description: A private subnet. Must belong to ZBLambVPC.
     Default: ''
   ZBLambPubSubnet:
-    Type: AWS::EC2::Subnet::Id
+    Type: String
     Description: A public subnet. Must belong to ZBLambVPC.
     Default: ''
   ZBLambVPC:
-    Type: AWS::EC2::VPC::Id
+    Type: String
     Description: The VPC under which to run the instances.
     Default: ''
   ZBLambCreateProxy:
@@ -40,6 +42,12 @@ Parameters:
       - "no"
     Default: "yes"
     Description: Whether to create the Mock Lambda, a lambda that can fail in various ways or pass on demand
+  ZBLambDiscoveryRate:
+    Type: Number
+    Description: The rate of invoking the Discovery Lambda (how often to discover functions in AWS), in minutes. Must be more than 1.
+    Default: 60
+    MinValue: 2
+    ConstraintDescription: Must be more than 1 minute.
 
   DemoCreateNetwork:
     Type: String
@@ -71,12 +79,13 @@ Resources:
     Type: AWS::Serverless::Application
     Properties:
       Location: ./zbx_server_proxy.yaml
-      TimeoutInMinutes: 20 # each instance has 10 minutes timeouts
+      TimeoutInMinutes: 30 # each instance has 15 minutes timeouts
       Parameters:
         ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
         ZBLambPubSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PublicSubnetId, !If [Defined-ZBLambPubSubnet, !Ref ZBLambPubSubnet, !ImportValue ZBLamb::PublicSubnetId] ]
         ZBLambVPC: !If [CreateNetwork, !GetAtt Network.Outputs.VpcId, !If [Defined-ZBLambVPC, !Ref ZBLambVPC, !ImportValue ZBLamb::VpcId] ]
         ZBLambCreateProxy: !Ref ZBLambCreateProxy
+        ZBLambZabbixSuffix: !Ref ZBLambZabbixSuffix
         # everything else is default
       Tags:
         Name: Zabbix Lambda monitor Zabbix Stack
@@ -91,9 +100,11 @@ Resources:
         ZBLambDummyDeliveryStreamBucket: !Ref ZBLambDummyDeliveryStreamBucket
         ZBLambMetrics: !Join [ ",", !Ref ZBLambMetrics ] # https://repost.aws/knowledge-center/cloudformation-parameters-nested-stacks
         ZBLambCreateMockLambda: !Ref ZBLambCreateMockLambda
+        ZBLambVPC: !Ref ZBLambVPC
         ZBLambPrivSubnet: !If [CreateNetwork, !GetAtt Network.Outputs.PrivateSubnetId, !If [Defined-ZBLambPrivSubnet, !Ref ZBLambPrivSubnet, !ImportValue ZBLamb::PrivateSubnetId] ]
         ZBLambZabbixIP: !GetAtt ZabbixApp.Outputs.ZabbixProxyPrivateIP
-        # everything else is default
+        ZBLambDiscoveryRate: !Ref ZBLambDiscoveryRate
+          # everything else is default
       Tags:
         Name: Zabbix Lambda monitor Metric Stream Stack
         Description: CloudFormation Stack defining a Metric Stream, Kinesis Firehose, Discovery Lambda to discover Lambda functions to Zabbix, Transformation Lambda to push metrics to Zabbix and possibly a Mock Lambda that can fail or pass on demand.

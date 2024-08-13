@@ -52,6 +52,7 @@ Firehose Buffering:
 
 # TODO
  - Resolve problems:
+    - AWS Proxy keeps failing the trapper packets ??!!!?!?!?!!
     - SPECIFY PROXY
         - when not creating proxy in Zabbix, have an option to create host with already created proxy
         - or create the proxy, just with same interface as some other existing proxy?

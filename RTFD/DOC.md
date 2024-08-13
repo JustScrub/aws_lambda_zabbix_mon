@@ -81,43 +81,58 @@ Creates items with name 'count_avg.duration' of data type float, that will be fe
 That's it for metrics definitions. You can define how many metrics you wish, but with more metrics, more computing on Zabbix is required. This was also the hardest thing to configure, so congrats. It should be chill from now on.
 
 #### Configuration Files
-After metrics are defined, configuration files must be generated. These are files for Python scripts as well as Lambda functions created as part of this project and a JSON file containig parameters to CloudFormation/SAM templates. To generate these, run prj_config.py using `python3 prj_config.py`. The script will lead you through two sets of configs: python configs (for scripts and Lambdas) and SAM template parameters JSON. A description of the config value will be printed, then on next line the name of the config and default value inside parenthesis. You can then fill in your desired value and confirm with Enter, or just press Enter without inputting anything to submit the default value. Any set (python configs or SAM parameters) can be skipped with CTRL+C, but the first time you run this, you must submit all python config values (even if you wish to keep defaults only) to actually create the files. SAM parameters shouldn't be skipped as well, since it will make things easier a few steps ahead. The config can be changed anytime before setting up Zabbix and SAM. In case you wish to update the config after, see a following section on changing the config.
+After metrics are defined, configuration files must be generated. These are configuration files for Python scripts as well as Lambda functions created as part of this project and a JSON file containig parameters to CloudFormation/SAM templates. To generate these, run prj_config.py using `python3 prj_config.py`. The script will lead you through two sets of configs: python configs (for scripts and Lambdas) and SAM template parameters JSON. A description of the config value will be printed, then on next line the name of the config and default value inside parenthesis. You can then fill in your desired value and confirm with Enter, or just press Enter without inputting anything to submit the default value. Any set (python configs or SAM parameters) can be skipped with CTRL+C, but the first time you run this, you must submit all python config values (even if you wish to keep defaults only) to actually create the files. SAM parameters shouldn't be skipped as well, since it will make things easier a few steps ahead. The config can be changed anytime before setting up Zabbix and SAM. In case you wish to update the config after, see a following section on changing the config.
 
-There are a three python configs: 
+There are two python configs: 
  - ZBX_SUFFIX: this is a string that will be at the end of all zabbix created objects. Names in Zabbix are hierarchical and work like DNS domains - layers are separated by a comma and the root is this ZBX_SUFFIX config (unlike DNS, where root is .). See the naming convention section somewhere below
  - AWS_PRIO_TAG: name of the priority tag of Lambda functions that yield their priority that maps to Severities and constants.
- - AWS_TRANSFORM_TIMEOUT: Timeout of the Transform **and** Discovery Lambda functions
 
-SAM parameters are plenty. The scripts generates all possible SAM parameters, but only a subset of them may be required, based on your use case. There are 4 SAM templates and each uses a subset of parameters. If you only plan to set up the metric stream from AWS CloudWatch to Zabbix, most of them will be irrelevant. To see what parameters you need for each template, open its source code or run `sam deploy --guided -t <template_name>.yaml`, but do finish the deploying yet.
+SAM parameters are plenty. The script generates all possible SAM parameters, but only a subset of them may be required, based on your use case. There are 4 SAM templates and each uses a subset of parameters. If you only plan to set up the metric stream from AWS CloudWatch to Zabbix, most of them will be irrelevant. In the description of the currently submitted parameter, you can see which templates use the parametr. If not specified, only the metric-stream template uses that parameter.
 
 The script also adds some configs that you were not prompted to fill in. You should leave these to their values, unless you feel confident with knowing their purpose.
 
 ### (Optional) Spin up Zabbix or whole Demo App
 If you do not have your own Zabbix Server (and optionally Proxy), you can spin up an EC2 instance running Zabbix version 5.4 and optionally a Zabbix Proxy v. 5.4 using a CloudFormation template. Alternatively, you can spin up Zabbix and the "application" of this project in a single SAM template.
 
-To just create Zabbix Server (and optionally Proxy), create a CloudFormation stack with the template located at `zblamb-sam/zbx_server_proxy.yaml`. Either upload it to to AWS and create it manually, use SAM cli as `sam build -t zbx_server_proxy.yaml && sam deploy --guided` inside the zblamb-sam directory, or use the sam.py utility as `python3 sam.py build -t zbx_server_proxy.yaml ./template_params.json && python3 sam.py deploy [--guided] ./template_params.json` from inside the zblamb-sam directory. The sam.py utility fills in the SAM parameters you submitted in project configuration (using prj_config.py) for you, so you don't have to fill them again. It also automatically fills some parameters you did not have to specify. Just use sam.py for building and deploying... (it wants to be noticed, sam.py). Whether to create Zabbix Proxy is set via the ZBLambCreateProxy parameter. If you do not have a configured VPC, you can set it up using the `zblamb-sam/networking.yaml` template (either of the 3 ways). The templates export some values that can be used in the main template, if not filled out in its parameters (e.g. leaving ZBLambZabbixIP empty uses the Server or Proxy IP exported from the zbx_server_proxy template).
+To just create Zabbix Server (and optionally Proxy), create a CloudFormation stack with the template located at `zblamb-sam/zbx_server_proxy.yaml`. Either upload it to to AWS and create it manually, use SAM cli as
 
-Alternatively, you can spin up a whole demo application with optionally a new VPC with two subnets, Zabbix Server and optionally Proxy and the "application" of this project. All is defined in the `zblamb-sam/demo.yaml` template as nested stacks. You can choose not to create the VPC (in which case you need to provide it) or not to create the Proxy, same as above. To build the demo, from inside the zblamb-sam directory call `python3 sam.py build ./template_params.json && pyhon3 sam.py deploy [--guided] [--no-confirm-changeset] ./template_params.json`. This sets the whole project up with demo metrics as well, not the metrics you may have defined yourself. To change the metrics, update the stack as described in one of the sections below. Otherwise, you're done. Also, as this is just a demo app, many parameters are left to their defaults without inputting your submitted parameters. 
+        sam build -t zbx_server_proxy.yaml && sam deploy --guided
+
+inside the zblamb-sam directory, or use the sam.py utility (**recommended**) as 
+
+        python3 sam.py build -t zbx_server_proxy.yaml ./template_params.json && python3 sam.py deploy [--guided] ./template_params.json
+        
+from inside the zblamb-sam directory. The sam.py utility fills in the SAM parameters you submitted in project configuration (using prj_config.py) for you, so you don't have to fill them again. It also automatically fills some parameters you did not have to specify. Just use sam.py for building and deploying... (it wants to be noticed, sam.py). Whether to create Zabbix Proxy is set via the ZBLambCreateProxy parameter. If you do not have a configured VPC, you can set it up using the `zblamb-sam/networking.yaml` template (either of the 3 ways). The templates export some values that can be used in the main template, if not filled out in its parameters (e.g. leaving ZBLambZabbixIP empty uses the Server or Proxy IP exported from the zbx_server_proxy template).
+
+Alternatively, you can spin up a whole demo application with optionally a new VPC with two subnets, Zabbix Server and optionally Proxy and the "application" of this project. All is defined in the `zblamb-sam/demo.yaml` template as nested stacks. You can choose not to create the VPC (in which case you need to provide it) or not to create the Proxy, same as above. To build the demo, from inside the zblamb-sam directory call 
+
+        python3 sam.py build ./template_params.json && pyhon3 sam.py deploy [--guided] [--no-confirm-changeset] ./template_params.json
+
+This sets the whole project up with demo metrics as well, not the metrics you may have defined yourself. To change the metrics, update the stack as described in one of the sections below. For the demo to work, you'll need to configure zabbix and start monitoring your Lambdas, as described in the next sections. The AWS application is set up in demo. Also, as this is just a demo app, many parameters are left to their defaults without inputting your submitted parameters. 
 
 ### Configure Zabbix
-Now that the project is configured (and you have your Zabbix instance), you have to set up your Zabbix Server to accept metrics sent from CloudWatch. To do so, you'll need to call the scripts.zapi module. If you only have Zabbix Server, from root directory run 
+Now that the project is configured (and you have your Zabbix instance), you have to set up your Zabbix Server to accept metrics sent from CloudWatch. To do so, you'll need to call the scripts.zapi module. First, install dependencies by calling from the root directory:
 
-       python3 -m scripts.zapi <frontend_address> <frontend_port> server
+        pip3 install -r scripts/zapi/requirements.txt
 
-where `<frontend_address>` and `<frontend_port>` are the IP address or DNS name and port the Zabbix frontend listens on (if created using zbx_server_proxy template, IP is IP of the server and port is 80). This call creates a new host group in Zabbix, a new host in that group, assigns a Low-Level Discovery Rule to the host, adds item a trigger prototypes to it as well as some overrides, and creates user macros for the host. Zabbix is then ready to recieve discovery packets and item metrics of discovered functions.
+Then, if you only have Zabbix Server, from root directory run 
+
+        python3 -m scripts.zapi <frontend_address> <frontend_port> server
+
+where `<frontend_address>` and `<frontend_port>` are the IP address or DNS name and port the Zabbix frontend listens on (if created using zbx_server_proxy template, address is IP of the server and port is 80). This call creates a new host group in Zabbix, a new host in that group, assigns a Low-Level Discovery Rule to the host, adds item and trigger prototypes to it as well as some overrides, and creates user macros for the host. Zabbix is then ready to recieve discovery packets and item metrics of discovered functions.
 
 If you run Zabbix Proxy and want to push AWS metrics through the Proxy, from root run:
 
-      python3 -m scripts.zapi <frontend_address> <frontend_port> proxy <proxy_ip>
+        python3 -m scripts.zapi <frontend_address> <frontend_port> proxy <proxy_name>
 
-where the first 2 arguments are same as above and the last argument is IP address of the Proxy (it must listen on port 10051). All above objects will be created in Zabbix with addition of a proxy, and mark the host as monitored by the created Proxy.
+where the first 2 arguments are same as above and the last argument is identificator of the Proxy. The proxy identificator can be name of an existing proxy in Zabbix (host name), DNS name or IP address. The script first checks whether in Zabbix, there exists a proxy with the name you fill in, and if not, it creates a new proxy record with that name as the address (be it DNS or IP) and port 10051 (proxies must listen on that port) as a *passive* proxy (cannot create active proxies), with host name `proxy.<ZBX_SUFFIX>`. Then, all above objects will be created in Zabbix and the host will be marked as monitored by the Proxy.
 
 Now, Zabbix should be configured.
 
 ### Configure AWS application
-Now it's time to setup the application that sends AWS metrics to Zabbix. The application consists of AWS Metric Stream, Kinesis Firehose, a "Transformation" Lambda function, a "Discovery" Lambda function and optionally a "Mock" Lambda function to test the functionality. Note that currently, the Lambdas must be inside a VPC, so you must provide a VPC ID and a Subnet ID, either as SAM parameters or via exported values in CloudFormation, ZBLamb::VpcId and ZBLamb::PrivateSubnetId respectively. The "Private" subnet ID can be also be public (assigning public IP address), and Zabbix Server or Proxy **must** be reachable from the subnet. 
+Now it's time to setup the application that sends AWS metrics to Zabbix. The application consists of AWS Metric Stream, Kinesis Firehose, a "Transformation" Lambda function, a "Discovery" Lambda function and optionally a "Mock" Lambda function to test the functionality. The Transformation and Discovery Lambdas may "reside inside" a VPC, indicated by the ZBLambLambdasInVPC parameter. This may be useful, when Zabbix is run in an EC2 instance in the VPC. In case the Lambdas will be created inside a VPC, you must also specify the ID of the VPC and ID of a private subnet inside the VPC. The "private" subnet ID can however be public (assigning public IP address), and Zabbix Server or Proxy **must** be reachable from the subnet. 
 
-To set it up, go to the zblamb-sam directory and use SAM CLI or the sam.py utility to build and deploy the metric-stream.yaml template. Recommended is again using the sam.py utility:
+To set the stream up, go to the zblamb-sam directory and use SAM CLI or the sam.py utility to build and deploy the metric-stream.yaml template. Recommended is again using the sam.py utility:
 
       python3 sam.py build ./template_params.json
 

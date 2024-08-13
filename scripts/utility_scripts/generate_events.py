@@ -27,7 +27,7 @@ metrics={
     'Errors': 'Count',
     'Duration': 'ms'
 }
-function_resources = ['S3 bucket', 'API gateway', None] # None = function name
+function_resources = ['resource1', 'resource2', None] # None = function name
 
 def generate_metric_stream_data(functions):
     # todo: actually simulate values for diff resources + their sum

@@ -5,17 +5,17 @@ Metadata:
 Parameters:
   # networking params
   ZBLambPrivSubnet:
-    Type: AWS::EC2::Subnet::Id
+    Type: String
     Description: A private subnet. Must belong to ZBLambVPC.
-    Default: ''
+    Default: ""
   ZBLambPubSubnet:
-    Type: AWS::EC2::Subnet::Id
+    Type: String
     Description: A public subnet. Must belong to ZBLambVPC.
-    Default: ''
+    Default: ""
   ZBLambVPC:
-    Type: AWS::EC2::VPC::Id
+    Type: String
     Description: The VPC under which to run the instances.
-    Default: ''
+    Default: ""
   ZBLambSSHRange:
     Type: String
     Default: 0.0.0.0/0
@@ -30,13 +30,15 @@ Parameters:
     Description: CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051. Recommended the range of specified VPC.
   
   # zabbix instances params
+  ZBLambZabbixSuffix:
+    Type: String
   ZBLambInstanceType:
     Type: String
     Default: t3a.micro
   ZBLambImage:
     Type: AWS::EC2::Image::Id
     Default: ami-04f1b917806393faa # AMD image!
-    ConstraintDescription: >
+    Description: >
       Use distro with YUM package manager - e.g. SUSE, RedHat, CentOS. 
       Be aware that some Regions only support some images.
   ZBLambDBUser:
@@ -65,9 +67,9 @@ Conditions:
   CreateProxy: !Equals
     - !Ref ZBLambCreateProxy
     - "yes"
-  Defined-ZBLambPrivSubnet: !Not [ !Equals [!Ref ZBLambPrivSubnet, '']]
-  Defined-ZBLambPubSubnet: !Not [ !Equals [!Ref ZBLambPubSubnet, '']]
-  Defined-ZBLambVPC: !Not [ !Equals [!Ref ZBLambVPC, '']]
+  Defined-ZBLambPrivSubnet: !Not [ !Equals [!Ref ZBLambPrivSubnet, ""]]
+  Defined-ZBLambPubSubnet: !Not [ !Equals [!Ref ZBLambPubSubnet, ""]]
+  Defined-ZBLambVPC: !Not [ !Equals [!Ref ZBLambVPC, ""]]
 
 Resources:
 
@@ -178,7 +180,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT10M
+        Timeout: PT15M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -204,27 +206,15 @@ Resources:
                 -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             01_configure_postgres:
-              command: !Sub
-                - >-
-                    sed -i
-                    -e "s/pg-user/${DBUser}/" 
-                    -e "s/pg-pwd/${DBPwd}/" 
-                    /root/alzm/compose/.env
-                - DBUser: !Ref ZBLambDBUser
-                  DBPwd: !Ref ZBLambDBPwd
+              command: !Sub >-
+                sed -i
+                -e "s/pg-user/${ZBLambDBUser}/" 
+                -e "s/pg-pwd/${ZBLambDBPwd}/" 
+                -e "s/zbx-suffix/${ZBLambZabbixSuffix}/" 
+                /root/alzm/compose/.env
             02_run_server_containers:
               command: docker compose -f /root/alzm/compose/server-compose.yml up -d
-            03_configure_zabbix_infrastructure:
-              command: !If
-                - CreateProxy
-                - echo "I am done :-)"
-                - >-
-                  python3 -m ensurepip &&
-                  pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
-                  cd /root/alzm &&
-                  python3 -m scripts.zapi localhost 80 server
-              ignoreErrors: "true"
-              # might need to call by hand (can be locally): python3 -m scripts.zapi <server_ip> 80 server
+            #call locally: python3 -m scripts.zapi <server_ip> 80 server
   
   ZBLambZabProxy:
     Type: "AWS::EC2::Instance"
@@ -256,7 +246,7 @@ Resources:
 
     CreationPolicy:
       ResourceSignal:
-        Timeout: PT10M
+        Timeout: PT15M
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
@@ -282,19 +272,14 @@ Resources:
                 -o /usr/local/lib/docker/cli-plugins/docker-compose &&
                 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             01_configure_proxy:
-              command: !Sub
-                - sed -i -e "s/zabbix-server/${ServIP}/" /root/alzm/compose/.env
-                - ServIP: !GetAtt ZBLambZabServer.PrivateIp
+              command: !Sub >-
+                sed -i
+                -e "s/zabbix-server/${ZBLambZabServer.PrivateIp}/" 
+                -e "s/zbx-suffix/${ZBLambZabbixSuffix}/" 
+                /root/alzm/compose/.env
             02_run_proxy_container:
               command: docker compose -f /root/alzm/compose/proxy-compose.yml up -d  
-            03_configure_zabbix_infrastructure:
-              command: !Sub >-
-                python3 -m ensurepip &&
-                pip3 install -r /root/alzm/scripts/zapi/requirements.txt &&
-                cd /root/alzm &&
-                python3 -m scripts.zapi ${ZBLambZabServer.PrivateIp} 80 proxy 
-              ignoreErrors: "true"
-              # might need to call by hand (can be locally): python3 -m scripts.zapi <server_ip> 80 proxy <proxy_ip>
+            #call locally: python3 -m scripts.zapi <server_ip> 80 proxy <proxy_ip>
 
 Outputs:
   ZabbixServerPrivateIP:

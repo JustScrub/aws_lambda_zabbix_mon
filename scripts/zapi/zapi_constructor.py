@@ -53,7 +53,17 @@ def create_group(zapi, suffix):
         name=f"group.{suffix}"
     )["groupids"][0]
 
-def interface_dict(addr,port,use_ip=True):
+def __is_ip(addr):
+    try:
+        for octet in addr.split('.'):
+            o = int(octet)
+            if not (o>=0 and o<256): return False
+        return True
+    except:
+        return False
+
+def interface_dict(addr,port):
+    use_ip = __is_ip(addr)
     return {
         "ip": f"{addr if use_ip else ''}",
         "dns": f"{addr if not use_ip else ''}",

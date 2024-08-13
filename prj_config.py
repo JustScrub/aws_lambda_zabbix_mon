@@ -6,10 +6,10 @@ py_configs = {
     "AWS_PRIO_TAG":{
 		"value":'PRIO',
 		"descr":'Name of Lambda Functions Tag that yields the function\'s priority'},
-    "AWS_TRANSFORM_TIMEOUT":{
-        "value": '5s',
-        "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
-    }
+    #"AWS_TRANSFORM_TIMEOUT":{
+    #    "value": '5s',
+    #    "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
+    #}
 }
 PY_CONFIG_FILES = [
         "scripts/config/__init__.py",
@@ -20,7 +20,7 @@ PY_CONFIG_FILES = [
 sam_parameters = {
   "ZBLambDummyDeliveryStreamBucket":{
 		"value":'',
-		"descr":"A dummy S3 bucket ARN. The bucket will not be handelded with, it's just because of requirements."},
+		"descr":"An S3 bucket ARN, the destination of the Kinesis Firehose Delivery stream. Only failed invocations of Transform Lambda will be delivered.\nIt is highly recommended to fill this config in now, or use the --guided option to SAM CLI later"},
   "ZBLambTransformBufferingSeconds":{
     "descr": "Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0-900 (both inclusive)",
     "value": "60",
@@ -31,52 +31,56 @@ sam_parameters = {
     "check": lambda v: 0.2 <= float(v) and float(v) <= 3.0, "fallback": 1.0},
   "ZBLambCreateMockLambda":{
       "value": 'yes',
-      "descr": "Whether to create a Lambda function that can fail or pass on demand",
+      "descr": "Whether to create a Lambda function that can fail or pass on demand. Created in metric-stream template.",
       "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
-  "ZBLambTransformTimeout":{
-      "value": 3,
+  "ZBLambLambdaTimeout":{
+      "value": 5,
       "descr": "Timeout of the Transform and Discovery Lambdas in seconds",
-      "check": lambda v: int(v) > 0 and int(v) <= 900, "fallback": 3},
+      "check": lambda v: int(v) > 0 and int(v) <= 900, "fallback": 5},
   "ZBLambDiscoveryRate":{
       "value": 60,
       "descr": "The rate of invoking the Discovery Lambda (how often to discover functions in AWS), in minutes. Must be more than 1.",
       "check": lambda v: int(v)>1, "fallback": 60},
   "ZBLambZabbixIP": {
       "value": '',
-      "descr": "IP address or DNS name of Zabbix Proxy/Server. If you plan to create Zabbix EC2 instance(s), leave this blank."},
+      "descr": "IP address or DNS name of Zabbix Proxy/Server. If you plan to create Zabbix EC2 instance(s) using zbx_server_proxy template, leave this blank."},
+  "ZBLambLambdasInVPC":{
+      "value": 'yes',
+      "descr": "Whether to put Transform and Discovery Lambdas inside a VPC. Could be useful if Zabbix is inside the same VPC as well. Options: yes, no",
+      "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
   "ZBLambVPC":{
 		"value":'',
-		"descr":'The VPC ID under which to run EC2 instances. If creating network, leave blank.'},
+		"descr":'The VPC ID under which to run EC2 instances created in zbx_server_proxy template and under which to put Transfrom and Discovery Lambdas (if putting them inside a VPC).\nIf creating network using networking template, leave blank.'},
   "ZBLambPrivSubnet":{
 		"value":'',
-		"descr":'A private subnet ID. Must belong to ZBLambVPC. If creating network, leave blank.'},
+		"descr":'A private subnet ID. Must belong to ZBLambVPC. Used in zbx_serv_proxy for Proxy instance (if creating a Proxy) and for Transform and Discovery Lambdas in metric-stream template (if putting them inside a VPC)\nIf creating network using networking template, leave blank.'},
   "ZBLambPubSubnet":{
 		"value":'',
-		"descr":'A public subnet ID. Must belong to ZBLambVPC. If creating network, leave blank.\nIf you have a way to connect to a VPC instance other than public IP (e.g. VPN), you may specify ID of a private subnet in ZBLambVPC.'},
+		"descr":'A public subnet ID. Must belong to ZBLambVPC. Used in zbx_serv_proxy for Server.\nIf creating network using networking template, leave blank.\nIf you have a way to connect to a VPC instance other than public IP (e.g. via VPN), you may specify ID of a private subnet in ZBLambVPC.'},
   "ZBLambSSHRange":{
 		"value":'0.0.0.0/0',
-		"descr":'CIDR range of IP addresses able to connect via SSH'},
+		"descr":'CIDR range of IP addresses able to connect via SSH, for instances created using zbx_server_proxy template'},
   "ZBLambHTTPRange":{
 		"value":'0.0.0.0/0',
-		"descr":'CIDR range of IP addresses able to connect to ports 80, 8080, 443 and 8443'},
+		"descr":'CIDR range of IP addresses able to connect to ports 80, 8080, 443 and 8443, for instances created using zbx_server_proxy template'},
   "ZBLambZBXPortRange":{
 		"value":'0.0.0.0/0',
-		"descr":'CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051. Recommended the range of specified VPC.'},
+		"descr":'CIDR range of IP addresses able to connect to Zabbix ports 10050 and 10051, for instances created using zbx_server_proxy template and for Lambdas from metric-stream template, if putting the Lambdas inside a VPC.\nRecommended the range of specified VPC.'},
   "ZBLambInstanceType":{
 		"value":'t3a.micro',
-		"descr":'Type of EC2 instances.'},
+		"descr":'Type of EC2 instances created inside zbx_server_proxy template.'},
   "ZBLambImage":{
 		"value":'ami-04f1b917806393faa',
-		"descr":'Image of EC2 instances'},
+		"descr":'Image of EC2 instances created inside zbx_server_proxy template.'},
   "ZBLambDBUser":{
 		"value":'zabbix',
-		"descr":'Zabbix DB user'},
+		"descr":'Zabbix DB user login, for instances created in zbx_server_proxy template.'},
   "ZBLambDBPwd":{
 		"value":'zabbix',
-		"descr":'Zabbix DB user password'},
+		"descr":'Zabbix DB user password, for instances created in zbx_server_proxy template.'},
   "ZBLambCreateProxy":{
       "value": 'yes',
-      "descr": "Whether to create Zabbix Proxy (or just Zabbix Server)",
+      "descr": "Whether to create Zabbix Proxy (or just Zabbix Server) in the zbx_server_proxy template.",
       "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
   "DemoCreateNetwork":{
       "value": 'no',
@@ -95,13 +99,33 @@ docker_env = {
     }
 }
 
+class TermColors:
+    cols = dict(
+        description = "\033[32m",
+        config = "\033[91m",
+        value = "\033[33m",
+        input = "\033[94m",
+        default = "\033[0m"
+    )
+
+    @classmethod
+    def __get_colored(cls,color, str):
+        return f"{TermColors.cols.get(color,cls.cols['default'])}{str}{TermColors.cols['default']}"
+
+    def __getattr__(self,attr):
+        if attr in TermColors.cols:
+            return lambda s: self.__get_colored(attr,s)
+        else: raise AttributeError(f"unknown color scheme: {attr}")
+
 def update_config(cfg_dict):
+    c = TermColors()
     for k in cfg_dict:
         try:
-            print(cfg_dict[k]['descr'])
-            cfg_dict[k]['value'] = input(f"{k} ({cfg_dict[k]['value']}): ") or cfg_dict[k]['value']
-            print()
+            print(c.description(cfg_dict[k]['descr']))
+            cfg_dict[k]['value'] = input(f"{c.config(k)} ({c.value(cfg_dict[k]['value'])}): {c.cols['input']}") or cfg_dict[k]['value']
+            print(c.cols['default'])
         except KeyboardInterrupt:
+            print(c.cols['default'])
             return False
     return True
 
@@ -164,9 +188,10 @@ def metric_map():
 
 import json
 if __name__ == "__main__":
-    print("Python scripts and AWS SAM template parameters config.")
-    print("To cancel filling out a config, press CTRL+C - this will not write the config")
-    input("Press enter to continue")
+    c = TermColors()
+    print(c.description("Python scripts and AWS SAM template parameters config."))
+    print(c.config("To cancel filling out a config, press CTRL+C - this will not write the config"))
+    input(c.value("Press enter to continue"))
 
     print("Configuring python scripts\n")
     if update_config(py_configs):
@@ -185,12 +210,12 @@ if __name__ == "__main__":
                 "value":'FN_NAME',
                 "descr":'Zabbix LLD Macro that yields the discovered function name'
             },
-            # convert Transform Timeout to seconds
-            "AWS_TRANSFORM_TIMEOUT": {
-                "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
-                "descr": 'Timeout of the Transformation Lambda',
-                "check": lambda v: 1 <= v or v <= 900, "fallback": 3
-            },
+            ## convert Transform Timeout to seconds
+            #"AWS_TRANSFORM_TIMEOUT": {
+            #    "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
+            #    "descr": 'Timeout of the Transformation Lambda',
+            #    "check": lambda v: 1 <= v or v <= 900, "fallback": 3
+            #},
             # set number of Lambda priorities
             "N_LAMBDA_PRIORITIES": {
                 "value": 5,
@@ -209,8 +234,8 @@ if __name__ == "__main__":
                 fi.writelines(lines)
 
     metmap = metric_map()
-    print("Creating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
-    print("By leaving parameters empty, running sam.py later will prompt you to fill them in")
+    print("\nCreating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
+    print()
     if update_config(sam_parameters):
         cfg_checks(sam_parameters)
         zblamb_metrics = ','.join([met for met in metmap])
@@ -219,23 +244,27 @@ if __name__ == "__main__":
             for cfg,val,_ in cfg2tup(sam_parameters) if val
         }
         lines.update({"ZBLambMetrics":zblamb_metrics})
-        lines.update({"ZBLambTransformTimeout":__time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value'])})
+        lines.update({"ZBLambZabbixSuffix":py_configs["ZBX_SUFFIX"]["value"]})
+        #lines.update({"ZBLambLambdaTimeout":__time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value'])})
         with open("zblamb-sam/template_params.json", "w") as f:
             json.dump(lines,f,indent=2)
 
-    # Docker compose .env file
-    docker_env.update(
-        {
-            "ZBX_SERVER_HOST": { "value": "zabbix-server", "descr":""},
-            "POSTGRES_USER": { "value": "pg-user", "descr":""},
-            "POSTGRES_PASSWORD": { "value": "pg-pwd", "descr":""},
-            "POSTGRES_DB": { "value": "zabbix", "descr":""},
-            "ZBX_SUFFIX": {"value": py_configs["ZBX_SUFFIX"]["value"], "descr":""}
-        }
-    )
-    lines = [f"{cfg}={val}\n" for cfg,val,_ in cfg2tup(docker_env)]
-    with open("compose/.env", "w") as f:
-        f.writelines(lines)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--env":
+        if update_config(docker_env):
+            # Docker compose .env file
+            docker_env.update(
+                {
+                    "ZBX_SERVER_HOST": { "value": "zabbix-server", "descr":""},
+                    "POSTGRES_USER": { "value": "pg-user", "descr":""},
+                    "POSTGRES_PASSWORD": { "value": "pg-pwd", "descr":""},
+                    "POSTGRES_DB": { "value": "zabbix", "descr":""},
+                    "ZBX_SUFFIX": {"value": py_configs["ZBX_SUFFIX"]["value"], "descr":""}
+                }
+            )
+            lines = [f"{cfg}={val}\n" for cfg,val,_ in cfg2tup(docker_env)]
+            with open("compose/.env", "w") as f:
+                f.writelines(lines)
 
     with open("zblamb-sam/functions/basic_handler/metric_map.json", "w") as f:
         json.dump(metmap,f,indent=2)
