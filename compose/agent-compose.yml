@@ -3,7 +3,7 @@ services:
     image: zabbix/zabbix-agent:ubuntu-5.4-latest
     restart: always
     environment:
-      - ZBX_HOSTNAME=zblamb-agent
+      - ZBX_HOSTNAME=agent.${ZBX_SUFFIX}
       - ZBX_SERVER_HOST=${ZBX_SERVER_HOST}
     ports:
       - "10050:10050"
