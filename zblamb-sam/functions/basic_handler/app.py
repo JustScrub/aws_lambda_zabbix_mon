@@ -58,23 +58,12 @@ def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]=None):
             }
         )
         for json in jsons
-        for metric in [metric_map[json['metric_name']]]
+        for metric in [metric_map[json['metric_name']]]  # list of single value, used as a helper variable lol
         for stat in metric
         for item in metric[stat]
         if json['dimensions']['FunctionName'] not in ignore_names
     ]
     return sender_data
-
-    ts = time.time_ns()
-    return j.dumps(
-        {
-            "request":"sender data",  # zabbix_sender request to zabbix server -- only trapper items are used
-            "data": sender_data,
-            "clock": ts//1_000_000_000,  # extract seconds
-            "ns": ts%1_000_000_000       # extract fractional nanoseconds
-        }
-    ).encode("utf-8") # encode to bytes object for socket
-
 
 def lambda_handler(e,c):
     logger.info("Event %s",e)
