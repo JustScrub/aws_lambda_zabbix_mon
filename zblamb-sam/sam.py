@@ -10,6 +10,7 @@ param_in_templates = {
   "ZBLambDummyDeliveryStreamBucket":["metric-stream", "demo"],
   "ZBLambTransformBufferingSeconds":["metric-stream"],
   "ZBLambTransformBufferingMegabytes":["metric-stream"],
+  "ZBLambTransformationLambdaRetries":["metric-stream"],
   "ZBLambMetrics":["metric-stream", "demo"],
   "ZBLambDiscoveryRate":["metric-stream", "demo"],
   "ZBLambCreateMockLambda":["metric-stream", "demo"],

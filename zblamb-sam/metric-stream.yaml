@@ -24,12 +24,17 @@ Parameters:
     MinValue: 0.2
     MaxValue: 3
     Default: 1
+  ZBLambTransformationLambdaRetries:
+    Type: Number
+    Description: Number of retries to invoke the Transformation Lambda, should it fail
+    MinValue: 0
+    Default: 3
   ZBLambLambdaTimeout:
     Type: Number
-    Description: Timeout of the Transformation Lambda in seconds, from range 1-900 (both inclusive)
+    Description: Timeout of the Transformation Lambda in seconds, from range 1-300 (both inclusive)
     Default: 5
     MinValue: 1
-    MaxValue: 900
+    MaxValue: 300
   ZBLambCreateMockLambda:
     Type: String
     AllowedValues:
@@ -282,6 +287,8 @@ Resources:
                   ParameterValue: !Ref ZBLambTransformBufferingSeconds
                 - ParameterName: BufferSizeInMBs # must be specified with time buffering
                   ParameterValue: !Ref "ZBLambTransformBufferingMegabytes"
+                - ParameterName: NumberOfRetries 
+                  ParameterValue: ZBLambTransformationLambdaRetries
                 - ParameterName: CompressionFormat
                   ParameterValue: UNCOMPRESSED
       Tags:

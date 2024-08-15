@@ -29,14 +29,17 @@ sam_parameters = {
     "descr": "Data size in MBs (2^20 B) how much Metric Stream Firehose buffers data before sending them to the Transformation lambda, in range 0.2-3 (both inclusive)",
     "value": "1.0",
     "check": lambda v: 0.2 <= float(v) and float(v) <= 3.0, "fallback": 1.0},
+  "ZBLambTransformationLambdaRetries":{
+      "descr": "Number of retries to invoke the Transformation Lambda, should it fail",
+      "value": "1"},
   "ZBLambCreateMockLambda":{
       "value": 'yes',
       "descr": "Whether to create a Lambda function that can fail or pass on demand. Created in metric-stream template.",
       "check": lambda v: v in ["yes", "no"], "fallback": "yes"},
   "ZBLambLambdaTimeout":{
       "value": 5,
-      "descr": "Timeout of the Transform and Discovery Lambdas in seconds",
-      "check": lambda v: int(v) > 0 and int(v) <= 900, "fallback": 5},
+      "descr": "Timeout of the Transform and Discovery Lambdas in seconds. Max 5 minutes (300 seconds), as per AWS Firehose documentation",
+      "check": lambda v: int(v) > 0 and int(v) <= 300, "fallback": 5},
   "ZBLambDiscoveryRate":{
       "value": 60,
       "descr": "The rate of invoking the Discovery Lambda (how often to discover functions in AWS), in minutes. Must be more than 1.",
