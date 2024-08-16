@@ -288,7 +288,7 @@ Resources:
                 - ParameterName: BufferSizeInMBs # must be specified with time buffering
                   ParameterValue: !Ref "ZBLambTransformBufferingMegabytes"
                 - ParameterName: NumberOfRetries 
-                  ParameterValue: ZBLambTransformationLambdaRetries
+                  ParameterValue: !Ref ZBLambTransformationLambdaRetries
                 - ParameterName: CompressionFormat
                   ParameterValue: UNCOMPRESSED
       Tags:
