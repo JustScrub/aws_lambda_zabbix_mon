@@ -9,53 +9,10 @@ Architecture:
 Firehose Buffering:
  - Metric Sream --> Firehose Transform buffering --> Lambda --> Firehose buffering --> destination
 
-# Config
- - Central config script:
-    - two parts: `metrics_def.py` and running `prj_config.py`
-    - metrics_def.py:
-        - python script containig only a list of `LLDMultiTriggerMetricConfig` instances
-        - list must be named `MetricConfigs`
-        - create more instances based on the sample ones
-        - **TRIGGER EXPRESSION CONSTANTS MUST BE ENCLOSED IN DOUBLE QUOTES**
-            - i.e. `last({})>{}` **is not** correct, `last({})>"{}"` **is** correct
-            - first `{}` references the item, second the constant
-            - may be numbered as well for reverse order or multiple references:
-                - `"{1}"<last({0})` = last value is greater than constant
-                - `count({0},5m,"ge","{1}")>7 or avg({0},5m)>"{1}"` = number of function invocations with metric higher than constant was greater than 7 for the past 5 minutes or the average of metric value for the past 5 minutes is greater that the constant
-        - The list serves as configuration of both Zabbix (discovery,items,triggers...) and AWS (what metrics to stream, how to transform to Zabbix items)
-        - **crucial!!**
-    - prj_config.py:
-        - guided creation of config files and AWS SAM parameters JSON file
-        - config files include configs for naming things: The `<suffix>` in naming conventions, Zabbix LLD Macro names and AWS Lambda Tag names
-            - defaults are pre-defined and recommended
-        - AWS SAM parameter JSON includes parameters and values to the SAM template, in JSON format -- used as input to `sam.py` script
-            - defaults are pre-defined for some parameters
-            - feel free to change the values
-            - can leave out parameters without defaults -> you'll have to fill them in later
-            - AWS Metrics to be streamed are extracted from `metrics_def.py MetricConfigs`
-            - special statistics for metrics must be defined manually in `metric-stream.yaml` template (below)
-        - each of these (config files / parameter JSON file) can be skipped by pressing CTRL+C and the files won't be created
-        - also creates metric mapping (AWS Lambda metric + statistic -> Zabbix items) for `basic_handler` based on `MetricConfigs`
-        - finally copies `metrics_def.py` to `scripts` directory for the `zapi` module to be able to create initialize Zabbix
-
- - AWS special config: 
-    - zblamb-sam/
-        - metric-stream.yaml
-            - includes demo infrastructure, feel free to modify (remove EC2 instance...)
-            - only Firehose transform Lambda, Firehose Data Stream and Meric Stream objects must remain
-                - Transform Lambda must have ZBLAMB_PROXY_IP environment variable defined!
-                - IP address of the Zabbix Server/Proxy it will be sending data to
-                - if the Zabbix Server/Proxy is in a private subnet in AWS VPC, the transform lambda must be "inside" as well
-            -  more statistics (see AWS::CloudWatch::MetricStream documentation) can be added manually to the Metric Stream
-                - only for Metrics defined in `metrics_def.py`
-
 
 # TODO
  - Resolve problems:
     - AWS Proxy keeps failing the trapper packets ??!!!?!?!?!!
-    - SPECIFY PROXY
-        - when not creating proxy in Zabbix, have an option to create host with already created proxy
-        - or create the proxy, just with same interface as some other existing proxy?
     - "Time consistency"
         - Parallel transform Lambda invocations -- allow or not?
             - disable by setting Lambda timeout <= Firehose Buffering -- may be triggered early by size buffering setting
@@ -67,67 +24,23 @@ Firehose Buffering:
             - Clock param of Zabbix Trapper protocol?
             - solve by eliminating parallelism?
     
-    - end with error in Transform lambda, if error in Zabbix **!!**
-    - Documentation **!!**
     - controll packet size going to Zabbix
     - billing??
 
  - Benchmark the infrastructure:
+    - maximum size of event is 6 MB (6291456 B)
     - 1000 active instances at once (at all times?)
     - Transform lambda duration, parallelism?
     - figure out good parameters -- Firehose buffering time and size, Lambda timeout, ...
     - mock Firehose? (Not to have actual 1000 lambda instances running at once all the time)
     - overload Trapper and Transform Lambda (how much required to overload) **!!**
 
- - Templates:
-    - networking template -- VPC, Subnets
-        - export VPC, subnet IDs
-    - Zabbix template
-        - Server: Public Subnet (or private with VPN)
-        - Proxy: private subnet
-        - possibly Agent: private
-        - SSH keys, Security Groups
-    - Metric Stream template
-        - Metric Stream, Firehose, Transform Lambda (inside VPC)
-        - Mock lambda? Or separate template?
-    - use conditions:
-        - `!If: [<param_x>_defined, !Ref <param_x>, !ImportValue ZBLamb::<param_x>]`
-        - how to define condition `<param_x>_defined??`
-        - zapi depends on whether proxy is created! propagate with prj_config
-    - can SAM deploy template without building? (vanilla CF template)
-
- - Central config for AWS and Zabbix
-    - more params in template: Lambda timeouts etc. in central config
-
- - create readable doc for the project
-
  - Setup Metric Stream
     - CloudWatch -> Firehose -> Transformation Lambda -> "S3" / any other destination
         - send 1 packet to Zabbix per 1 metric stream record (not all at once) -- for correct timestamps
-        - periodically discover all Lambdas -- **TEST**
-            - after a specific period, crawl through all Lambda functions and discover them
-            - ZBX_LLD_KEEP_PERIOD=0, since re-discovers only existing functions and not deleted in AWS
-            - in Transform lambda (`if should_rediscover(): rediscover()`) or new Lambda, invoked periodically
-            - no need to worry about faulty deletions in Zabbix
-            - deleted functions in AWS might pend in Zabbix for a long time (deleted in beggining of re-discovery period)
-            - must ensure discovery of new functions
-                - just a boolean ZabbixMonitored Lambda Tag?
-                - discovering just this function would delete every other function (ZBX_LLD_KEEP_PERIOD=0)
-                - must ensure all functions are re-discovered with new function
-                - either postpone or skip sending metrics of new function until discovered in periodic process, or send discovery packet with every function once a new function is found
-            - priority updates: just update the priority in AWS and wait until next discovery period
 
  - configure Zabbix
     - maybe change docker images to CentOS? Since the instances run on Amazon Linux, based off CentOS?
-
- - Change paths of IAM roles
- 
- - move templates to SAM
-
- - create network stack:
-    - VPC + IGW + NATGW
-    - Public Subnet + Private Subnet + Routing tables for both
-    - VPC endpoint (AWS PrivateLink) for Firehose
 
 # Done
  - Naming Convention:
@@ -156,6 +69,18 @@ Firehose Buffering:
             - sends extracted data to Zabbix Proxy/Server 
             - returns ``{"recordID": "provided ID by Firehose", "result": "Dropped", "data": ""}`` to Firehose
                 - Firehorse does not pass it forward to the destination
+        - periodically discover all Lambdas
+            - after a specific period, crawl through all Lambda functions and discover them
+            - ZBX_LLD_KEEP_PERIOD=0, since re-discovers only existing functions and not deleted in AWS
+            - in Transform lambda (`if should_rediscover(): rediscover()`) or new Lambda, invoked periodically
+            - no need to worry about faulty deletions in Zabbix
+            - deleted functions in AWS might pend in Zabbix for a long time (deleted in beggining of re-discovery period)
+            - must ensure discovery of new functions
+                - just a boolean ZabbixMonitored Lambda Tag?
+                - discovering just this function would delete every other function (ZBX_LLD_KEEP_PERIOD=0)
+                - must ensure all functions are re-discovered with new function
+                - either postpone or skip sending metrics of new function until discovered in periodic process, or send discovery packet with every function once a new function is found
+            - priority updates: just update the priority in AWS and wait until next discovery period
 
  - Central cofiguration script
     - scripts config, template params
@@ -196,13 +121,6 @@ Firehose Buffering:
                     - `count(/<suffix>/errors.metrics.<suffix>[{#FN_NAME}],5m,"ge","{$ERROR_HIGH:{#PRIO}}")>=1`
                 - do not create triggers for left out entries in the configuration table
                     - using discovery rule Overrides
-    - RE-discovery
-        - When Zabbix recieves FN_NAME,PRIO where FN_NAME is already known and PRIO is changed (update function priority), it updates all items/triggers that are checked as "discover" in LLD rule / override
-        - --> in multi-trigger mapping, changing the priority leaves triggers not to discover intact, WILL NOT DELETE THEM as is required
-        - solution = scripts/lambda_update_priority.py script:
-            - deletes Zabbix triggers for the funtion (contains `triggers.<suffix>[<FnName>]`),
-            - updates the priority of a Lambda function, 
-            - discovers it anew
 
  - configure Zabbix infrastructure
     - passive agent --> proxy --> server

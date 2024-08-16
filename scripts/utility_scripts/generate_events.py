@@ -70,11 +70,7 @@ def generate_metric_stream_data(functions):
     ]
 
 
-def generate_events(functions,n_events=None,n_records=None,n_functions=None):
-    n_events = n_events or random.randint(1,5)
-    n_records = n_records or 10
-    n_functions = n_functions or len(functions)
-
+def generate_events(functions,n_events,n_records,n_functions):
     return [
         {
             "deliveryStreamArn": "arn:aws:firehose:eu-central-1:0123456789:deliverystream/ZBLambMetricStreamFirehose",
@@ -84,11 +80,11 @@ def generate_events(functions,n_events=None,n_records=None,n_functions=None):
                     "approximateArrivalTimestamp": time.time_ns(),
                     "data": base64.b64encode('\n'.join(map(
                             json.dumps,
-                            generate_metric_stream_data(random.sample(functions,random.randrange(1,n_functions)))
+                            generate_metric_stream_data(random.choices(functions,k=random.randint(*n_functions)))
                         )).encode('utf-8')).decode(),
                     "recordId": f"{i}"
                 }
-                for i in range(random.randrange(n_records))
+                for i in range(random.randint(*n_records))
             ],
             "region": "eu-central-1"
         }
@@ -96,10 +92,11 @@ def generate_events(functions,n_events=None,n_records=None,n_functions=None):
     ]
 
 def print_usage():
-    print("Usage: python3 generate_events.py [n_events] [n_records] [n_functions] [file_prefix]")
-    print("n_events: number of events to generate. Default = random between 1 and 5")
-    print("n_records: maximum number of records in each event. Default = 10")
-    print("n_functions: maximum number of functions to randomly select for each record. Default = number of functions")
+    print("Usage: python3 -m scripts.utility_scripts.generate_events [n_events] [n_records] [n_functions] [file_prefix]")
+    print("n_events: number of events to generate. Default = 1")
+    print("n_records: range specified as lower:higher (both inclusive), a random number of records from the range is generated. Default = 1:10")
+    print("n_functions: range lower:higher (both inclusive), from which a number of functions randomly selected (with replacement) for each record is taken. Default = 1:'number of functions'")
+    print("To keep default values, specify '-' in place of the parameter")
     print("file_prefix: prefix of file seqence to store events to. If not provided, events are printed to stdout")
 
 if __name__ == "__main__":
@@ -107,21 +104,27 @@ if __name__ == "__main__":
         print_usage()
         exit(0)
 
+    functions = get_functions()
+
     ns = {
-        "n_events": None,
-        "n_records": None,
-        "n_functions": None
+        "n_records": (1,10),
+        "n_functions": (1,len(functions))
     }
 
-    for i,k in enumerate(ns.keys(),1):
+    for i,k in enumerate(ns.keys(),2):
         try:
-            ns[k] = int(sys.argv[i])
+            ns[k] = tuple(int(r) for r in sys.argv[i].split(':'))
         except IndexError:
             break
         except ValueError:
-            print(f"{k} must be integer. Using default...")
+            if sys.argv[i] != '-': 
+                print(f"{k} is invalid. Using default...")
 
-    functions = get_functions()
+    try:
+        ns["n_events"] = int(sys.argv[1])
+    except:
+        ns["n_events"] = 1
+
     events = [json.dumps(evt) for evt in generate_events(functions,**ns)]
 
     if len(sys.argv) < 5:
