@@ -5,3 +5,4 @@ ZBX_PRIO_MACRO="PRIO" # Zabbix LLD Macro that yields the discovered function pri
 ZBX_FN_NAME_MACRO="FN_NAME" # Zabbix LLD Macro that yields the discovered function name
 N_LAMBDA_PRIORITIES="5" # Number of Lambda priorities
 AWS_DISCOVERED_TAG="ZBXdiscovered" # Name of Lambda Tag that specifies the function is discovered in Zabbix
+AWS_METRIC_SELECT= {'Errors': ['sum'], 'Duration': ['max', 'min']} # which statistics to select from which metrics

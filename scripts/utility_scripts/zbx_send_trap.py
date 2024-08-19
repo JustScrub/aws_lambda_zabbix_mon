@@ -35,13 +35,13 @@ def send_test_trap(zbx_addr,function,metric,rand_range,n_values,time_update_s=0,
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 -m scripts.utility_scripts.zbx_send_trap FnName [n_values=3] [low:high=0:100] [metric=errors]")
+        print("Usage: python3 -m scripts.utility_scripts.zbx_send_trap FnName [n_values=3] [low:high=0:100] [metric=sum.errors]")
         print("FnName: name of the discovered function -- Zabbix item metric.metrics.<suffix>.[FnName]")
         print("\t<suffix> is taken from config")
         print("n_values: number of values in each packet")
         print("low:high: low and high boundaries of range of random value to send")
         print("\t(e.g. 1:5 sends random value between 1 and 5 including both; 3:3 always sends 3)")
-        print("metric: the metric of the discovered function -- Zabbix item metric.metrics.<suffix>.[FnName]")
+        print("metric: the metric of the discovered function -- Zabbix item metric.metrics.<suffix>.[FnName], includes statistic and metric names")
         exit(1)
     fn = sys.argv[1]    
     try:
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     try:
         metric = sys.argv[4]
     except:
-        metric = "errors"
+        metric = "sum.errors"
     
     print(f"using range {vs}")
 

@@ -49,19 +49,22 @@ if __name__ == "__main__":
                     durs.append( float(dur[dur.index("Duration:")+1]) )
                     errs += int( "errorMessage" in so_lines[-1] or "errorType" in so_lines[-1])
             
-            results.append(tuple(map(str,
-                (
-                    n_records,
-                    n_functions,
-                    sum(durs)/(len(durs) or 1),
-                    errs,
-                    rep+1
-                )
-            )))
+            if durs:
+                results.append(tuple(map(str,
+                    (
+                        n_records,
+                        n_functions,
+                        sum(durs)/len(durs),
+                        min(durs),
+                        max(durs),
+                        errs,
+                        rep+1
+                    )
+                )))
             if not cont: break
 
     results = "\n".join(
-        ["# records,# functions,duration average,errors,repetitions"] + \
+        ["# records,# functions,duration average,duration minimum, duration maximum,errors,repetitions"] + \
         [ ','.join(res) for res in results]
     )
 

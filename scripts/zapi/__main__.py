@@ -75,7 +75,7 @@ def configure_zabbix_server_proxy(zapi:ZabbixAPI,metrics:List[LLDMultiTriggerMet
 
 if __name__ == "__main__":
 
-    if len(sys.argv) and sys.argv[1] == "help":
+    if len(sys.argv) > 1 and sys.argv[1] == "help":
         print("Usage: python3 -m scripts.zapi [frontend_host=localhost] [frontend_port=80] [configuration]")
         print("\tfrontend_host, frontend_port: IP or DNS name and port of Zabbix frontend")
         print("\tconfiguration: special configuration for server-only or server+proxy. If omitted, does the same as server configuration")
@@ -110,5 +110,5 @@ if __name__ == "__main__":
         create_multi_trigger_mapping(zapi,metrics,
                                      suffix=config.ZBX_SUFFIX,
                                      prio_tag=config.ZBX_PRIO_MACRO,
-                                     name_tag=config.ZBX_FN_NAME_MACRO,
-                                     group_id=19)
+                                     name_tag=config.ZBX_FN_NAME_MACRO
+                                    )

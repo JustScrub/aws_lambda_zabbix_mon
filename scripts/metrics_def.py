@@ -3,7 +3,7 @@ from scripts.zapi import LambdaPriority, ZabbixSeverity
 
 MetricConfigs = [
         LLDMultiTriggerMetricConfig(
-            zbx_name="errors",
+            name="errors",
             zbx_value_type="int",
             zbx_trigger_expression_pattern='count({},5m,"ge","{}")>="1"',
             aws_metric_name='Errors',
@@ -16,7 +16,7 @@ MetricConfigs = [
             }
         ),
         LLDMultiTriggerMetricConfig(
-            zbx_name="max.duration",
+            name="max.duration",
             zbx_value_type="float",
             zbx_trigger_expression_pattern='last({})>="{}"',
             aws_metric_name='Duration',
@@ -28,7 +28,7 @@ MetricConfigs = [
             }
         ),
         LLDMultiTriggerMetricConfig(
-            zbx_name="min.duration",
+            name="min.duration",
             zbx_value_type="float",
             zbx_trigger_expression_pattern='last({})>="{}"',
             aws_metric_name='Duration',
@@ -40,7 +40,7 @@ MetricConfigs = [
             }
         ),
         LLDMultiTriggerMetricConfig(
-            zbx_name="count_avg.duration",
+            name="count_avg.duration",
             zbx_value_type="float",
             # more than 4 invocations took longer than <const> ms or 
             # the average of slowest (= max duariton) invocations is greater than <const> ms 
@@ -48,7 +48,7 @@ MetricConfigs = [
             zbx_trigger_expression_pattern='count({0},5m,"ge","{1}")>4 or avg({0},5m)>"{1}"', 
             aws_metric_name="Duration",
             aws_statistic_name="max",
-
+            
             priority_mapping={
                 LambdaPriority(1): { ZabbixSeverity.HIGH: 500, ZabbixSeverity.AVERAGE: 400},    
                 LambdaPriority(2): { ZabbixSeverity.AVERAGE: 400},        

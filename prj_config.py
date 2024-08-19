@@ -166,7 +166,7 @@ def __time_units_to_secs(value):
     except:
         return value
 
-def metric_map():
+def metric_select():
     from metrics_def import MetricConfigs
     if len( set(type(metric) for metric in MetricConfigs) ) != 1:
         print("Metrics in metrics_def.py MetricConfigs must be of one type and the list cannot be empty!")
@@ -175,17 +175,13 @@ def metric_map():
     json_dict = {}
     for metric in MetricConfigs:
         if metric.aws_metric not in json_dict:
-            json_dict[metric.aws_metric] = {
-                metric.aws_stat: [metric.name]
-            }
+            json_dict[metric.aws_metric] = [metric.aws_stat]
             continue
 
         if metric.aws_stat not in json_dict[metric.aws_metric]:
-            json_dict[metric.aws_metric][metric.aws_stat] = [metric.name]
+            json_dict[metric.aws_metric].append(metric.aws_stat)
             continue
 
-        json_dict[metric.aws_metric][metric.aws_stat].append( metric.name )
-    
     return json_dict
         
 
@@ -196,6 +192,7 @@ if __name__ == "__main__":
     print(c.config("To cancel filling out a config, press CTRL+C - this will not write the config"))
     input(c.value("Press enter to continue"))
 
+    metsel = metric_select()
     print("Configuring python scripts\n")
     if update_config(py_configs):
         py_configs.update({
@@ -213,12 +210,6 @@ if __name__ == "__main__":
                 "value":'FN_NAME',
                 "descr":'Zabbix LLD Macro that yields the discovered function name'
             },
-            ## convert Transform Timeout to seconds
-            #"AWS_TRANSFORM_TIMEOUT": {
-            #    "value": __time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value']),
-            #    "descr": 'Timeout of the Transformation Lambda',
-            #    "check": lambda v: 1 <= v or v <= 900, "fallback": 3
-            #},
             # set number of Lambda priorities
             "N_LAMBDA_PRIORITIES": {
                 "value": 5,
@@ -232,23 +223,23 @@ if __name__ == "__main__":
         })
         cfg_checks(py_configs)
         lines = [f'{cfg}="{val}" # {descr}\n' for cfg,val,descr in cfg2tup(py_configs)]
+        # add dictionary for selection of AWS Metric/statistic pairs
+        lines += [f'AWS_METRIC_SELECT= {str(metsel)} # which statistics to select from which metrics']
         for f in PY_CONFIG_FILES:
             with open(f,"w") as fi:
                 fi.writelines(lines)
 
-    metmap = metric_map()
     print("\nCreating AWS SAM template parameters JSON file for zblamb-sam/sam.py script")
     print()
     if update_config(sam_parameters):
         cfg_checks(sam_parameters)
-        zblamb_metrics = ','.join([met for met in metmap])
+        zblamb_metrics = ','.join([met for met in metsel])
         lines = {
             cfg: val
             for cfg,val,_ in cfg2tup(sam_parameters) if val
         }
         lines.update({"ZBLambMetrics":zblamb_metrics})
         lines.update({"ZBLambZabbixSuffix":py_configs["ZBX_SUFFIX"]["value"]})
-        #lines.update({"ZBLambLambdaTimeout":__time_units_to_secs(py_configs['AWS_TRANSFORM_TIMEOUT']['value'])})
         with open("zblamb-sam/template_params.json", "w") as f:
             json.dump(lines,f,indent=2)
 
@@ -268,9 +259,6 @@ if __name__ == "__main__":
             lines = [f"{cfg}={val}\n" for cfg,val,_ in cfg2tup(docker_env)]
             with open("compose/.env", "w") as f:
                 f.writelines(lines)
-
-    with open("zblamb-sam/functions/basic_handler/metric_map.json", "w") as f:
-        json.dump(metmap,f,indent=2)
 
     from shutil import copy
     copy("./metrics_def.py", "./scripts/")

@@ -340,12 +340,12 @@ def create_single_trigger_mapping(
 class LLDMultiTriggerMetricConfig:
     def __init__(
             self,
-            zbx_name:str,
+            name:str,
             priority_mapping: Dict[LambdaPriority,Dict[ZabbixSeverity,Union[int,float,None]]],
             zbx_trigger_expression_pattern: str,
             zbx_value_type:str,
             aws_metric_name:str,
-            aws_statistic_name:str = "sum",
+            aws_statistic_name:str,
             trigger_kwargs:Dict[str,any]=None,
             item_kwargs:Dict[str,any]=None
     ):
@@ -355,14 +355,16 @@ class LLDMultiTriggerMetricConfig:
         :param trigger_expression_pattern: pattern for all the expressions (same), with "server" field and a compare-to value substituted with {},
                                            e.g. `last({})>{}` or `count({},5m,"ge","{}")>=1` -- will be fed accordingly
         :param value_type: Zabbix value type (int,float,char,text,log)
+        :param zbx_item: name of the item prototype in Zabbix. If None, name of the metric is used
         """
-        self.name=zbx_name
+        self.name=name
         self.aws_metric = aws_metric_name
         self.aws_stat = aws_statistic_name
-        self.const = zbx_name.upper()
+        self.const = name.upper()
         self.priority_map=priority_mapping
         self.expr = zbx_trigger_expression_pattern
         self.type = zabbix_type_dict[zbx_value_type]
+        self.item_name = f"{aws_statistic_name.lower()}.{aws_metric_name.lower()}"
         self.trigger_kwargs=trigger_kwargs or {}
         self.item_kwargs=item_kwargs or {}
 
@@ -382,8 +384,8 @@ class LLDMultiTriggerMetricConfig:
 
     def items(self,suffix,host_id,discovery_item_id,name_tag="FN_NAME"):
         return {
-            "name": f"{{#{name_tag}}} {self.name}",
-            "key_": f"{self.name}.metrics.{suffix}[{{#{name_tag}}}]",
+            "name": f"{{#{name_tag}}} {self.item_name}",
+            "key_": f"{self.item_name}.metrics.{suffix}[{{#{name_tag}}}]",
             "value_type": self.type,
             "hostid": f"{host_id}",
             "ruleid":f"{discovery_item_id}",
@@ -455,17 +457,42 @@ def create_multi_trigger_mapping(
     :param: host_id Zabbix ID of the host to add discovery to.
     """
     # create host
-    group_id = group_id or create_group(zapi, suffix)
-    trapper_host_id = host_id or create_host(zapi,suffix,[group_id])
+    try:
+        group_id = group_id or create_group(zapi, suffix)
+    except ZabbixAPIException as e:
+        if "already exists" in e.error["data"]:
+            group_id = zapi.hostgroup.get(
+                search= { "name": f"group.{suffix}" },
+                output=['groupid']
+            )[0]['groupid']
+        else: raise e
+
+    try:
+        trapper_host_id = host_id or create_host(zapi,suffix,[group_id])
+    except ZabbixAPIException as e:
+        if "already exists" in e.error["data"]:
+            trapper_host_id = zapi.host.get(
+                search= { "host": f"{suffix}" },
+                output=['hostid']
+            )[0]['hostid']
+        else: raise e
 
     # create LLD rule
-    discovery_item_id=zapi.discoveryrule.create(
-        name="Discover Lambda Functions with Multi-level Triggers",
-        key_=f"discover.{suffix}",
-        hostid=f"{trapper_host_id}",
-        lifetime=ZBX_LLD_KEEP_PERIOD,
-        type=2 # trapper
-    )["itemids"][0]
+    try:
+        discovery_item_id=zapi.discoveryrule.create(
+            name="Discover Lambda Functions with Multi-level Triggers",
+            key_=f"discover.{suffix}",
+            hostid=f"{trapper_host_id}",
+            lifetime=ZBX_LLD_KEEP_PERIOD,
+            type=2 # trapper
+        )["itemids"][0]
+    except ZabbixAPIException as e:
+        if "already exists" in e.error["data"]:
+            discovery_item_id = zapi.discoveryrule.get(
+                search= { "key_": f"discover.{suffix}" },
+                output=['itemid']
+            )[0]['itemid']
+        else: raise e
 
     for metric in metrics:
         zapi.usermacro.create(
@@ -473,7 +500,12 @@ def create_multi_trigger_mapping(
             *[metric.macros(severity,trapper_host_id) for severity in list(ZabbixSeverity)]
         )))
 
-        zapi.itemprototype.create(metric.items(suffix,trapper_host_id,discovery_item_id,name_tag))
+        try:
+            zapi.itemprototype.create(metric.items(suffix,trapper_host_id,discovery_item_id,name_tag))
+        except ZabbixAPIException as e:
+            if "already exists" in e.error["data"]:      # add triggers to an already existing prototype
+                pass
+            else: raise e
 
         depends_on_ids=[]
         for severity in reversed(list(ZabbixSeverity)): # highest severity first

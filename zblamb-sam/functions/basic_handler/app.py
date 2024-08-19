@@ -52,10 +52,6 @@ def ignore_fns():
     lc.close()
     return ignores
 
-def __load_metric_map():
-    with open("metric_map.json", "r") as f:
-        return j.load(f)
-
 def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]):
     '''
     Creates a single monoliTHICC packet including all functions and metrics
@@ -64,19 +60,17 @@ def zbx_mass_item_packet(jsons,zabbix_host,ignore_names:Union[Set,None]):
     :param zabbix_host: name of the Zabbix host, from which item names are derived: <zbx_metric>.metrics.<zabbix_host>[<function_name>]
     :param ignore_names: set of function names to ignore
     '''
-    metric_map = __load_metric_map()
     # get zabbix data objects for each metric and function, and update the objects with timestamps
     sender_data = [SenderData(
             host= zabbix_host,
-            key= f"{item}.metrics.{zabbix_host}[{json['dimensions']['FunctionName']}]",
+            key= f"{stat.lower()}.{metric.lower()}.metrics.{zabbix_host}[{json['dimensions']['FunctionName']}]",
             value= json['value'][stat],
             clock= int(json['timestamp'])//1000,          # timestamp in miliseconds -- extract seconds
             ns= (int(json['timestamp'])%1000)*1_000_000  # exctract miliseconds and convert to nanoseconds
         )
         for json in jsons
-        for metric in [metric_map[json['metric_name']]]  # list of single value, used as a helper variable lol
-        for stat in metric
-        for item in metric[stat]
+        for metric in [json['metric_name']]  # list of single value, used as a helper variable lol
+        for stat in AWS_METRIC_SELECT[metric]
         if json['dimensions']['FunctionName'] not in ignore_names
     ]
     return sender_data
