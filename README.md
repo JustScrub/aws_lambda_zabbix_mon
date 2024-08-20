@@ -11,6 +11,22 @@ Firehose Buffering:
 
 
 # TODO
+
+ - store Lambda Priority in Environment Variables
+ - make priority per configured metric
+    - each metric creates macros:
+        - `<NAME>_<SEVERITY>:"<PRIORITY>"` -- same as now
+    - in triggers, expressions will have constants:
+        - `<NAME>_<SEVERITY>:\"{#<NAME>_PRIO}\"`
+        - one "priority LLD macro" per configured metric
+    - in discovery, the packet contains:
+        - `{#FN_NAME}` = name of function
+        - subset of `{#<NAME>_PRIO}` for all configured metric names
+        - only triggers for the specified names will be discovered (**??**)
+    - in AWS, these priorities are stored in PRIO env var
+        - `PRIO='<name>:<priority> ...`
+        - space-separated list of metric names and their priorities, separated by a colon
+
  - Resolve problems:
     - AWS Proxy keeps failing the trapper packets ??!!!?!?!?!!
     - "Time consistency"

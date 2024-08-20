@@ -232,9 +232,18 @@ The thing to take from this section: **SET ProxyConfigFrequency OR ConfigFrequen
       echo "ProxyConfigFrequency=<value>" >> /etc/zabbix/zabbix_server.conf
       echo "ConfigFrequency=<value>" >> /etc/zabbix/zabbix_proxy.conf
 
-The first command should work, the second one has not been tested, so it might not be the case. Other than that, just change `<value>` to your number of seconds. Recommended would be something bellow the Transformation Lambda buffering time, as configured in SAM parameters (ZBLambTransformBufferingSeconds).
+The first command should work, the second one has not been tested, so it might not be the case. Other than that, just change `<value>` to your number of seconds. Alternatively, you can copy the config file out of the container, edit it in e.g. vim and copy it back:
+
+        docker cp <container_id>:/etc/zabbix/zabbix_<server|proxy>.conf $HOME
+        vim $HOME/zabbix_<server|proxy>.conf
+        (do your edits, exit vim)
+        docker cp $HOME/zabbix_<server|proxy>.conf <container_id>:/etc/zabbix/zabbix_<server|proxy>.conf
+
+Recommended would be something bellow the Transformation Lambda buffering time, as configured in SAM parameters (ZBLambTransformBufferingSeconds).
 
 FEEL MY PAIN!!!!
+
+Note: when trying to recreate on purpose, this acts weird. Using environment variable for some reason worked, but it seemed that setting ProxyConfigFrequency actually configured Data frequency, and incorrectly: when ProxyConfigFrequency set to 3600s, objects in Zabbix were discovered, whereas item data were not delivered. After setting to 30s, objects were immidiatelly visible and data was immidiatelly delivered. 
 
 #### Zabbix configuration script flow
 Now that the used features are described, let's have a look how the configuration script operates.
