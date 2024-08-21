@@ -14,31 +14,46 @@ def __catch_default(func,default,*args,**kwargs):       # use in case lambda_cli
 
 def zbx_discover_all():
     functions =  [
-        (name, arn, tags)
+        (name, vars)
         for page in lambda_client.get_paginator('list_functions').paginate()
-        for name, arn in map(lambda fn: (fn['FunctionName'],fn['FunctionArn']), page['Functions'])
-        for tags in [lambda_client.get_function(FunctionName=name).get('Tags',{})]
-    ] # tuples of function name, ARN and Tags field
+        for name in map(lambda fn: fn['FunctionName'], page['Functions'])
+        for vars in [lambda_client.get_function(FunctionName=name)['Configuration']['Environment']['Variables']]
+    ] # tuples of function name and Env vars field
+
+    # NOTE: somewhat critical section on all function's Environment Variables is entered
+    #       if someone updates environment variables for of any function with the AWS_DISCOVERED_VAR not present,
+    #       the changes will be reverted after the function is flagged
 
     functions = list(filter(
-        lambda e: AWS_PRIO_TAG in e[2],
+        lambda e: AWS_PRIO_VAR in e[1],
         functions
-    )) # only discover functions with the AWS_PRIO_TAG tag -- the rest are untracked by Zabbix
+    )) # only discover functions with the AWS_PRIO_VAR env var -- the rest are untracked by Zabbix
 
-    # tag the discovered functions
-    for name,arn,tags in functions:
-        if AWS_DISCOVERED_TAG in tags: continue # only add tag to new functions, not yet discovered
-        lambda_client.tag_resource(
-            Resource=arn,
-            Tags={AWS_DISCOVERED_TAG: "true"} 
-        )
+    for name,vars in functions:
+        # flag the discovered functions
+        if AWS_DISCOVERED_VAR not in vars:  # only add flag to new functions, not yet discovered
+            vars.update({AWS_DISCOVERED_VAR: "true"})
+            lambda_client.update_function_configuration(
+                FunctionName=name,
+                Environment={
+                    "Variables": vars
+                }
+            )
+
+        # parse the priority variable -- e.g. PRIO = "errors:1 max.duration:4 count_avg.duration:2"
+        vars['parsed'] = {
+            f"{{#{metric_name.upper()}_{ZBX_PRIO_MACRO}}}": f"{priority}"
+
+            for prio_pair in vars[AWS_PRIO_VAR].split()
+            for metric_name,priority in [prio_pair.split(':')]
+        }
     
     packet = [
                 {
                     f"{{#{ZBX_FN_NAME_MACRO}}}": name,
-                    f"{{#{ZBX_PRIO_MACRO}}}": f"{tags[AWS_PRIO_TAG]}"
+                    **(vars['parsed'])
                 }
-                for name,arn,tags in functions
+                for name,vars in functions
             ]
     return packet
 

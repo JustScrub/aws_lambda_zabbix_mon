@@ -6,4 +6,5 @@ zblamb-sam/**/config.py
 zblamb-sam/functions/basic_handler/metric_map.json
 zblamb-sam/template_params.json
 zblamb-sam/events
+scripts/utility_scripts/test*
 concr_configs

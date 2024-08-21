@@ -130,7 +130,6 @@ Resources:
       Tags:
         Name: Zabbix Lambda monitor Mock Lambda function
         Description: A sample lambda function to monitor via Zabbix. Successful call or type of failure can be invoked in the event argument.
-        PRIO: 1
 
   ZBLambMetricStreamTransformLambda:
     Type: AWS::Serverless::Function
@@ -144,7 +143,7 @@ Resources:
           Statement:       
             - Effect: "Allow"
               Action: 
-                - lambda:Get* # needs to get TAGs and check if AWS_PRIO_TAG, AWS_DISCOVERED_TAG are present
+                - lambda:Get* # needs to get Env Vars and check if AWS_PRIO_VAR, AWS_DISCOVERED_VAR are present
               Resource: '*'
       Runtime: python3.8
       Timeout: !Ref ZBLambLambdaTimeout
@@ -164,8 +163,6 @@ Resources:
       Tags:
         Name: Zabbix Lambda monitor Firehose stream transformation
         Description: Lambda function used to transform Firehose metric stream and send it to Zabbix Proxy
-        PRIO: 4
-        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
       
   ZBLambFunctionDiscoveryLambda:
     Type: AWS::Serverless::Function
@@ -184,9 +181,9 @@ Resources:
           Statement:       
             - Effect: "Allow"
               Action: 
-                - lambda:Get*  # get Tags and check if AWS_PRIO_TAG present
+                - lambda:Get*  # get Env vars and check if AWS_PRIO_VAR present
                 - lambda:List* # list all functions in account
-                - lambda:TagResource # tag a function as discovered in Zabbix
+                - lambda:UpdateFunctionConfiguration # flag a function as discovered in Zabbix in Env Vars
               Resource: '*'
       Runtime: python3.8
       Timeout: !Ref ZBLambLambdaTimeout
@@ -194,6 +191,7 @@ Resources:
         Variables:
           ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
           LOG_LEVEL: INFO
+          PRIO: errors
       VpcConfig: !If
         - LambdasInVPC
         - SubnetIds: !If
@@ -206,8 +204,6 @@ Resources:
       Tags:
         Name: Zabbix Lambda monitor Lambda Discovery function
         Description: Lambda function used to discover Lambda functions with priority tag inside Zabbix
-        PRIO: 4
-        ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
 
 # Metric Stream
 

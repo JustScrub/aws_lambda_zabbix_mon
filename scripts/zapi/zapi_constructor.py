@@ -384,7 +384,7 @@ class LLDMultiTriggerMetricConfig:
 
     def items(self,suffix,host_id,discovery_item_id,name_tag="FN_NAME"):
         return {
-            "name": f"{{#{name_tag}}} {self.item_name}",
+            "name": f"{{#{name_tag}}} {self.name}",
             "key_": f"{self.item_name}.metrics.{suffix}[{{#{name_tag}}}]",
             "value_type": self.type,
             "hostid": f"{host_id}",
@@ -402,7 +402,7 @@ class LLDMultiTriggerMetricConfig:
             "priority": severity.value,
             "expression": self.expr.format(
                 f"/{zabbix_host}/{self.items(suffix,0,0,name_tag)['key_']}",
-                "{$%s_%s:\\\"{#%s}\\\"}" % (self.const,severity.name,prio_tag) # f-string: "{{${self.const}:\\\"{{#{prio_tag}}}\\\"}}"
+                "{$%s_%s:\\\"{#%s}\\\"}" % (self.const, severity.name, f"{self.name.upper()}_{prio_tag}") # f-string: "{{${self.const}_{severity.name}:\\\"{{#{self.name.upper()}_{prio_tag}}}\\\"}}"
             ),
             **dependencies,
             **self.trigger_kwargs
@@ -438,6 +438,55 @@ class LLDMultiTriggerMetricConfig:
             for trigger in [self.triggers(severity,suffix,name_tag=name_tag)]
             if trigger
             if self.priority_map[priority][severity] is None
+        ]
+    
+    def overrides(self,suffix,start_step,name_tag="FN_NAME",prio_tag="PRIO"):
+        macro_name = f"{self.name.upper()}_{prio_tag}"
+        return [ 
+            {
+                "name": f"OV_{macro_name}_{i}",
+                "step": f"{i+1+start_step}",
+                "stop": 0,
+                "filter": {
+                    "evaltype": "1", # AND
+                    "conditions": [
+                        {
+                            "macro": f"{{#{macro_name}}}",
+                            "operator": 12, # exists
+                            "value": "" 
+                        },
+                        {
+                            "macro": f"{{#{macro_name}}}",
+                            "operator": 8,  # matches
+                            "value": f"^{i}$"
+                        }
+                    ]
+                },
+                "operations": self.override_operations(suffix,priority,name_tag)
+            }
+        for i,priority in enumerate(LambdaPriority.list())
+        ] + [ # override for unclassified lambda (=undefined priority)
+            {
+                "name": f"OV_{macro_name}_N",
+                "step": f"{LambdaPriority.num_priorities+1+start_step}",
+                "stop": 0, 
+                "filter": {
+                    "evaltype": "2", # OR
+                    "conditions": [
+                        {   # TODO: this condition might not be required, try it
+                            "macro": f"{{#{macro_name}}}",
+                            "operator": 13, # does not exist
+                            "value": "" #required??
+                        },
+                        {   # this one is 100% required
+                            "macro": f"{{#{macro_name}}}",
+                            "operator": 9,  # does not match
+                            "value": f"^[0-{LambdaPriority.num_priorities-1}]$"
+                        }
+                    ]
+                },
+                "operations": self.override_operations(suffix,LambdaPriority(-1),name_tag)
+            }
         ]
     
 def create_multi_trigger_mapping(
@@ -496,8 +545,8 @@ def create_multi_trigger_mapping(
 
     for metric in metrics:
         zapi.usermacro.create(
-        *list(itertools.chain(
-            *[metric.macros(severity,trapper_host_id) for severity in list(ZabbixSeverity)]
+        *list(itertools.chain.from_iterable(
+            [metric.macros(severity,trapper_host_id) for severity in list(ZabbixSeverity)]
         )))
 
         try:
@@ -515,38 +564,11 @@ def create_multi_trigger_mapping(
                     zapi.triggerprototype.create( trigger )["triggerids"][0]
                 )
 
-    # add overrides to LLD rules -- maps lambda priorities to zabbix severity (how severe a trigger is)
-    #                            -- one for each priority, each updates severity for every metric trigger
+    # add overrides to LLD rules 
     zapi.discoveryrule.update(
         itemid=f"{discovery_item_id}",
-        overrides=[ # overrides per priority
-            {
-                "name": f"OV_PRIO_{i}",
-                "step": f"{i+1}",
-                "stop": 1, # stop if filter matches -- this override updates all triggers (of all metrics)
-                "filter": {
-                    "evaltype": "2",
-                    "conditions": [
-                        {
-                            "macro": f"{{#{prio_tag}}}",
-                            "operator": 8,
-                            "value": f"^{i}$"
-                        }
-                    ]
-                },
-                "operations": list(itertools.chain(*[
-                    metric.override_operations(suffix,priority,name_tag)
-                    for metric in metrics]))
-            }
-        for i,priority in enumerate(LambdaPriority.list())
-        ] + [ # override for unclassified lambda (=undefined priority)
-            {
-                "name": f"OV_PRIO_N",
-                "step": f"{LambdaPriority.num_priorities+1}",
-                "stop": 1, # stop if filter matches -- this override updates all triggers (of all metrics)
-                "operations": list(itertools.chain(*[
-                    metric.override_operations(suffix,LambdaPriority(-1),name_tag)
-                    for metric in metrics]))
-            }
-        ]
+        overrides= list(itertools.chain.from_iterable([
+            metric.overrides(suffix,(LambdaPriority.num_priorities+1)*i,name_tag,prio_tag)
+            for i,metric in enumerate(metrics)
+        ]))
     )

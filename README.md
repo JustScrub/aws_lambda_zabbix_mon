@@ -19,6 +19,19 @@ Firehose Buffering:
     - in triggers, expressions will have constants:
         - `<NAME>_<SEVERITY>:\"{#<NAME>_PRIO}\"`
         - one "priority LLD macro" per configured metric
+    - overrides:
+        - one override for each metric and priority
+            - "if `{#<NAME>_PRIO}` exists and `{#<NAME>_PRIO}`matches `^<PRIORITY>$`
+                - true: do not discover left out severities
+                - keep doing overrides, do not stop
+        - unclassified override for each metric
+            - "if `{#<NAME>_PRIO}` does not exist or `{#<NAME>_PRIO}`does not match `^[1-<max_priority>]$`
+                - true: do not discover left out severities for unclassified priority
+                - again, do not stop
+                - the negation of previous overrides
+                    - due to "aggregated negation", the regex should match every possible priority
+                    - complicated regex construction --> only allow single-digit priorities
+                        - at least use hex priorities?    
     - in discovery, the packet contains:
         - `{#FN_NAME}` = name of function
         - subset of `{#<NAME>_PRIO}` for all configured metric names

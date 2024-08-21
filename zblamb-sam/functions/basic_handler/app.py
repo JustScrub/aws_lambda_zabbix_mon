@@ -46,8 +46,8 @@ def ignore_fns():
     ignores = {
         name
         for name in __function_names
-        for tags in [lc.get_function(FunctionName=name).get('Tags',{})]
-        if AWS_PRIO_TAG not in tags or AWS_DISCOVERED_TAG not in tags
+        for vars in [lc.get_function(FunctionName=name)['Configuration']['Environment']['Variables']]
+        if AWS_PRIO_VAR not in vars or AWS_DISCOVERED_VAR not in vars
     }
     lc.close()
     return ignores

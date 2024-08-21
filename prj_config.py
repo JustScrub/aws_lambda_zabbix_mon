@@ -3,9 +3,9 @@ py_configs = {
     "ZBX_SUFFIX":{
 		"value":'zblamb',
 		"descr":'Zabbix objects base/root name'},
-    "AWS_PRIO_TAG":{
-		"value":'PRIO',
-		"descr":'Name of Lambda Functions Tag that yields the function\'s priority'},
+    "AWS_PRIO_VAR":{
+		"value":'ZBLAM_PRIO',
+		"descr":'Name of Lambda Functions\' Environment Variable that yields the function\'s priority'},
     #"AWS_TRANSFORM_TIMEOUT":{
     #    "value": '5s',
     #    "descr": 'Timeout of the Transformation Lambda, in zabbix time unit format (number of seconds or a number with s,m as suffix). Minimum 1 seconds, maximum 900 seconds (15m). This option will be propagated to SAM parameters as well.',
@@ -216,8 +216,8 @@ if __name__ == "__main__":
                 "descr": "Number of Lambda priorities"
             },
             # Lambda Tag Name that tags the functions it is discovered in Zabbix
-            "AWS_DISCOVERED_TAG": {
-                "value": "ZBXdiscovered",
+            "AWS_DISCOVERED_VAR": {
+                "value": "ZBLAMB_DISCOVERED",
                 "descr": "Name of Lambda Tag that specifies the function is discovered in Zabbix"
             }
         })
