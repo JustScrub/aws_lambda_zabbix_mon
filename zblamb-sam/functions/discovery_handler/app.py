@@ -17,7 +17,11 @@ def zbx_discover_all():
         (name, vars)
         for page in lambda_client.get_paginator('list_functions').paginate()
         for name in map(lambda fn: fn['FunctionName'], page['Functions'])
-        for vars in [lambda_client.get_function(FunctionName=name)['Configuration']['Environment']['Variables']]
+        for vars in [__catch_default( # try to exctract environment variables -- in case of failure, return empty dictionary
+                lambda fn: lambda_client.get_function(FunctionName=fn)['Configuration']['Environment']['Variables'],
+                {},
+                name
+            )]
     ] # tuples of function name and Env vars field
 
     # NOTE: somewhat critical section on all function's Environment Variables is entered

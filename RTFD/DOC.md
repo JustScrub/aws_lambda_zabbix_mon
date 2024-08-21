@@ -274,9 +274,13 @@ The internals of communication between the Proxy and the Server have not been th
 
 The problem with this is the frequencies at which Data and Configuration are sent. Both can be configured. For passive proxies, these are configured at the Server with the 'ProxyConfigFrequency' and 'ProxyDataFrequency' configs in zabbix_server.conf. The former states how often Server sends configurations to its passive proxies and the latter how often it asks for data. Both are in seconds and the default for Data frequency is 1 second and for Configuration frequency, it is 1 *hour*. Who the hell came up with this? In the example, that means the discovered items and triggers are available after an *hour*. In the meantime, since the Proxy does not know about the item yet, it complains that they do not exist and Transformation Lambda fails due to this. It took me several days to figure this out. Sigh.
 
-For active proxies, the the frequencies are configured in their zabbix_proxy.conf as 'ConfigFrequency' and 'DataSenderFrequency'. Active proxies send data and ask for configuration (the opposite to passive proxies, where the server sends config and asks for data). Both are in seconds and the defaults are the same as for passive proxies
+Since a Zabbix version newer than 5.4, Configuration frequency is set to 10 seconds by default. Since which one, I do not know.
 
-The thing to take from this section: **SET ProxyConfigFrequency OR ConfigFrequency TO LOWER VALUES!**. When **using docker**: these configs can be set via environment variables, but only since the version 6.4.0 :-). As this project is for Zabbix v 5.4, you'll have to change these configs manually inside the container. Bash into your container and echo-append the value to the config file residing in /etc/zabbix/:
+For active proxies, the the frequencies are configured in their zabbix_proxy.conf as 'ConfigFrequency' and 'DataSenderFrequency'. Active proxies send data and ask for configuration (the opposite to passive proxies, where the server sends config and asks for data). Both are in seconds and the defaults are the same as for passive proxies. Since version 6.4.0 (as per [Zabbix Proxy docker page](https://hub.docker.com/r/zabbix/zabbix-proxy-sqlite3)), the 'ConfigFrequency' config is deprecated and the new one is 'ProxyConfigFrequency', same as the server's config, with the same new default set to 10 seconds. Data frequency is still configured with 'DataSenderFrequency'.
+
+The thing to take from this section: **SET ProxyConfigFrequency OR ConfigFrequency TO LOWER VALUES!**. 
+
+When **using docker**: these configs can be set via environment variables, but if having troubles with that, you'll have to change these configs manually inside the container. Bash into your container and echo-append the value to the config file residing in /etc/zabbix/:
 
       echo "ProxyConfigFrequency=<value>" >> /etc/zabbix/zabbix_server.conf
       echo "ConfigFrequency=<value>" >> /etc/zabbix/zabbix_proxy.conf

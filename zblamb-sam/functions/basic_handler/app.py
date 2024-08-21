@@ -41,12 +41,22 @@ def extract_data(evt:Dict):
     # firehose_data= i.chain(*[ list(filter(lambda j: list(j['dimensions'].keys())==['FunctionName'],map( json.loads,base64.b64decode(r['data']).decode('utf-8').splitlines() )))  for r in e['records']])
     return list(firehose_data)
 
+def __catch_default(func,default,*args,**kwargs):       # use in case lambda_client.get_function is throwing exceptions:
+    try:                                                
+        return func(*args,**kwargs)
+    except:
+        return default
+
 def ignore_fns():
     lc = boto3.client('lambda')
     ignores = {
         name
         for name in __function_names
-        for vars in [lc.get_function(FunctionName=name)['Configuration']['Environment']['Variables']]
+        for vars in [__catch_default(
+                lambda fn: lc.get_function(FunctionName=fn)['Configuration']['Environment']['Variables'],
+                {},
+                name
+                )]
         if AWS_PRIO_VAR not in vars or AWS_DISCOVERED_VAR not in vars
     }
     lc.close()

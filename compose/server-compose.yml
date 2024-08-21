@@ -30,6 +30,8 @@ services:
     init: true
     depends_on:
       - zblamb-postgres
+    environment:
+      - ZBX_PROXYCONFIGFREQUENCY=30
     env_file:
       - .env
     
