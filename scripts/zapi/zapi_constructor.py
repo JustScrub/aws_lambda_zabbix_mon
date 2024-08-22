@@ -428,7 +428,7 @@ class LLDMultiTriggerMetricConfig:
     def override_operations(self,suffix,priority,name_tag="FN_NAME"):
         return [
             {
-                "operationobject": "1", # trigger
+                "operationobject": "1", # trigger prototype
                 "operator": 2,
                 "value": trigger["description"].split('[')[0],
                 "opstatus": {"status":1}, # don't create
@@ -440,12 +440,42 @@ class LLDMultiTriggerMetricConfig:
             if self.priority_map[priority][severity] is None
         ]
     
-    def overrides(self,suffix,start_step,name_tag="FN_NAME",prio_tag="PRIO"):
+    def overrides(self,suffix,step_counter,name_tag="FN_NAME",prio_tag="PRIO"):
         macro_name = f"{self.name.upper()}_{prio_tag}"
-        return [ 
+        return [
+            # if priority macro does not exist, do not create triggers
             {
-                "name": f"OV_{macro_name}_{i}",
-                "step": f"{i+1+start_step}",
+                "name": f"OV_{macro_name}_N",
+                "step": f"{next(step_counter)}",
+                "stop": 0,
+                "filter": {
+                    "evaltype": "2", # OR
+                    "conditions": [
+                        {
+                            "macro": f"{{#{macro_name}}}",
+                            "operator": 13, # does not exist
+                            "value": "" 
+                        }
+                    ]
+                },
+                "operations": [
+                    # do not create triggers
+                    {
+                        "operationobject": "1", # trigger prototype
+                        "operator": 2,
+                        "value": f"{self.name}.triggers.{suffix}",
+                        "opstatus": {"status":1}, # don't create
+                        "opdiscover":{"discover":1} # don't discover
+                    }
+                ]
+            }
+            for _ in [...] # to have an if clause, lol
+            if any(self.priority_map[p][s] for p in LambdaPriority.list() for s in list(ZabbixSeverity)) # do not create if priority map is empty
+        ] +  [ 
+            # overrides based on priority -- do not discover unused severities for the priority
+            {
+                "name": f"OV_{macro_name}_{priority.value}",
+                "step": f"{next(step_counter)}",
                 "stop": 0,
                 "filter": {
                     "evaltype": "1", # AND
@@ -458,35 +488,40 @@ class LLDMultiTriggerMetricConfig:
                         {
                             "macro": f"{{#{macro_name}}}",
                             "operator": 8,  # matches
-                            "value": f"^{i}$"
+                            "value": f"^{priority.value}$"
                         }
                     ]
                 },
-                "operations": self.override_operations(suffix,priority,name_tag)
+                "operations": operations
             }
-        for i,priority in enumerate(LambdaPriority.list())
-        ] + [ # override for unclassified lambda (=undefined priority)
+        for priority in LambdaPriority.list()
+        for operations in [self.override_operations(suffix,priority,name_tag)]
+        if operations # do not create rule with no operations
+        ] + [ 
+            # override for unclassified lambda (=undefined priority)
             {
-                "name": f"OV_{macro_name}_N",
-                "step": f"{LambdaPriority.num_priorities+1+start_step}",
+                "name": f"OV_{macro_name}_U",
+                "step": f"{next(step_counter)}",
                 "stop": 0, 
                 "filter": {
-                    "evaltype": "2", # OR
+                    "evaltype": "1", # AND
                     "conditions": [
-                        {   # TODO: this condition might not be required, try it
+                        {   
                             "macro": f"{{#{macro_name}}}",
-                            "operator": 13, # does not exist
-                            "value": "" #required??
+                            "operator": 12, # exists
+                            "value": ""
                         },
-                        {   # this one is 100% required
+                        {   
                             "macro": f"{{#{macro_name}}}",
                             "operator": 9,  # does not match
                             "value": f"^[0-{LambdaPriority.num_priorities-1}]$"
                         }
                     ]
                 },
-                "operations": self.override_operations(suffix,LambdaPriority(-1),name_tag)
+                "operations": operations
             }
+            for operations in [self.override_operations(suffix,LambdaPriority(-1),name_tag)]
+            if operations # same reason as above
         ]
     
 def create_multi_trigger_mapping(
@@ -565,10 +600,11 @@ def create_multi_trigger_mapping(
                 )
 
     # add overrides to LLD rules 
+    counter = itertools.count(1)
     zapi.discoveryrule.update(
         itemid=f"{discovery_item_id}",
         overrides= list(itertools.chain.from_iterable([
-            metric.overrides(suffix,(LambdaPriority.num_priorities+1)*i,name_tag,prio_tag)
-            for i,metric in enumerate(metrics)
+            metric.overrides(suffix,counter,name_tag,prio_tag)
+            for metric in metrics
         ]))
     )

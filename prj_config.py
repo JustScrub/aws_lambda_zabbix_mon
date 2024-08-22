@@ -4,7 +4,7 @@ py_configs = {
 		"value":'zblamb',
 		"descr":'Zabbix objects base/root name'},
     "AWS_PRIO_VAR":{
-		"value":'ZBLAM_PRIO',
+		"value":'ZBLAMB_PRIO',
 		"descr":'Name of Lambda Functions\' Environment Variable that yields the function\'s priority'},
     #"AWS_TRANSFORM_TIMEOUT":{
     #    "value": '5s',
@@ -215,10 +215,10 @@ if __name__ == "__main__":
                 "value": 5,
                 "descr": "Number of Lambda priorities"
             },
-            # Lambda Tag Name that tags the functions it is discovered in Zabbix
+            # Lambda Environment Variable Name that tags the functions it is discovered in Zabbix
             "AWS_DISCOVERED_VAR": {
                 "value": "ZBLAMB_DISCOVERED",
-                "descr": "Name of Lambda Tag that specifies the function is discovered in Zabbix"
+                "descr": "Name of Lambda Environment Variable that specifies the function is discovered in Zabbix"
             }
         })
         cfg_checks(py_configs)

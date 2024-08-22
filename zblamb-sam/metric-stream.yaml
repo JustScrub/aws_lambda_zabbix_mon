@@ -10,8 +10,8 @@ Parameters:
     Description: An S3 bucket ARN, the destination of the Delivery stream. Only failed invocations of Transform Lambda will be delivered.
   ZBLambMetrics:
     Type: CommaDelimitedList
-    Default: "Errors,Duration"
     Description: Comma delimited list of AWS/Lamda metrics to send to Zabbix.
+    #Default: "Errors,Duration"
   ZBLambTransformBufferingSeconds:
     Type: Number
     Description: Duration in seconds how long Metric Stream Firehose buffers data before sending them to the Transformation lambda
@@ -191,7 +191,6 @@ Resources:
         Variables:
           ZBLAMB_PROXY_IP: !If [ Defined-ZBLambZabbixIP, !Ref ZBLambZabbixIP, !ImportValue ZBLamb::ZabbixProxyPrivateIp ]
           LOG_LEVEL: INFO
-          PRIO: errors
       VpcConfig: !If
         - LambdasInVPC
         - SubnetIds: !If
@@ -291,7 +290,7 @@ Resources:
         - Key: Name
           Value: Zabbix Lambda monitor Metric Delivery Stream
         - Key: Description
-          Value: The Firehose stream that streams metrics from CloudWatch to the S3 bucket / HTTP Endpoint
+          Value: The Firehose stream that streams metrics from CloudWatch to the S3 bucket 
 
   ZBLambMetricStreamIAM:
     Type: AWS::IAM::Role

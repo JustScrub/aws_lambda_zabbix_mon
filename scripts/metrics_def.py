@@ -53,5 +53,13 @@ MetricConfigs = [
                 LambdaPriority(1): { ZabbixSeverity.HIGH: 500, ZabbixSeverity.AVERAGE: 400},    
                 LambdaPriority(2): { ZabbixSeverity.AVERAGE: 400},        
             }
+        ),
+        LLDMultiTriggerMetricConfig(
+            name="invocs",
+            zbx_value_type="int",
+            zbx_trigger_expression_pattern='last({0})>="{1}"',
+            aws_metric_name="Invocations",
+            aws_statistic_name="sum",
+            priority_mapping={} # no triggers actually created, but expression still required
         )
 ]

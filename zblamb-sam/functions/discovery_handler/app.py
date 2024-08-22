@@ -24,9 +24,6 @@ def zbx_discover_all():
             )]
     ] # tuples of function name and Env vars field
 
-    # NOTE: somewhat critical section on all function's Environment Variables is entered
-    #       if someone updates environment variables for of any function with the AWS_DISCOVERED_VAR not present,
-    #       the changes will be reverted after the function is flagged
 
     functions = list(filter(
         lambda e: AWS_PRIO_VAR in e[1],
@@ -34,16 +31,6 @@ def zbx_discover_all():
     )) # only discover functions with the AWS_PRIO_VAR env var -- the rest are untracked by Zabbix
 
     for name,vars in functions:
-        # flag the discovered functions
-        if AWS_DISCOVERED_VAR not in vars:  # only add flag to new functions, not yet discovered
-            vars.update({AWS_DISCOVERED_VAR: "true"})
-            lambda_client.update_function_configuration(
-                FunctionName=name,
-                Environment={
-                    "Variables": vars
-                }
-            )
-
         # parse the priority variable -- e.g. PRIO = "errors:1 max.duration:4 count_avg.duration:2"
         vars['parsed'] = {
             f"{{#{metric_name.upper()}_{ZBX_PRIO_MACRO}}}": f"{priority}"
@@ -59,12 +46,33 @@ def zbx_discover_all():
                 }
                 for name,vars in functions
             ]
-    return packet
+    return packet, [f[0] for f in functions]
+
+def flag_functions(names_with_prio):
+    # NOTE: somewhat critical section on all function's Environment Variables is entered
+    #       if someone updates environment variables for of any function with the AWS_DISCOVERED_VAR not present,
+    #       the changes may be reverted after the function is flagged
+    for name in names_with_prio:
+        vars = lambda_client.get_function(FunctionName=name)['Configuration']['Environment']['Variables'] #shouldn't fail as the input function names are required to have at least the prio var
+        if AWS_DISCOVERED_VAR in vars: continue
+        vars.update({AWS_DISCOVERED_VAR: "true"})
+        lambda_client.update_function_configuration(
+            FunctionName=name,
+            Environment={
+                "Variables": vars
+            }
+        )
 
 def lambda_handler(e,c):
-    discovery_value = zbx_discover_all()
+    discovery_value,discovered_names = zbx_discover_all()
     discovery_str = j.dumps(discovery_value)
     logger.info("Discovered functions: %s", discovery_str)
+
+    if not discovery_value:
+        logger.info(f"No functions to discover.")
+        return {"status": "ok", "discovered": len(discovery_value)}
+
+
     sender = Sender(os.environ['ZBLAMB_PROXY_IP'],10051)
     sender.set_timeout(0.5)
     resp = sender.send_value(ZBX_SUFFIX,f"discover.{ZBX_SUFFIX}",discovery_str)
@@ -72,7 +80,7 @@ def lambda_handler(e,c):
 
     err = resp.response != 'success'
     if resp.failed > 0:
-        logger.error(f"Zabbix discovery failed for {resp.failed} functions!")
+        logger.error(f"Zabbix discovery failed!")
         err = True
     if resp.total == 0 and len(discovery_value) > 0:
         logger.fatal(f"No functions discovered! Is the Zabbix sender packet correct?")
@@ -83,5 +91,6 @@ def lambda_handler(e,c):
     if err:
         exit(1)
     else:
+        flag_functions(discovered_names) # do not flag them if the discovery failed
         return {"status": "ok", "discovered": len(discovery_value)}
 
