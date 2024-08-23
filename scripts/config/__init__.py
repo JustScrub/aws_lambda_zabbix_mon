@@ -1,5 +1,5 @@
 ZBX_SUFFIX="lambdas" # Zabbix objects base/root name
-AWS_PRIO_VAR="ZBLAM_PRIO" # Name of Lambda Functions' Environment Variable that yields the function's priority
+AWS_PRIO_VAR="ZBLAMB_PRIO" # Name of Lambda Functions' Environment Variable that yields the function's priority
 ZBX_LLD_KEEP_PERIOD="0" # How long Zabbix keeps discovered entities in seconds if no new data have been recieved
 ZBX_PRIO_MACRO="PRIO" # Zabbix LLD Macro that yields the discovered function priority
 ZBX_FN_NAME_MACRO="FN_NAME" # Zabbix LLD Macro that yields the discovered function name

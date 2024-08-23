@@ -384,7 +384,7 @@ class LLDMultiTriggerMetricConfig:
 
     def items(self,suffix,host_id,discovery_item_id,name_tag="FN_NAME"):
         return {
-            "name": f"{{#{name_tag}}} {self.name}",
+            "name": f"{{#{name_tag}}} {self.item_name}",
             "key_": f"{self.item_name}.metrics.{suffix}[{{#{name_tag}}}]",
             "value_type": self.type,
             "hostid": f"{host_id}",

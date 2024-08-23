@@ -35,33 +35,34 @@ def send_test_trap(zbx_addr,function,metric,rand_range,n_values,time_update_s=0,
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 -m scripts.utility_scripts.zbx_send_trap FnName [n_values=3] [low:high=0:100] [metric=sum.errors]")
+        print("Usage: python3 -m scripts.utility_scripts.zbx_send_trap FnName [n_values=3] [low:high=0:100] [metric=sum.errors] [server_addr=localhost]")
         print("FnName: name of the discovered function -- Zabbix item metric.metrics.<suffix>.[FnName]")
         print("\t<suffix> is taken from config")
         print("n_values: number of values in each packet")
         print("low:high: low and high boundaries of range of random value to send")
         print("\t(e.g. 1:5 sends random value between 1 and 5 including both; 3:3 always sends 3)")
         print("metric: the metric of the discovered function -- Zabbix item metric.metrics.<suffix>.[FnName], includes statistic and metric names")
+        print("server_addr: IP address or DNS name of a Zabbix Server/Proxy listening on port 10051")
         exit(1)
     fn = sys.argv[1]    
-    try:
-        ireps=int(sys.argv[2])
-    except:
-        ireps=3
-    try:
-        vs = tuple(map(int,sys.argv[3].split(':')))[:2]
-    except:
-        vs = (0,100)
-    try:
-        metric = sys.argv[4]
-    except:
-        metric = "sum.errors"
+
+    try: ireps=int(sys.argv[2])
+    except: ireps=3
+
+    try: vs = tuple(map(int,sys.argv[3].split(':')))[:2]
+    except: vs = (0,100)
+
+    try: metric = sys.argv[4]
+    except: metric = "sum.errors"
+
+    try: servaddr = sys.argv[5]
+    except: servaddr = 'localhost'
     
     print(f"using range {vs}")
 
     print(
         send_test_trap(
-            ('localhost',10051),
+            (servaddr,10051),
             function=fn,
             metric=metric,
             rand_range=vs,
