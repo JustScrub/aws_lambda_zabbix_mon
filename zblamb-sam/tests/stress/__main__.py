@@ -1,4 +1,5 @@
 from scripts.utility_scripts.generate_events import generate_events, get_functions
+from statistics import stdev, mean
 import sys, tempfile, json, subprocess
 
 def print_usage():
@@ -38,7 +39,7 @@ if __name__ == "__main__":
                 evt = generate_events(fn_names,1,(n_records,n_records),(n_functions,n_functions))[0]
                 with tempfile.NamedTemporaryFile() as f:
                     f.write(json.dumps(evt).encode())
-                    if f.tell() > 6291456:
+                    if f.tell() > 6291456: # max event size is 6MB
                         cont = False
                         break
                     sam_call[4] = f.name
@@ -54,7 +55,8 @@ if __name__ == "__main__":
                     (
                         n_records,
                         n_functions,
-                        sum(durs)/len(durs),
+                        mean(durs),
+                        stdev(durs),
                         min(durs),
                         max(durs),
                         errs,
@@ -64,7 +66,7 @@ if __name__ == "__main__":
             if not cont: break
 
     results = "\n".join(
-        ["# records,# functions,duration average,duration minimum, duration maximum,errors,repetitions"] + \
+        ["# records,# functions,duration average,duration standard deviation,duration minimum,duration maximum,errors,repetitions"] + \
         [ ','.join(res) for res in results]
     )
 
