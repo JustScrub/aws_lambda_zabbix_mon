@@ -48,6 +48,94 @@
 
 \chapter{Úvod}
 
+\section{Termíny a jazyk}
+% termíny anglicky, text česky
+% skloňování termínů
+
+\chapter{Distribuovaná výpočetní prostředí a cloud}
+
+\section{Cloud a cloudové služby}
+% IaaS/IaC, PaaS, úvod FaaS (v další sekci)
+
+\section{Serverless computing}
+% teorie + konkr od providerů
+\section{Event-driven architektura}
+% + containers, microservices
+% public, subscribe, distrib fronty (DLQ, SNS)
+
+\section{Monitoring cloudových aplikací}
+% terminologie, mon vs observability, přístupy... -- DSA/DCE/CICD
+
+\chapter{Systém pro externí monitorování AWS Lambda funkcí}
+
+\section{Požadavky zákazníka}
+% vlastní Zabbix server
+% jednoduše začít/zastavit monitoring existující/nové
+% priority lambd
+% throughput
+
+\section{Analýza dostupných služeb AWS}
+%\subsection{AWS Lambda}
+\subsection{AWS CloudWatch}
+% metriky, logy, granularita, alarmy, metric streams
+\subsection{AWS FireHose}
+\subsection{AWS Elastic Compute Cloud}
+\subsection{AWS CloudFormation}
+\subsection{AWS Simple Storage Service}
+
+\section{Systém Zabbix}
+\subsection{Pojmy, funkce}
+% pojmy -- host, item, severity, trigger, agent, server, proxy, frontend
+% funkce -- LLD + keep period, API, makra
+\subsection{Modelování Lambda funkcí}
+% jak namodelovat Lambdu / namapovat na Zabbix věci
+% All in one host -- jeden host na všechny Lambda funkce, pomocí taggů
+% Single host per Function, single trigger per Metric -- priorita funkce se přímo mapuje na severitu
+% Single host per Function, multiple triggers per Metric -- odstupňování severity -- např. postupně vyšší hodnoty metriky mají větší severity (lambda trvá 500 ms = average, 1000 ms = disaster atp.)
+
+\chapter{Implementace systému}
+
+\section{Architektura}
+% flow diagram, jak se co chová, "Transformační Lambda" (jinej název?), "LLD Lamba"
+% Lambda → CW → MetricStream → Firehose → ? → Zabbix
+% možnosti pro "?" -- S3, HTTP Endpoint... + jak uděláno (hack transformační lambdou)
+% nástřel konfigurace hlavně pro Transf. lambdu (jak pozná, co má posílat -- LLDMultiTriggerConfig)
+\subsection{Zasílání metrik}
+% pomocí Transf. lambdy = pattern Adaptér
+% s3 = DLQ
+\subsection{LLD implementace}
+% možnosti -- v transf. Lambdě?
+% opt keep period
+% LLD lambda
+
+
+\section{Nasazení}
+% nezapomenout na requirements -- aws cli + aws sam
+\subsection{CloudFormation šablony, nástroj SAM}
+% popis templates v projektu
+% sam.py
+\subsection{Konfigurace}
+% konfigurační soubory + skript s LLDMultiTriggerConfig 
+% priority Lambda Funkcí
+\subsection{Konfigurace Zabbix pomocí skriptu}
+%celý repo je Python module xd
+
+\subsubsection{třída LLDMultiTriggerConfig}
+% pořádně popsat, jak funguje její specifikace
+
+
+
+\section{Benchmarking}
+% bench skript, skript na generování vstupu do Transf. Lambdy
+% výsledky -- grafy? tabulka?
+
+\chapter{Diskuze}
+% zhodnocení, co by bylo dobrý udělat atp.
+% indikátor, že systém selhává -- metriky padaj do S3 bucketu
+% AWS strana a konfigurace nezávislá na monitorovacim systému (Zabbix) -- handler pro konkr. monitor
+\section{SPOF, bottlenecks}
+% zvlášť kapitola
+
 \chapter{Závěr}
 
 % _____________________________________________________________________________
@@ -60,7 +148,7 @@
 
 \appendix
 
-\chapter{???}
+\chapter{Optimální nastavení LLD Keep Period}
 
 
 
