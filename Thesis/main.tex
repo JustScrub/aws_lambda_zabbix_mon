@@ -67,20 +67,63 @@
 % terminologie, mon vs observability, přístupy... -- DSA/DCE/CICD
 
 \chapter{Systém pro externí monitorování AWS Lambda funkcí}
+Hlavním cílem této práce je na základě požadavků nejmenovaného \todo{můžu jmenovat? měl bych?} zákazníka vytvořit systém, který bude schopen monitorovat existující i nové AWS Lambda funkce a zasílat různé metriky (např. počet selhaných volání, doba běhu funkce) do externího\footnote{externí z pohledu provozovatele cloudu, interní z pohledu zákazníka} monitorovacího systému, t.j. ne poskytovaného provozovatelem cloudu. Tato kapitola se bude zabývat zejména analýzou problému a návrhem řešení.
 
 \section{Požadavky zákazníka}
 % vlastní Zabbix server
 % jednoduše začít/zastavit monitoring existující/nové
 % priority lambd
 % throughput
+Zákazník na začátku vývoje na systém podal benevolentní požadavky a umožnil tak širkový záběr možností pro nalezení vhodného řešení problému a průběžné návrhy následně hodnotil dle svých potřeb, dokud vývoj nedokonvergoval k uspokojivému řešení. Původní požadavky zahrnovaly konfigurovatelné monitorování AWS Lambda funkcí ve firemním AWS účtu pomocí (veřejně přístupné) instance systému Zabbix s využitím Zabbix Proxy. Monitorované metriky by měly zahrnovat alespoň počet selhání za určitou dobu (závisí na provozovateli cloudu, t.j. AWS). Dále by mělo být snadné přidat či odebrat monitorované funkce a nastavit prioritu jednotlivých funkcí. Systém by dále měl pracovat spolehlivě i při vysokém počtu monitorovaných funkcí a s vysokou propustností metrik. Řešení mělo být realizováno ve firemním AWS účtu, k němuž byl poskytnut přístup.
+
+Se znalostí těchto požadavků můžeme přistoupit k prvním krokům řešení problému, kterými nezbytně jsou seznámení se s cloudovým prostředím AWS a jeho službami a seznámení se s monitorovacím systémem Zabbix.
 
 \section{Analýza dostupných služeb AWS}
-%\subsection{AWS Lambda}
-\subsection{AWS CloudWatch}
-% metriky, logy, granularita, alarmy, metric streams
-\subsection{AWS FireHose}
+Amazon Web Services (AWS) je jedním ze současným největších poskytovatelů cloudových služeb na trhu. Nabízí širokou škálu služeb, které umožňují vytváření a provozování škálovatelných a spolehlivých aplikací. Z tohoto obrovského množství služeb musíme vybrat relevantní podmnožinu pro daný problém.
+
 \subsection{AWS Elastic Compute Cloud}
+Elastic Compute Cloud, zkráceně EC2, je základní služba AWS, která poskytuje škálovatelné výpočetní kapacity v cloudu ve formě virtuálních serverů neboli instancí. Každá instance slouží jako samostatný virtuální stroj, který si uživatel spravuje dle svých potřeb. EC2 podporuje různé operačních systémy, včetně různých distribucí Linuxu a Windows Serveru. Uživatelé mohou také vytvářet vlastní Amazon Machine Images (AMI), která obsahují předkonfigurované prostředí pro specifické aplikace. Je zřejmé, že EC2 nespadá pod serverless computing, neboť uživatel je zodpovědný za správu instancí.
+
+Jelikož se jedná o centrální službu, můžeme v AWS najít mnoho dalších způsobů konfigurace EC2 instancí i služeb s nimi spojených, jako například automatické škálování, load balancing, nebo služby pro správu virtuální sítě.
+
+Pro účely monitorovacího systému je možné na EC2 instancích provozovat vlastní Zabbix server a proxy, ale také případně provozovat software sloužící jako prostředník mezi AWS a Zabbix proxy.
+
+% pokud málo slov --> \subsection{Služby pro správu sítě}
+
+\subsection{AWS Lambda}
+AWS Lambda funkcím, jakožto hlavní službě této práce, věnujme v této sekci intenzivní pozornost. Jedná se implementaci FaaS paradigmatu v AWS s podporou pro mnoho vývojářských prostředí (různé programovací jazyky a Docker kontejnery). Programátor poskytne kód funkce\footnote{Reálně se nemusí jednat o jednu proceduru programovacího jazyka, může být poskytnut malý program} se vstupním bodem implementujícím rozhraní specifikované pro dané prostředí (hlavička vstupní procedury) a AWS se postará o její nasazení, běh a škálování. Lambda funkce jsou spouštěny na základě uživatelem specifikovaných událostí, například voláním AWS API pomocí nástroje z příkazové řádky, událostí generovanou jinou AWS službou (S3, FireHose, SQS...), nebo na základě časovače \cite{lambda.docs.aws}. Uživateli je účtováno pouze za čas, po který je funkce spuštěna, za využití paměti a za počet požadavků (spuštění funkce) \cite{lambda.pricing.aws}.
+
+\subsubsection{Vývoj Lambda funkcí}
+Vývoj Lambda funkcí je možný v několika programovacích jazycích, mezi které patří Python, Node.js, Java, Go, Ruby, C\# a PowerShell. Vstupní bod funkce, neboli \uv{handler}, musí implementovat požadované rozhraní, které se konkrétně mění pro každý jazyk dle dokumentace (např. funkce pro Python, Node.js nebo třída implementující rozhraní v jazyce Java), avšak všechny mají společný tvar -- přijímají dva argumenty, událost (event) a kontext (context), a vrací výsledek typicky ve formátu JSON. Událost obsahuje vstupní data funkce, poskytnutá volajícím, tedy např. uživatelem invokujícím Lambda funkci z příkazové řádky nebo AWS službou (formát pak odpovídá specifikaci dané služby\footnote{U některých služeb však formát události není v dokumentaci uveden... Viz dále.}). Kontext je zpravidla objekt obsahující informace o běhu funkce, jako například velikost paměti, čas spuštění, nebo identifikátor požadavku (volání) \cite{lambda.docs.aws}.
+
+Kód funkce je možné nahrát do AWS více způsoby: při vytváření funkce v grafickém rozhraní AWS (AWS Management Console), pomocí nástroje SAM, krátké funkce přímo v šabloně CloudFormation atp. Program se uloží do komprimovaného archivu ve formátu ZIP do automaticky vytvořeného S3 bucketu. Složitější funkce, které vyžadují větší množství souborů a závislostí, je třeba nahrát do S3 bucketu ručně a poté vytvořit funkci s odkazem na tento bucket, anebo je možné využít zmíněného nástroje SAM, jehož cílem je zjednodušit nasazení serverless aplikací v AWS \cite{sam.docs.aws, lambda.docs.aws}. Kormě archivu je také možné program funkce poskytnout jako docker kontejner. Některé závislosti jsou dostupné přímo v AWS Lambda prostředí, zejména knihovny pro práci s AWS službami (AWS SDK) \cite{lambda.docs.aws}.
+
+\subsubsection{Invokace Lambda funkcí}
+Dokumentace AWS Lambda specifikuje různé způsoby, jak může být funkce spuštěna. Základní rozdělení definuje synchronní a asynchronní volání, přičemž synchronní volání je \uv{blokující} a vrací výsledek volání, zatímco asynchronní volání vloží vstup do fronty událostí v AWS a na výstup nečeká, zahazuje jej. Oba typy volání je možné provést pomocí AWS Management Console, AWS CLI, SDK nebo API. Maximální velikost vstupních dat je omezena na 6 MB \cite{lambda.docs.aws}.
+
+Lambda funkce je ovšem možné integrovat s dalšími službami AWS, které invokují funkce automaticky. Integraci uživatel realizuje při konfiguraci služby, kterou plánuje využívat. Různé služby mouhou funkce volat synchronně nebo asynchronně dle dokumentace. V tomto případě invokací však dochází k dalšímu dělení na \uv{triggered} a \uv{event source mapping} invokace. Některé služby volají Lambda funkce ze své strany pomocí triggerů, poskytujíce vstupní data samy, kdežto zejména streamovací služby (např. Kinesis, DynamoDB) využívají event source mapping, zdroj na straně AWS Lambda, držící tzv. \uv{event poller} komponenty, které získávají dávky událostí (vstupních dat) ze zdrojové služby a posílají je do cílové Lambda funkce. Cílem event source mapping je zpracování velkého množství dat v jednom volání funkce a v důsledku zvýšení propustnosti oproti volání Lambda funkce pro každou položku ve streamu. Velikost dávky je dále možné konfigurovat podle počtu událostí v dávce a doby trvání sběru událostí do jedné dávky a také podléhá omezení na 6 MB \cite{lambda.docs.aws}.
+
+\subsubsection{Škálování a konkurentnost}
+AWS Lambda automaticky (horizontálně) škáluje volání funkcí podle počtu požadavků, nad nimiž je funkce volána. Každá funkce běží v izolovaném prostředí vyhrazeném pouze pro ni. Před prvním voláním je ze strany AWS nutné prostředí připravit (\uv{init} fáze) a až následně může funkce zpracovávat požadavky. Prostředí je udržováno po určitou dobu po posledním volání, aby bylo možné funkci spustit rychleji nad budoucími invokacemi. Při vhodném časování doby běhu funkce a příchody požadavků je tedy možné, že veškeré požadavky budou zpracovány v jednom prostředí. Běžně ale nastávají situace, kdy do funkce přichází více požadavků, než je jedna instance schopna odbavit a je třeba funkci spouštět konkurentně.
+
+Konkurentnost (Concurrency) je v AWS dokumentaci chápána jednak jako veličina a jednak jako počet prostředí vyhrazených pro uživatelovy Lambda funkce. Standardní horní limit konkurentnosti je ze strany AWS nastaven na 1000, což prakticky také znamená, že v jeden moment je umožněn běh maximálně 1000 funkcí (v účtu na region). V základním nastavení je tato konkurentnost sdílena mezi všechny funkce v účtu, ale je možné ji nastavit i pro jednotlivé funkce a to dvojím způsobem. Každá funkce může mít nastaven počet \uv{vyhrazené} (reserved) konkurentnosti a \uv{nasazené} (provisioned) konkurentnosti. Vyhrazená konkurentnost udává počet volných a vyhrazených prostředí pro danou funkci, omezujíc tak sdílenou konkurentnost, zároveň ale tento počet shora limituje: funkce nemůže běžet ve více prostředích, než je specifikováno tímto parametrem, a nemůže tedy využívat zbývající sdílenou konkurentnost.
+
+Nasazená konkurentnost je podobná vyhrazené s tím rozdílem, že udává počet \emph{již připravených} prostředí. Při zvýšení (v mezích nasazené konkurentnosti) skutečné konrkurentnosti funkce tak není třeba nové prostředí inicializovat, jelikož již připravené je. U Lambda funkcí je možné nastavit obě konkurentnosti nezávisle, avšak specifikace obou zároveň má smysl pouze v případě, kdy vyhrazená je vyšší než nasazená.
+
+Jestliže funkce vyčerpá svou konkurentnost nebo je vyčerpána sdílená konkurntnost nenastavenými funkcemi, nové požadavky mohou být odmítnuty a zahozeny. Tento jev se nazývá throttling. Navíc AWS nedovoluje omezit sdílenou konkurentnost pod hodnotu 100.
+
+Hodnotu očekávané konkurentnosi $C_f$ funkce $f$ je možné zjistit ze vzathu
+
+$$C_f = \pi_f \cdot \delta_f, $$
+
+kde $\pi_f$ je očekávaný počet požadavků za sekundu a $\delta_f$ je očekávaná doba trvání funkce v sekundách. 
+
+\subsection{AWS CloudWatch}
+% metriky, logy, granularita, alarmy, metric streams + FireHose
+\subsection{AWS Data Firehose}
+% co to je, transformace (neni specifikován formát události!)
 \subsection{AWS CloudFormation}
+\subsubsection{AWS Serverless Application Model}
 \subsection{AWS Simple Storage Service}
 
 \section{Systém Zabbix}
