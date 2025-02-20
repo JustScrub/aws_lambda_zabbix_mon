@@ -120,6 +120,9 @@ $$C_f = \pi_f \cdot \delta_f, $$
 
 kde $\pi_f$ je očekávaný počet požadavků za sekundu a $\delta_f$ je očekávaná doba trvání funkce v sekundách. 
 
+\subsubsection{Verzování}
+Lambda umožňuje pro potřeby kontinuálního vývoje funkce verzovat. Funkce je možné vyvíjet/upravovat a testovat ještě před zveřejněním a následně publikovat novou verzi, která je dostupná pro volání. Zveřejněné verze obdrží unikátní monotónně se zvyšující identifikátor a nejde je dále měnit. Konkrétní verze mohou být označeny aliasy sloužícími k přesměrování volání. Aliasy je možné přesměrovat pro plynulý přechod mezi verzemi funkce. AWS navíc umožňujě definovat \emph{vážený alias}, který umožňuje rozdělit provoz mezi dvěmi verzemi podle zadaného poměru, jako podporu \emph{canary deployment} pro účely CI/CD \cite{lambda.docs.aws}.
+
 \subsection{AWS CloudWatch}
 % metriky, logy, granularita, alarmy, metric streams + FireHose
 Další analyzovanou službou nechť je AWS CloudWatch. Jedná se o službu pro monitorování a logování v AWS, která umožňuje sledovat metriky a výpisy (logy) z různých zdrojů, jako jsou například EC2 instance, Lambda funkce, nebo S3 buckety. Metriky jsou číselné hodnoty, které měří výkon služeb AWS a zdrojů, které jsou s nimi spojeny. Metriky jsou agregovány do tzv. \uv{statistik}, které mohou být zobrazeny v grafu na výchozí nebo vlastní \uv{nástěnce} (dashboard) nebo použity pro vytváření alarmů, konfigurovatelných notifikací zasílaných při dosažení určité hodnoty zvolené statistiky \cite{cloudwatch.docs.aws}. Je zřejmé, že CloudWatch bude stěžejní službou pro vyvíjený systém, neboť poskytuje veškeré potřebné informace pro monitorování Lambda funkcí. Hlavním cílem práce je dopravit tyto informace (resp. jejich konfigurovatelnou podmnožinu) do interního monitorovacího systému Zabbix.
@@ -127,6 +130,26 @@ Další analyzovanou službou nechť je AWS CloudWatch. Jedná se o službu pro 
 Jelikož naším hlavním zájmem jsou Lambda funkce, budeme se v této sekci dále zaměřovat pouze na možnosti monitorování těchto funkcí v rámci CloudWatch.
 
 \subsubsection{Metriky Lambda funkcí}
+Metrika je z pohledu CloudWatch pojmenovaná časově seřazená množina hodnot nějaké proměnné, například využití CPU (u EC2 instancí) nebo doba výpočtu Lambda funkce. CloudWatch dělí metriky do tzv. jmenných prostorů (Namespaces), které slouží k organizaci metrik, zajištění jednoznačnosti jejich názvů a izolaci. Každá monitorovatelná AWS služba má svůj vyhrazený Namespace, pro Lambda funkce je to \texttt{AWS/Lambda}, a další jmenné prostory může definovat uživatel. 
+
+Kromě jmenného prostoru a názvu jsou metriky definovány ještě \emph{dimezemi}. Dimenze je dvojice název-hodnota přidávající další identitu dané metrice. Názvy dimenzí jsou kategorie, do nichž může metrika patřit, například jméno Lambda funkce, verze, nebo region, ve kterém je funkce spuštěna. Hodnoty dimenzí jsou konkrétní instance těchto kategorií, které od sebe oddělují metriky. Metrika může mít až 30 dimenzí (nebo žádnou). Dimenze se dají libovolně kombinovat a hodnota metriky se uloží pouze pro danou kombinaci dimenzí. Monitorovatelné služby definují vlastní dimenze a narozdíl od uživatelsky definovaných dimenzí je služba AWS CloudWatch schopna agregovat hodnoty z vynechaných dimenzí \cite{cloudwatch.docs.aws}. Lambda funkce definují dimenze pro název funkce, \uv{zdroj} (resource), pod niž spadají verze a aliasy funkcí a další. Vyvíjený systém má dle požadavků zákazníka monitorovat metriky pro jednotlivé funkce bez odlišování verzí -- metriky pro danou funkci tak budou obsahovat údaje ze všech verzí funkce.
+
+CloudWatch všechny metriky agreguje do statistik, které mohou být zobrazeny v grafu nebo použity pro vytváření alarmů, z hodnot metrik za určitý časový interval. Poskytované statistiky jsou například průměr, maximum a minimum, suma, počet hodnot nebo některé percentily \cite{cloudwatch.docs.aws}.
+
+Služba AWS Lambda zaznamenává mnoho metrik a dělí je na několik druhů. Některé z nich jsou:
+
+\begin{itemize}
+    \item metriky invokací
+    \begin{itemize}
+        \item \texttt{Invocations} -- počet invokací funkce
+        \item \texttt{Errors} -- počet selhaných invokací
+        \item \texttt{DeadLetterErrors} -- počet selhaných pokusů o zápis do Dead Letter Queue asynchronními invokacemi
+    \end{itemize}
+    \item metriky výkonu
+    \item metriky konkurentnosi
+    \item metriky asynchronních invokací
+    \item metriky event source mapping
+\end{itemize}
 
 \subsubsection{Logy Lambda funkcí}
 
