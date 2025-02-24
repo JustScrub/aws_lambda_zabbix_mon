@@ -56,6 +56,7 @@
 
 \section{Cloud a cloudové služby}
 % IaaS/IaC, PaaS, úvod FaaS (v další sekci)
+% úložiště a konzistenční modely?
 
 \section{Serverless computing}
 % teorie + konkr od providerů
@@ -96,7 +97,9 @@ AWS Lambda funkcím, jakožto hlavní službě této práce, věnujme v této se
 \subsubsection{Vývoj Lambda funkcí}
 Vývoj Lambda funkcí je možný v několika programovacích jazycích, mezi které patří Python, Node.js, Java, Go, Ruby, C\# a PowerShell. Vstupní bod funkce, neboli \uv{handler}, musí implementovat požadované rozhraní, které se konkrétně mění pro každý jazyk dle dokumentace (např. funkce pro Python, Node.js nebo třída implementující rozhraní v jazyce Java), avšak všechny mají společný tvar -- přijímají dva argumenty, událost (event) a kontext (context), a vrací výsledek typicky ve formátu JSON. Událost obsahuje vstupní data funkce, poskytnutá volajícím, tedy např. uživatelem invokujícím Lambda funkci z příkazové řádky nebo AWS službou (formát pak odpovídá specifikaci dané služby\footnote{U některých služeb však formát události není v dokumentaci uveden... Viz dále.}). Kontext je zpravidla objekt obsahující informace o běhu funkce, jako například velikost paměti, čas spuštění, nebo identifikátor požadavku (volání) \cite{lambda.docs.aws}.
 
-Kód funkce je možné nahrát do AWS více způsoby: při vytváření funkce v grafickém rozhraní AWS (AWS Management Console), pomocí nástroje SAM, krátké funkce přímo v šabloně CloudFormation atp. Program se uloží do komprimovaného archivu ve formátu ZIP do automaticky vytvořeného S3 bucketu. Složitější funkce, které vyžadují větší množství souborů a závislostí, je třeba nahrát do S3 bucketu ručně a poté vytvořit funkci s odkazem na tento bucket, anebo je možné využít zmíněného nástroje SAM, jehož cílem je zjednodušit nasazení serverless aplikací v AWS \cite{sam.docs.aws, lambda.docs.aws}. Závislosti, soubory anebo vlastní výpočetní prostředí sdílené více funkcemi je také možné poskytnout jako tzv. vrstvu (layer) ve vlastním ZIP archivu, na niž se Lambda funkce odkazují. Některé závislosti jsou dostupné přímo v AWS Lambda prostředí, zejména knihovny pro práci s AWS službami (AWS SDK) \cite{lambda.docs.aws}.
+Kód funkce je možné nahrát do AWS více způsoby: při vytváření funkce v grafickém rozhraní AWS (AWS Management Console), pomocí nástroje SAM, krátké funkce přímo v šabloně CloudFormation atp. Program se uloží do komprimovaného archivu ve formátu ZIP do automaticky vytvořeného S3 bucketu. Složitější funkce, které vyžadují větší množství souborů a závislostí, je třeba nahrát do S3 bucketu ručně a poté vytvořit funkci s odkazem na tento bucket, anebo je možné využít zmíněného nástroje SAM, jehož cílem je zjednodušit nasazení serverless aplikací v AWS \cite{sam.docs.aws, lambda.docs.aws}. 
+
+Závislosti, soubory anebo vlastní výpočetní prostředí sdílené více funkcemi je možné poskytnout jako tzv. vrstvu (layer) ve vlastním ZIP archivu, na niž se Lambda funkce odkazují. Některé závislosti jsou dostupné přímo v AWS Lambda prostředí, zejména knihovny pro práci s AWS službami (AWS SDK). Mimo vrstvy je také k funkcím možno připojit rozšíření (extension), dodané také jako ZIP archiv. Rozšíření mohou být externí, běžící jako nezávislý proces uvnitř výpočetního prostředí, anebo interní jako vlákno procesu řídícího Lambda funkci. AWS Lambda poskytuje některá již hotová rozšíření, zejména od partnerů třetích stran, mnoho z nichž se orientují právě na monitoring, observability a bezpečnost. Zabbix se však mezi partnery nevyskytuje \cite{lambda.docs.aws}.
 
 Kromě archivu umožňuje AWS poskytnout funkci jako Docker image, ač je v takovém případě nutno poskytnout program implementující REST API rozhraní zprostředkující komunikaci mezi kontejnerem a službou AWS Lambda\footnote{vývojáři AWS však připravili několik Docker image, na nichž je možno stavět Lambda funkce, které takový program obsahují}. U Docker image navíc nejsou podporovány vrstvy \cite{lambda.docs.aws}.
 
@@ -123,6 +126,15 @@ kde $\pi_f$ je očekávaný počet požadavků za sekundu a $\delta_f$ je oček�
 \subsubsection{Verzování}
 Lambda umožňuje pro potřeby kontinuálního vývoje funkce verzovat. Funkce je možné vyvíjet/upravovat a testovat ještě před zveřejněním a následně publikovat novou verzi, která je dostupná pro volání. Zveřejněné verze obdrží unikátní monotónně se zvyšující identifikátor a nejde je dále měnit. Konkrétní verze mohou být označeny aliasy sloužícími k přesměrování volání. Aliasy je možné přesměrovat pro plynulý přechod mezi verzemi funkce. AWS navíc umožňujě definovat \emph{vážený alias}, který umožňuje rozdělit provoz mezi dvěmi verzemi podle zadaného poměru, jako podporu \emph{canary deployment} pro účely CI/CD \cite{lambda.docs.aws}.
 
+\subsection{AWS Simple Storage Service}
+Další významnou službou AWS je Simple Storage Service, zkráceně S3. Jedná se o službu pro ukládání a správu dat v cloudu. S3 je vhodné pro ukládání velkého množství dat, jako jsou například statické webové stránky, zálohování, nebo multimediální soubory. S3 nabízí různé třídy úložišť podle předpokládané frekvence přístupu a širokou škálu funkcí, jako je šifrování, správa přístupových práv nebo verze souborů. Mnoho dalších služeb AWS integruje S3 pro své účely. Základní přístup k S3 je přes REST API, ale AWS poskytuje i SDK pro mnoho programovacích jazyků. Další možností je využití tzv. \emph{přístupových bodů} (access points) pro jednodušší a konfigurovatelný přístup k datům \cite{s3.docs.aws}.
+
+Data jsou v S3 ukládána jako \emph{objekty}, soubory s metadaty popisujícími vlastnosti souboru, do kontejnerů zvaných \emph{buckety}. Buckety se dělí do dvou druhů: General purpose buckets (pro obecné účely) a Directory buckets (adresářové), kde první druh ukládá objekty s unikátním názvem (klíčem) v ploché struktuře, kdežto druhý spravuje objekty hierarchicky v adresářové strukutře. Objekt je pak identifikován bucketem, unikátním klíčem (vč. cesty u adresářových bucketů) a případně verzí.
+
+Simple Storage Service využívá silný konzistenční model \todo{teorie ke konzistenčním modelům} \emph{read-after-write}; všechny čtecí operace vracejí hodnotu poslední dokončené zapisovací operace, u konkurentních zápisů však není jisté, který z nich \uv{vyhraje}. AWS S3 používá sémantiku \emph{last-writer-wins}, tedy poslední zápis má přednost, avšak kvůli nespolehlivosti sítě není možné určit, který konkurentní zápis dorazí jako poslední \cite{s3.docs.aws}.
+
+AWS S3 je možné integrovat s AWS Lambda funkcemi a to několika způsoby. Jedním je využití S3 Object Lambda, umožnující transformovat data vrácená čtecími požadavky na objekty S3 pomocí specializovaných přístupových bodů. Požadavek na objekt je přesměrován na standardní přístupový bod, jehož výstup je zpracován poskytnutou Lambda funkcí a následně zaslán klientovi \cite{s3.docs.aws}. Další možností je zasílání notifikací o změnách S3 objektů (např. vytvoření/odstranění). Po dokončení změny objektu služba S3 asynchronně invokuje (triggered invokace) zaregistrované Lambda funkce se vstupem popisujícím událost \cite{lambda.docs.aws}. Funkce pak může na změnu libovolně reagovat.
+
 \subsection{AWS CloudWatch}
 % metriky, logy, granularita, alarmy, metric streams + FireHose
 Další analyzovanou službou nechť je AWS CloudWatch. Jedná se o službu pro monitorování a logování v AWS, která umožňuje sledovat metriky a výpisy (logy) z různých zdrojů, jako jsou například EC2 instance, Lambda funkce, nebo S3 buckety. Metriky jsou číselné hodnoty, které měří výkon služeb AWS a zdrojů, které jsou s nimi spojeny. Metriky jsou agregovány do tzv. \uv{statistik}, které mohou být zobrazeny v grafu na výchozí nebo vlastní \uv{nástěnce} (dashboard) nebo použity pro vytváření alarmů, konfigurovatelných notifikací zasílaných při dosažení určité hodnoty zvolené statistiky \cite{cloudwatch.docs.aws}. Je zřejmé, že CloudWatch bude stěžejní službou pro vyvíjený systém, neboť poskytuje veškeré potřebné informace pro monitorování Lambda funkcí. Hlavním cílem práce je dopravit tyto informace (resp. jejich konfigurovatelnou podmnožinu) do interního monitorovacího systému Zabbix.
@@ -132,32 +144,62 @@ Jelikož naším hlavním zájmem jsou Lambda funkce, budeme se v této sekci d�
 \subsubsection{Metriky Lambda funkcí}
 Metrika je z pohledu CloudWatch pojmenovaná časově seřazená množina hodnot nějaké proměnné, například využití CPU (u EC2 instancí) nebo doba výpočtu Lambda funkce. CloudWatch dělí metriky do tzv. jmenných prostorů (Namespaces), které slouží k organizaci metrik, zajištění jednoznačnosti jejich názvů a izolaci. Každá monitorovatelná AWS služba má svůj vyhrazený Namespace, pro Lambda funkce je to \texttt{AWS/Lambda}, a další jmenné prostory může definovat uživatel. 
 
-Kromě jmenného prostoru a názvu jsou metriky definovány ještě \emph{dimezemi}. Dimenze je dvojice název-hodnota přidávající další identitu dané metrice. Názvy dimenzí jsou kategorie, do nichž může metrika patřit, například jméno Lambda funkce, verze, nebo region, ve kterém je funkce spuštěna. Hodnoty dimenzí jsou konkrétní instance těchto kategorií, které od sebe oddělují metriky. Metrika může mít až 30 dimenzí (nebo žádnou). Dimenze se dají libovolně kombinovat a hodnota metriky se uloží pouze pro danou kombinaci dimenzí. Monitorovatelné služby definují vlastní dimenze a narozdíl od uživatelsky definovaných dimenzí je služba AWS CloudWatch schopna agregovat hodnoty z vynechaných dimenzí \cite{cloudwatch.docs.aws}. Lambda funkce definují dimenze pro název funkce, \uv{zdroj} (resource), pod niž spadají verze a aliasy funkcí a další. Vyvíjený systém má dle požadavků zákazníka monitorovat metriky pro jednotlivé funkce bez odlišování verzí -- metriky pro danou funkci tak budou obsahovat údaje ze všech verzí funkce.
+Kromě jmenného prostoru a názvu jsou metriky definovány ještě \emph{dimezemi}. Dimenze je dvojice název-hodnota přidávající další identitu dané metrice. Názvy dimenzí jsou kategorie, do nichž může metrika patřit, například jméno Lambda funkce, verze, nebo region, ve kterém je funkce spuštěna. Hodnoty dimenzí jsou konkrétní instance těchto kategorií, které od sebe oddělují metriky. Metrika může mít až 30 dimenzí (nebo žádnou). Dimenze se dají libovolně kombinovat a hodnota metriky se uloží pouze pro danou kombinaci dimenzí. Monitorovatelné služby definují vlastní dimenze a narozdíl od uživatelsky definovaných dimenzí je služba AWS CloudWatch schopna agregovat hodnoty z vynechaných dimenzí \cite{cloudwatch.docs.aws}. 
 
 CloudWatch všechny metriky agreguje do statistik, které mohou být zobrazeny v grafu nebo použity pro vytváření alarmů, z hodnot metrik za určitý časový interval. Poskytované statistiky jsou například průměr, maximum a minimum, suma, počet hodnot nebo některé percentily \cite{cloudwatch.docs.aws}.
 
-Služba AWS Lambda zaznamenává mnoho metrik a dělí je na několik druhů. Některé z nich jsou:
+Služba AWS Lambda zaznamenává mnoho metrik a dělí je na několik druhů. Některé z nich jsou \cite{lambda.docs.aws}:
 
 \begin{itemize}
-    \item metriky invokací
+    \item metriky invokací -- příznakové binární metriky, pro něž má smysl pouze statistika součtu
     \begin{itemize}
         \item \texttt{Invocations} -- počet invokací funkce
         \item \texttt{Errors} -- počet selhaných invokací
         \item \texttt{DeadLetterErrors} -- počet selhaných pokusů o zápis do Dead Letter Queue asynchronními invokacemi
+        \item \texttt{Throttles} -- počet odmítnutých invokací kvůli nedostatku konkurentnosti
     \end{itemize}
     \item metriky výkonu
+    \begin{itemize}
+        \item \texttt{Duration} -- doba trvání funkce, podporuje kvantilové statistiky
+        \item \texttt{IteratorAge} -- věk nejstaršího zpracovávaného záznamu v události vzniklé při event source mapping pro Kinesis stream
+    \end{itemize}
     \item metriky konkurentnosi
-    \item metriky asynchronních invokací
-    \item metriky event source mapping
+    \begin{itemize}
+        \item \texttt{ConcurrentExecutions} -- počet současně běžících instancí funkce
+        \item \texttt{UnreservedConcurrentExecutions} -- počet současně běžících instancí funkce, které není vyhrazena konkurentnost
+        \item \texttt{ClaimedAccountConcurency} -- počet spuštěných prostředí (využitá konkurentnost)
+    \end{itemize}
 \end{itemize}
 
+Z výpisu je zřejmé, že ne všechny metriky se týkají přímo Lambda funkcí, některé monitorují jiné činnosti služby AWS Lambda. Například metrika \texttt{ClaimedAccountConcurency} znázorňuje využitou konkurentnost v účtu a regionu skrz všechny funkce. Dle zadání práce je třeba umožnit monitorování pouze metrik přímo souvisejících s funkcemi, dále tedy pracujme pouze v jejich kontextu. 
+
+Všechny takové metriky definují dimenze pro název funkce, \uv{zdroj} (resource), pod niž spadají verze a aliasy funkce, a některé další. Dokumentace tuto skutečnost dopodrobna nerozvíjí a pouze se letmo o dimenzích metrik pro AWS Lambda zmiňuje, a tak byl tento poznatek zjištěn experimentálně\footnote{Během vývoje ve zkušebním stavu, kdy byl zkoumán formát požadavků do transformační Lambda funkce z Data Firehose se zdrojem v Metric streamu, viz dále.}. Vyvíjený systém má dle požadavků zákazníka monitorovat metriky pro jednotlivé funkce bez odlišování verzí, což prakticky znamená, že bude třeba exportovat metriky pouze s dimenzí názvu funkce. AWS Lambda do těchto metrik automaticky agreguje i hodnoty pro všechny verze a aliasy funkce s daným názvem, jak bylo poznamenáno výše.
+
+\subsubsection{Metric Stream}
+V této fázi analýzy již známe dostatek o poskytovaných metrikách Lambda funkcí, dále bude potřeba najít způsob, jak je dostat do externího systému Zabbix. Možností se nabízí spousta, například periodické volání AWS API v procesu nové EC2 instance nebo ve vyhrazené Lambda funkci, vývoj exportovací procedury/knihovny, její připojení k monitorovaným funkcím v nové vrstvě a následné volání z kódu nebo připojení vlastního rozšíření Lambda funkce sbírajícího metriky a zasílání do Zabbix proxy. Služba AWS CloudWatch nabízí další možné řešení v podobě Metric Streams integrující AWS Data Firehose, streamovací službu rozebranou níže. 
+
+Každý Metric Stream může být konfigurován na určitou podmnožinu jmenných prostorů a metrik, jejichž statistiky posílá do dedikovaného Firehose delivery streamu v minutových intervalech\footnote{Statistiky jsou též počítány z metrik obdržených v témž minutovém okně}. Data generovaná z Metric Stream zahrnují všechny zaznamenané kombinace dimenzí metrik (a tedy i z nich vypočtených statistik). Pro Lambda funkce tedy například budou obsahovat požadované metriky napříč všemi funkcemi a verzemi (t.j. bez dimenze), metriky pro každou funkci jednotlivě napříč všemi verzemi a aliasy (dimenze názvu funkce) a metriky pro každou verzi a alias jednotlivě (dimenze názvu funkce a \uv{zdroje}), případně další. 
+
+Výchozími statistikami posílanými z Metric Stream jsou průměr, minimum, maximum a počet hodnot metriky za dané minutové okno; další statistiky je možno dospecifikovat, ač s dodatečnými poplatky. Data je možné posílat ve formátech JSON, OpenTelemetry 1.0.0 nebo OpenTelemetry 0.7.0, pro další je nutné dále nakonfigurovat příslušný Firehose stream \cite{cloudwatch.docs.aws}.
+
+Pro plné pochopení funkcionality Metric Stream je třeba seznámit se s AWS Data Firehose, napřed ale dokončeme analýzu AWS CloudWatch.
+
 \subsubsection{Logy Lambda funkcí}
+Kromě metrik CloudWatch ukládá také výpisy (logy) z různých zdrojů, včetně Lambda funkcí. Logy jsou textové záznamy o událostech, které se odehrály v monitorovaném systému, a mohou obsahovat informace o chybách, výkonu, nebo jiných událostech. Logy jsou ukládány do tzv. logovacích skupin (log groups), které jsou seskupeny pod logovacím tokem (log stream) \cite{cloudwatch.docs.aws}. U Lambda funkcí generuje AWS automatické logy ohledně režie invokace funkcí: například inicializace běhového prostředí, spuštění funkce a její konec, případně selhání (vyhození výjimky v kódu, timeout...), sumarizaci běhu obsahující dobu běhu, účtovanou dobu, využitou paměť atp. Běhová prostředí mají navíc předkonfigurovanou logovací knihovnu pro daný jazyk, která umožňuje snadné logování vlastních zpráv. Výpisy jsou opatřeny časovou značkou a identifikátorem požadavku (invokace/instance), vlastní výpisy navíc i logovací úrovní \cite{lambda.docs.aws}. Všimněme si, že z logů je možné odvozovat různé metriky, mnohé z nichž splývají s výše popsanými metrikami Lambda funkcí.
+
+Logy je také možné posílat do ostatních služeb AWS: AWS Kinesis, AWS Data Firehose (stejně jako Metric Streams) nebo přímo do AWS Lambda funkce. Jelikož však logy nejsou předmětem této práce a k odvozování metrik je díky Metric Streams nepotřebujeme, nebudeme se jimi dále dopodrobna zabývat.
 
 \subsection{AWS Data Firehose}
 % co to je, transformace (neni specifikován formát události!)
+Se službou AWS Data Firehose jsme se již setkali v kontextu Metric Stream. Služba slouží k posílání velkých dat (big data) od různých producentů, například právě Metric Stream, do jedné z několika možných cílových destinací. Firehose stream příchozí data sbírá (buffering) a posílá v dávkách záznamů (records, každý maximálně 1 000 KB). Sběr je možné ovlivnit dvěma vlastnostmi: doba sběru (buffer interval) a velikost dávky (buffer size). Data jsou sbírána po daný interval (v sekundách) nebo do naplnění dávky do specifikované velikosti (v MB), načež jsou poslána.
+
+Producenti AWS Data Firehose se dělí na tři typy, jsou jimi Direct PUT, Amanzon Kinesis Data Streams a Amazon MSK. U posledních dvou se jedná o další streamovací služby AWS; Metric Streams spadá pod Direct PUT producenty, kteří posílají data do Firehose streamu přímo. Možných destinací je omezený počet, jejž z většiny tvoří služby AWS a služby třetích stran. Zabbix mezi službami není a tak bude potřeba prozkoumat jiné možnosti doručení dat z Metric Streams, jestliže se rozhodneme je využít. Poměrně flexibilními možnostmi jsou destinace AWS S3, pro niž AWS CloudWatch Metric Stream nabízí rychlou konfiguraci, a vlastní HTTP endpoint (server například běžící pod EC2), který je možné konfigurovat dle potřeb. 
+
+HTTP endpoint nabízí více možností, jelikož se jedná o vlastní software schopný zpracovávat data přesně podle potřeb zákazníka, avšak je pro něj nutný udržovat dedikovaný server a správně implementovat API komunikující s Firehose streamem.
+
+
 \subsection{AWS CloudFormation}
 \subsubsection{AWS Serverless Application Model}
-\subsection{AWS Simple Storage Service}
 
 \section{Systém Zabbix}
 \subsection{Pojmy, funkce}
@@ -172,7 +214,7 @@ Služba AWS Lambda zaznamenává mnoho metrik a dělí je na několik druhů. N�
 \chapter{Implementace systému}
 
 \section{Architektura}
-% flow diagram, jak se co chová, "Transformační Lambda" (jinej název?), "LLD Lamba"
+% flow diagram, jak se co chová, "Transformační Lambda" (jinej název?), "LLD Lamba" (zmínit EventBridge)
 % Lambda → CW → MetricStream → Firehose → ? → Zabbix
 % možnosti pro "?" -- S3, HTTP Endpoint... + jak uděláno (hack transformační lambdou)
 % nástřel konfigurace hlavně pro Transf. lambdu (jak pozná, co má posílat -- LLDMultiTriggerConfig)
