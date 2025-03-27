@@ -356,13 +356,120 @@ Důležitou konfigurací je také \emph{doba zanechání ztracených zdrojů} (\
 
 Dále je u pravidel možné specifikovat další typ maker, \emph{makra nízkoúrovňového objevování} (\emph{LLD macros}), která se používají pro dynamické vytváření objevovaných entit z prototypů. Formát těchto maker je stejný jako u ostatních maker v Zabbixu, pouze se místo znaku \texttt{\$} používá znak \texttt{\#}. Makra mohou být použita v konfiguraci prototypů entit a také v \emph{kontextu maker} pro dynamickou \uv{změnu} hodnoty makra u určitých entit. Hodnoty LLD maker jsou specifikovány ve zprávách posílaných pravidlům nízkoúrovňového objevování: při doručení zprávy do pravidla najde Zabbix Server všechny prototypy entit, v nichž se doručená makra vyskytují, a vytvoří z nich objevované entity s nahrazenými hodnotami LLD maker. V konfiguraci pravidel je však makra nutné poskytnout jen pro zpracování příchozí zprávy v jiném než standardním formátu. Pokud je použit standardní formát, makra není potřeba pravidlům přiřadit, neboť jsou automaticky zpracována Zabbix Serverem.
 
-V neposlední řadě je u pravidel nízkoúrovňového objevování možné nakonfigurovat \emph{filtry} a \emph{přepsání pravidel} (\emph{overrides}). Filtry umožňují z objevovaných entit v příchozí zprávě vytvářet pouze entity (podle jejich prototypů) vyhovující specifikovaným požadavkům na hodnoty LLD maker, například pokud příchozí LLD makro splňuje regulární výraz. Přepsání pravidel umožňuje změnit některé vlastnosti entit od vlastností jejich prototypů na základě podobných požadavků jako u filtrů. Případem použití může být změna severity spouštěče -- u prototypu spouštěče není možné nastavit severitu pomocí LLD makra (musí být nastavena staticky) a pro její změnu je tedy nutné použít přepsání pravidel.
+V neposlední řadě je u pravidel nízkoúrovňového objevování možné nakonfigurovat \emph{filtry} a \emph{přepsání pravidel} (\emph{overrides}). Filtry umožňují z objevovaných entit v příchozí zprávě vytvářet pouze entity (podle jejich prototypů) vyhovující specifikovaným požadavkům na hodnoty LLD maker, například pokud příchozí LLD makro splňuje regulární výraz. Přepsání pravidel umožňuje změnit některé vlastnosti entit od vlastností jejich prototypů na základě podobných požadavků jako u filtrů. Případem použití může být změna severity spouštěče -- u prototypu spouštěče není možné nastavit severitu pomocí LLD makra (musí být nastavena staticky) a pro její změnu je tedy nutné použít přepsání pravidel. Přepsání pravidla může být několik a jsou vyhodnocována ve zvoleném pořadí. 
+
+\subsubsection{Prototypy entit}
+Prototypy entit slouží jako vzory pro vytváření objevovaných entit. Prototypy entit jsou vytvářeny v rámci \emph{pravidla nízkoúrovňového objevování} a obsahují všechny vlastnosti, které mohou mít standardní entity. Ve vyplňovaných polích je však možné používat \emph{LLD makra}, která jsou nahrazena hodnotami při vytváření objevovaných entit, a to také jako kontext uživatelských maker. Entitami mohou být datové elementy, spouštěče, grafy a (neoficiálně) síťové uzly. U prototypů datových elementů a spouštěčů je navíc možné zvolit, zda se objevovaná entita z prototypu má tvořit a zda se má tvořit v \uv{aktivním} stavu. Tuto konfiguraci je možné měnit v přepsáních nízkoúrovňových pravidel a je tak možné například selektivně nevytvářet objevované entity podle specifických požadavků na hodnoty LLD maker.
 
 \subsection{Modelování Lambda funkcí}
 % jak namodelovat Lambdu / namapovat na Zabbix věci
 % All in one host -- jeden host na všechny Lambda funkce, pomocí taggů
 % Single host per Function, single trigger per Metric -- priorita funkce se přímo mapuje na severitu
 % Single host per Function, multiple triggers per Metric -- odstupňování severity -- např. postupně vyšší hodnoty metriky mají větší severity (lambda trvá 500 ms = average, 1000 ms = disaster atp.)
+Z předešlých sekcí máme dost znalostí o systému Zabbix a Lambda funkcích, abychom mohli začít modelovat monitorování Lambda funkcí v Zabbixu. V této sekci se budeme věnovat několika již navrženým možnostem, jak reprezentovat Lambda funkce v Zabbixu, a zpětně zvážíme jejich výhody a nevýhody.\footnote{Návrhy byly realizovány během vývoje systému, který předcházel vyhotovení tohoto textu, a proto o jejich vývoji budeme hovořit v minulém čase.}
+
+Před představením samotných návrhů je třeba si utříbit a zrekapitulovat souvislosti a možnosti systému Zabbix. Atomickými entitami jsou entity Item, které reprezentují metriku, a Trigger, které sledují hodnoty metrik. Lambda funkce však nemůže být reprezentována jedinou entitou Item, jelikož metrik Lambda funkce můžeme sledovat mnoho -- například počet volání, doba trvání, velikost paměti, počet chyb atp. Výběr monitorovaných metrik navíc musí poskytnout uživatel systému a tyto metriky odpovídají entitám Item, případně jejich prototypům. S tímto \uv{omezením} bylo tedy nutné pracovat a vytvořit nějaký model monitorování Lambda funkcí, který je dostatečně obecný a zároveň je schopen reprezentovat všechny potřebné metriky.
+
+\subsubsection{Model \uv{Vše v jednom}}
+Prvotní model nepočítal s nízkoúrovňovým objevováním, kvůli čemuž postrádal možnost dynamického vytváření entit a v důsledku tak přehlednost, snadnou správu a konfigurovatelnost; položil však základy pro další modely. Prvnotní model byl jako všechny nadcházející konstituován z jednoho \emph{síťového uzlu}, narozdíl od dalších však obsahoval za každou požadovanou metriku pouze jeden \emph{datový element} typu \uv{Zabbix trapper} a jeden \emph{spouštěč}: datových elementů a spouštěčů bylo tedy tolik, kolik bylo monitorovaných metrik. Datové elementy monitorovaly svou metriku pro \emph{všechny} Lambda funkce a metriky Lambda funkcí tak byly \uv{roztroušeny} přes více datových elementů. 
+
+Jelikož však všechny Lambda funkce sdílely pro své metriky shodné datové elementy v Zabbixu, bylo potřeba rozlišit, které hodnoty patří které funci. U spouštěčů rozlišování bylo docíleno pomocí \emph{značek} (\emph{tags}) a \emph{korelační značky} (\emph{correlation tag}), jimiž jsme se v analýze nezabývali. Značka je dvojice názvu a hodnoty přiřazená při tvorbě spouštěče, hodnota však může obsahovat makro, které Zabbix dokáže nahradit hodnotou sledovaného datového elementu, kterou lze dále upravit \emph{funkcí makra} (například nahradit podle regulárního výrazu). Korelační značka je pak název jedné z definovaných značek spouštěče. Při její specifikaci pak spouštěč dokáže generovat odlišné události označené touto značkou (a její hodnotou) pro odlišné hodnoty značky. Pokud se v hodnotě datového elementu objevuje název Lambda funkce, je tak možné generovat problémové události pro každou Lambda funkci zvlášť\footnote{Název funkce je třeba získat z hodnoty metriky např. pomocí náhrady podle regulárního výrazu. Číselnou hodnotu metriky je nutné extrahovat podobným způsobem, akorát ve výrazu spouštěče namísto v korelační značce.}. 
+
+Model byl pracovně nazván \uv{Vše v jednom}, jelikož každý datový element reprezentující specifikovanou metriku zahrnoval všechny Lambda funkce.
+
+Tento model však představoval značné nedostatky a to zejména v přehlednosti a konfigurovatelnosti spouštěčů. Jelikož shodná metrika všech Lambda funkcí sdílela jeden spouštěč, nebylo možné nastavit problémové hodnoty metrik pro jednotlivé funkce a stejně tak pro ně nebylo možné nastavit různé severity. Přehlednost trpěla tím, že jeden datový element sbíral metriky různých funckí. Model tak byl značně nevyhovující. 
+
+\subsubsection{Model \uv{Jeden item, jeden trigger}}
+
+Další model rozšiřuje funkcionalitu předchozího zejména přidáním nízkoúrovňového objevování. Pro každou poskytnutou metriku není v Zabbix serveru vytvořen datový element, nýbrž jeho prototyp, a stejně tak pro spouštěče. Skutečné datové elementy jsou z prototypů vytvářeny pro každou objevenou Lambda funkci -- pravidlo objevování získá data o monitorovaných Lambda funkcích a z nich vytvoří objevované entity. V Zabbixu je tak funkce opět roztroušena přes více datových elementů (jeden element na monitorovanou metriku), ale zároveň datové elementy nesdílí více funkcí. Funkce je tak reprezentována množinou \emph{výhradně svých} datových elementů a spouštěčů. Veškeré entity (pravidla, prototypy, objevované datové elementy a spouštěče, makra) jsou vytvářeny v rámci jednoho \emph{síťového uzlu}.
+
+Každá funkce a její metrika má tedy svůj jediný datový element a spouštěč, pročež byl pracovně pojmenován \uv{Jeden item, jeden trigger}.
+
+Dalším posunem od modelu \uv{Vše v jednom} je zavedení \emph{priorit} Lambda funkcí. Priorita funkce hraje podobnou roli jako severita spouštěče a určuje abstraktní třídu, do níž funkce spadá. Třídou je primárně myšlena kritičnost funkce a intuitivně i severita spouštěče hlídajícího její metriky, avšak je možné priority vnímat i jako jiné klasifikace, například třídy doby trvání funkcí, přičemž rychlejší funkce nemusí znamenat kritčtější. Pro jednoduchost však uvažujme kritičnost/důležitost funkce. Priorita může nabývat hodnot 0 až 4 a speciální hodnoty -1 reprezentující neznámou prioritu. Priorita je uložena externě (v proměnné prostředí Lambda funkce na straně AWS) a pro každou funkci volena uživatelem. Do systému Zabbix musí být poslána jako součást dat pro objevení spolu s názvem funkce.
+
+V rámci modelu \uv{Jeden item, jeden trigger} je priorita mapována na dvojici severity spouštěče a \emph{konstanty}, vůči níž je hodnota metriky spouštěčem porovnávána. Konfigurace metrik poskytnutá uživatelem obsahuje tabulku přiřazující každé prioritě takovou dvojici. Při objevení Lambda funkce je vytvořen datový element pro každou metriku a spouštěč s odpovídající severitou, která je nastavena pomocí přepsání pravidla nízkoúrovňového objevování a přijaté priority funkce. Konstanta je ve výrazu spouštěče reprezentována uživatelským makrem s kontextem makra, který je s využitím LLD makra značící prioritu doplněn hodnotou dané priority. Každá metrika tak musí mít u síťového uzlu definována makra s kontextem pro všechny možné priority.
+
+Pro komplexitu slovního popisu uveďme příklad. Uvažujme Lambda funkci pojmenovanou \uv{MojeFunkce} s prioritou 3. Jediná specifikovaná metrika je \uv{Doba trvání}, která sbírá odpovídající metriky z AWS CloudWatch. V tabulce priorit je priorita 3 mapována na dvojici \emph{vysoká severita} a konstantu 1000 (jednotky milisekund). Do nakonfigurovaného Zabbix serveru jsou pak eventuálně pravidlu pro nízkoúrovňové objevování zaslána data obsahující záznam s názvem funkce a prioritou:
+
+\begin{verbatim}
+[
+    ...,
+    {
+        "{#FN_NAME}": "MojeFunkce",
+        "{#PRIO}": 3
+    },
+    ...
+]
+\end{verbatim}
+
+Záznam nese LLD makra pro název funkce a prioritu, respektive. Z těchto informací Zabbix server vytvoří datový element pro Lambda funkci měřící metriku \uv{Doba trvání} a spouštěč severity \emph{vysoká} s výrazem, který poronvává poslední hodnotu metriky s konstantou danou makrem \texttt{\{\$DOBA_TRVANI:3\}\}. Během konfigurace Zabbix serveru bylo centrálnímu síťovému uzlu přiřazeno toto makro s hodnotou 1000 (podle tabulky v konfiguraci metriky). Pro makro \texttt{\{\$DOBA_TRVANI\}} existují kontexty se všemi prioritami dle tabulky priorit v konfiguraci metriky. Severita spouštěče je nastavena pomocí přepsání pravidla nízkoúrovňového objevování, které specifiuje, že pokud LLD makro \texttt{\{\#PRIO\}} nabývá hodnoty 3, pak je severita spouštěče \emph{vysoká}. Každá priorita v tabulce priorit má své přepsání pravidla.
+
+Pokud po objevení funkce objevený datový element přijme hodnotu vyšší než 1000, spouštěč vygeneruje problémovou událost s vysokou severitou.
+
+Model \uv{Jeden item, jeden trigger} je tak výrazným posunem od modelu \uv{Vše v jednom}, avšak stále nebyl dostatečně uspokojivý. Přestože model umožňuje nastavovat priority funkcí a nakonfigurovat tak, jak závažné problémy funkce generují při překročení kterých hodnot, trpí nedostatečným množstvím problémových stavů: model Lambda funkce buď negeneruje žádný problém, anebo generuje problém s nastavenou severitou a je tak nutné zvolit jedinou mezní hodnotu určující problémový stav. V reálném nasazení je však žádoucí odstupňovat severity podle závažnosti problému -- prakticky tedy vytvářet více spouštěčů různých severit a při nižších mezních hodnotách metriky generovat problém s nižší severitou. Dalším nedostatkem modelu je \uv{konstantní} priorita Lambda funkce vůči všem sbíraným metrikám. Například metrika doby trvání Lambda funkce nemusí mít pro danou funkci takovou váhu, jako počet chyb. Oba tyto nedostatky byly řešeny v následujícím modelu.
+
+\subsubsection{Model \uv{Jeden item, více triggerů}}
+
+Další model se od předchozího neodlišuje takovým způsobem jako předchozí od původního. Hlavní změna přichází v tabulce priorit při konfiguraci metriky a v počtu prototypů spouštěčů. Tabulka je od předchozího případu dvourozměrná, kde první dimenze (řádky tabulky) značí prioritu Lambda funkce a druhá (sloupce) severitu. Kombinace priority funkce a severity spouštěče je pak mapována na konstantu. Během konfigurace Zabbix serveru je pak pro každou metriku vytvořen jeden prototyp datového elementu a prototypy spouštěčů (potažmo) všech severit. Prototypy spouštěčů se liší pouze v severitě a v konstantě ve výrazu, která je opět vyjádřena makrem s kontextem (kterým je opět LLD makro priority Lambda funkce).
+
+Jelikož v tomto modelu může mít každá severita spouštěče ve výrazu různé konstanty, je potřeba zvětšit také počet maker. V minulém modelu bylo vytvořeno pro každou metriku jedno makro a k němu kontext pro každou prioritu. Protože nový model uvažuje více spouštěčů, bude potřeba vytvořit makro pro každou kombinaci metriky a severity a makru této kombinace přiřadit kontext pro každou prioritu. Z příkladu v minulém modelu by tak pro spouštěč se severitou \emph{vysoká} název makra mohl vypadat následovně: \texttt{\{\$DOBA_TRVANI_HIGH:3\}}. Priorita 3 byla opět zjištěna z hodnoty LLD makra \texttt{\{\#PRIO\}}.
+
+Změnu bylo třeba provést také u přepsání pravidel. V tomto případě spouštěčům severity neměníme, neboť prototypy se všemi severitami již existují, ale můžeme volit, zda konkrétní spouštěče z prototypů vytvářet. Uživateli je umožněno vynechat některá pole tabulky priorit a severit, pokud si nepřeje u určitých priorit specifikovat všechny severity (například mu stačí pouze tři úrovně varování), a tak vypnout objevení spouštěčů odpovídajících prázdným kombinacím v tabulce.
+
+Model mezi objevenými spouštěči dále zavádí závislosti: všechny objevené spouštěče s nižší severitou jsou závislé na spouštěčích se severitou vyšší u dané metriky a priority Lambda funkce.
+
+Pro ilustraci opět uveďme příklad: uživatel nakonfiguroval metriku \uv{Doba trvání} s tabulkou priorit a severit jako v tabulce \ref{tab:multi-trig-prio_tab-example} a v AWS Lambda provozuje funkci \uv{MojeFunkce} s prioritou 3. Po zprovoznění vyvíjeného systému je funkce objevena (prozatím) stejným způsobem jako v minulém příkladu. 
+
+\begin{table}[]
+\begin{tabular}{llllll}
+sev\prio          & \textbf{0} & \textbf{1} & \textbf{2} & \textbf{3} & \textbf{4} \\
+\textit{INFO}     & -          & -          & -          & -          & -          \\
+\textit{WARNING}  & 350        & 500        & -          & 750        & -          \\
+\textit{AVERAGE}  & 500        & 750        & 750        & 1000       & -          \\
+\textit{HIGH}     & 750        & 1000       & 1000       & -          & -          \\
+\textit{DISASTER} & 1000       & -          & -          & -          & -         
+\end{tabular}
+\caption{Příklad poskytnutné tabulky priorit a severit v konfiguraci metriky \uv{Doba trvání} u modelu \uv{Jeden item, více triggerů}. Číselné hodnoty jsou v milisekundách, spojovník značí nevyplněné pole. Sloupce reprezentují prioritu Lambda funkce, řádky severitu spouštěče.}
+\label{tab:multi-trig-prio_tab-example}
+\end{table}
+
+Při objevování Zabbix server na základě prototypů vytvořil jeden datový element pro metriku \uv{Doba trvání} Lambda funkce \uv{MojeFunkce} a podle poskytnuté tabulky dva spouštěče: jeden se severitou \emph{varování} a druhý s \emph{průměrnou} severitou. Konstanty ve výrazech spouštěčů jsou zastoupeny makry \texttt{\{\$DOBA_TRVANI_WARNING:3\}}, respektive \texttt{\{\$DOBA_TRVANI_AVERAGE:3\}}, jejichž hodnoty odpovídají hodnotám 750 a 1000 milisekund. Spouštěč se severitou \emph{varování} je navíc závislý na druhém spouštěči. Ostatní spouštěče (zbylých severit) pomocí přepsání pravidla nízkoúrovňového objevování nebyly vytvořeny, neboť je uživatel nepožadoval.
+
+Pokud příkladový Zabbix Server přijme hodnotu metriky \uv{Doba trvání} dané funkce 800 milisekund, spouštěč se severitou \emph{varování} vygeneruje problémovou událost. Jestliže následně přijme hodnotu 1100 milisekund, problémovou událost generuje spouštěč s \emph{průměrnou} severitou a předchozí událost je díky závislosti spouštěčů uzavřena. V systému tak setrvává pouze událost s nejvyšší severitou.
+
+Model \uv{Jeden item, více triggerů} dále řeší prioritizaci Lambda funkcí vůči jednotlivým metrikám. Minulý model zaváděl konstantní prioritu uloženou v proměnné prostředí Lambda funkce v AWS, tento model zavádí proměnnou prostředí, která obsahuje seznam dvojic identifikátoru metriky (jedinečný název poskytnutý v konfiguraci) a priority funkce vůči ní. Při objevení funkce je do Zabbixu poslán její název a každá z priorit jako LLD makra. Pravidlo nízkoúrovňového objevování tak přijímá ve zprávě více maker, na jejichž základu vytváří objevované entity. Zpráva tak může vypadat například následovně:
+
+\begin{verbatim}
+[
+    ...,
+    {
+        "{#FN_NAME}": "MojeFunkce",
+        "{#DOBA_TRVANI_PRIO}": 3,
+        "{#POCET_CHYB_PRIO}": 1
+    },
+    ...
+]
+\end{verbatim}
+
+Na základě těchto informací Zabbix server vytvoří dva datové elementy pro metriky \uv{Doba trvání} a \uv{Počet chyb} a několik spouštěčů pro každou metriku dle tabulky priorit a severit z konfigurace. Jediná změna oproti konstantním prioritám je v konstantě ve výrazech prototypů spouštěčů: konstanta je stále reprezentována makrem s kontextem odpovídajícím LLD makru, nově však LLD makro v kontextu odpovídá LLD makru metriky, které je přijato ve zprávě -- namísto např. 
+
+\begin{verbatim}
+{$DOBA_TRVANI_HIGH:{#PRIO}}
+\end{verbatim}
+
+se nyní na místě konstanty ve výrazu prototypu spouštěče nachází
+
+\begin{verbatim}
+{$DOBA_TRVANI_HIGH:{#DOBA_TRVANI_PRIO}}.
+\end{verbatim}
+
+Tento přístup lze dále upravit tak, aby bylo možné vybírat pouze specifické metriky pro každou Lambda funkci. Jestliže seznam identifikátorů metrik a jejich priorit v proměnné prostředí Lambda funkce neobsahuje identifikátory všech konfigurovaných metrik, objevovací zpráva nebude obsahovat jejich LLD makra a Zabbix server tak nebude vytvářet datové elementy a spouštěče těchto metriky pro dané Lambda funkce. Zabbix Server vytváří pouze ty entity, v jejichž prototypech se nachází LLD makra přijatá ve zprávě. Pokud se například ve zprávě nenachází LLD makro \texttt{\{DOBA_TRVANI_PRIO\}}, nebudou vytvřeny spouštěče pro danou metriku, neboť se LLD makro v prototypu spouštěče nachází, ale ve zprávě nikoliv. Datové elementy jsou vytvářeny vždy pro všechny metriky, neboť prototypy datových elementů neobsahují LLD makra pro priority, pouze pro název funkce. Monitorovány jsou tedy vždy všechny metriky, ale automaticky sledovány pouze zvolené.
+
+\subsubsection{Model \uv{Funkce jako host}}
+
+% pouze teoretický, neimplementován
+% dokumentace neříká, jak objevovat hosty :(
+% TODO
 
 \chapter{Implementace systému}
 \label{ch:implementace}
