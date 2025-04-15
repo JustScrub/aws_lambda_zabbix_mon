@@ -613,16 +613,87 @@ Jelikož systém sestává ze dvou stran, AWS a Zabbix, je potřeba obě strany 
 \subsection{Sdílená konfigurace}
 % konfigurační soubory + skript s LLDMultiTriggerConfig 
 
+Prvním krokem konfigurace systému je definování \uv{konfiguračních metrik}. Tyto konfigurační jednotky popisují, které metriky z AWS CloudWatch budou odpovídat kterým prototypům datových elementů v systému zabbix a chování spouštěčů. Jedná se o nejsložitější krok konfigurace a tak bude dopodrobna popsán ve vlastní podsekci, která následuje tuto sekci. Po definování konfiguračních metrik je potřeba vygenerovat konfigurační soubory pro různé komponenty projektu pomocí Python skriptu \verb|prj_config.py| umístěného v kořenovém adresáři projektu. Skript je třeba spustit z příkazové řádky a nevyžaduje žádné knihovny. Skript interaktivně provede uživatele vyplňováním konfiguračních proměnných ve dvou sadách. První sada proměnnýh vyplňuje konfiguraci Python skriptů pro následující konfiguraci systému Zabbix a pro obě Lambda funkce (transformační a objevovací). V první sadě uživatel vyplní dvě hodnoty:
+
+\begin{itemize}
+    \item \textbf{ZBX_SUFFIX} -- přípona pro názvy síťových uzlů a datových elementů v systému Zabbix; výchozí hodnota je \uv{zblamb}
+    \item \textbf{AWS_PRIO_VAR} -- název proměnné prostředí pro priority metrik Lambda funkcí; výchozí hodnota je \uv{ZBLAMB_PRIO}
+\end{itemize}
+
+Hodnota \textbf{ZBX_SUFFIX} slouží zejména pro uživatele pro rozeznání entit v systému Zabbix, které patří systému pro monitorování Lambda funkcí. Názvy entit patřící systému jsou hierarchické -- podobně jako záznamy DNS -- a tak je uživatel může snadno rozeznat. \uv{Kořenovým} názvem je pak právě hodnota této konfigurace. Druhá konfigurace pak systému říká, jak se nazývá proměnná prostředí, jež obsahuje priority metrik Lambda funkcí. Uživatel pak u Lambda funkcí, které chce monitorovat, nastaví tuto proměnnou prostředí na seznam priorit. Konfigurační skript následně k těmto hodnotám přidá i další konfigurace, které uživatel nemůže ovlivnit\footnote{Leda by uživatel upravil konfigurační skript.}. Patří mezi ně například také seznam AWS metrik a jejich statistik, podle nějž transformační Lambda funkce vybírá, které hodnoty zasílat do systému Zabbix. Seznam je automatiky vytvořen na základě konfigurace metrik.
+
+Druhá sada konfiguračních proměnných se týká šablon služby AWS CloudFormation, respektive AWS SAM. Těchto proměnných je mnoho a ne všechny musí být při nasazení projektu využity v závislosti na tom, které šablony uživatel použije. Jednotlivé konfigurační hodnoty budou vysvětleny v pozdější sekci, která se šablonami v projektu zabývá.
+
+Po vyplnění každé sady skript zapíše hodnoty do konfiguračních souborů v několika adresářích projektu a po obou sadách zkopíruje konfiguraci metrik do potřebného adresáře. Po dokončení skriptu je možné přejít k nasazování projektu. Před nasazením může být skript spuštěn libovolněkrát a konfigurační soubory budou přepsány. Po nasazení však uživatel nemůže měnit konfigurační hodnoty, které skript vygeneroval. Pro změnu konfigurace je potřeba nasazený projekt nejdříve odstranit a poté znovu nasadit. Prvním krokem nasazování a tedy i následujícím krokem je konfigurace systému Zabbix.
+
 \subsubsection{třída LLDMultiTriggerConfig}
 % pořádně popsat, jak funguje její specifikace
 
+Prvním a zároveň nejnáročnějším krokem konfigurace je uživatelská definice metrik ke sledování. U každé metriky je potřeba specifikovat metriku Lambda funkce z AWS a její sledovanou statistiku, logický výraz pro spouštěče, tabulku priorit a severit, datový typ hodnoty metriky pro Zabbix a jednoznačný název metriky pro systém monitorování Lambda funkcí. Definice konfiguračních metrik se musí nacházet v souboru \verb|metrics_def.py| v kořenovém adresáři projektu. Již podle přípony se jedná opět o skript v jazyce Python, avšak tento skript pouze definuje jedinou proměnnou \verb|MetricConigs|, jíž je přiřazen seznam instancí v projektu deklarované třídy \verb|LLDMultiTriggerConfig|, které reprezentují uživatelské \uv{konfigurační} metriky. Soubor \verb|metrics_def.py| v projektu již existuje a slouží jako příklad. Uživatel tak může soubor upravit dle svých potřeb.
 
-\subsection{CloudFormation šablony, nástroj SAM}
-% popis templates v projektu
-% sam.py
+Postup definice konfiguračních metrik ukážeme na příkladu obsahu souboru \verb|metrics_def.py| z kódu \ref{lst:metrics_def.py}. 
+
+\begin{code}{Python}{Ukázkový konfigurační soubor \verb|metrics_def.py|\label{lst:metrics_def.py}}
+# import tříd z projektu
+from scripts.zapi import LLDMultiTriggerMetricConfig 
+from scripts.zapi import LambdaPriority, ZabbixSeverity
+
+# definice konfiguračních metrik
+MetricConfigs = [
+        # Errors metric
+        LLDMultiTriggerMetricConfig(
+            name="errors",
+            zbx_value_type="int",
+            aws_metric_name='Errors',
+            aws_statistic_name='sum',
+            zbx_trigger_expression_pattern='count({0},5m,"ge","{1}")>="1"',
+            priority_mapping={
+                LambdaPriority(0): { ZabbixSeverity.DISASTER: 1 },
+                LambdaPriority(1): { ZabbixSeverity.DISASTER: 2,   ZabbixSeverity.HIGH: 1},
+                LambdaPriority(2): { ZabbixSeverity.DISASTER: None,ZabbixSeverity.HIGH: 2, ZabbixSeverity.AVERAGE: 1},
+                LambdaPriority(3): { ZabbixSeverity.HIGH: 3, ZabbixSeverity.AVERAGE: 2, ZabbixSeverity.WARNING: 1},
+                # priorita 4 nevyplněna
+                LambdaPriority(-1): {severity: None for severity in list(ZabbixSeverity)}
+            }
+        )
+]
+\end{code}
+
+Soubor nejprve importuje potřebné třídy z projektu. Jelikož adresářová struktura projektu je zároveň modulem jazyka Python, je možné importovat třídy z jiných adresářů pomocí relativních importů. Následuje definice seznamu \verb|MetricConfigs|, jemuž jsou v dalších řádcích přiřazeny instance konfigruační třídy, které specifikuje uživatel pomocí konstruktoru. Konstruktor přebírá několik argumentů:
+
+\begin{itemize}
+    \item \textbf{name} -- jedinečný název metriky v rámci systému monitorování Lambda funkcí
+    \item \textbf{zbx_value_type} -- datový typ hodnoty metriky v systému Zabbix
+    \item \textbf{aws_metric_name} -- název metriky z AWS CloudWatch, jež má být sledována
+    \item \textbf{aws_statistic_name} -- statistika metriky z AWS CloudWatch, jež má být sledována
+    \item \textbf{zbx_trigger_expression_pattern} -- vzor pro logický výraz prototypů spouštěčů v systému Zabbix
+    \item \textbf{priority_mapping} -- tabulka priorit a severit pro danou metriku
+\end{itemize}
+
+Název metriky je jedinečným identifikátorem metriky a používá se na obou stranách systému monitorování Lambda funkcí. V systému Zabbix se tento název objevuje v názvu spouštěčů a v názvu makra nízkoúrovňového objevování. Na straně AWS tento název figuruje v proměnné prostředí monitorovaných Lambda funkcí pro přiřazení priority metriky. Objevovací Lambda funkce pak tento název používá pro generování zprávy pro nízkoúrovňové objevování. Z příkladu \ref{lst:metrics_def.py} by tak hodnota proměnné prostředí monitorované Lambda funkce odpovídala například výrazu \verb|errors:3| pro přiřazení priority 3 u této jediné definované metriky.
+
+Datový typ hodnoty metriky musí být vyplněn \emph{logicky} podle typu metriky z AWS CloudWatch. Bude jednat o datové typy \uv{int} pro celočíselné metriky, jako například počet chyb z příkladu, nebo \uv{float} pro reálné číslo, například doba trvání Lambda funkce -- AWS metrika \uv{Duration}. 
+
+Argumenty názvu AWS metriky a statistiky specifikují, které hodnoty z AWS CloudWatch daná konfigurační metrika sleduje. Argumenty musejí nabývat přesných názvů z AWS včetně velikosti písmen. Seznam dostupných metrik a jejich statistik je dostupný v dokumentaci AWS CloudWatch \cite{lambda.docs.aws}. Ze statistik je možné volit mezi \uv{sum}, \uv{min}, \uv{max} a \uv{count}. Pro \emph{invokační metriky}, kterou je například i metrika \uv{Errors} z příkladu, je možné volit pouze statistiku \uv{sum}. 
+
+Vzor logického výrazu prototypů spouštěčů metriky je komplikovanější výraz, k jehož správněmu vyplnění uživatel musí znát syntaxi jazyka pro logické výrazy v systému Zabbix a možné funkce ve výrazech použitelné. Jedná se však pouze o vzor, který bude pro pohodlí uživatele vyplněn automaticky. Automaticky vyplňovanými hodnotami jsou identifikátor datového elementu, který spouštěč sleduje, a \emph{LLD makro} konstanty, vůči níž jsou hodnoty onoho datového elementu porovnávány. Konstanta samozřejmě odpovídá konstantě z tabulky priorit a severit. Uživatel na místo identifikátoru klíče vyplní vzor \verb|{0}| a na místo LLD makra konstanty vzor \verb|"{1}"| (uvozovky jsou důležité!). 
+
+Tabulka priorit a severit je vnořeným slovníkem jazyka Python. Klíče vnějšího slovníku jsou zastoupeny instancemi třídy \verb|LambdaPriority|, které reprezentují priority metriky. Hodnotou těchto klíčů je pak vnitřní slovník, jehož klíče jsou instance třídy \verb|ZabbixSeverity| reprezentující severity spouštěčů. Hodnotami ve vnitřních slovnících jsou pak konkrétní konstanty, s nimiž je v rámci logického výrazu spouštěče porovnávána hodnota \emph{datového elementu}. Třída \verb|LambdaPriority| je instancována konstruktorem, který přijímá prioritu jako svůj jediný argument. Platné priority nabývají hodnot 0 až 4 nebo -1, při jiných hodnotách dojde k chybě. Třída \verb|ZabbixSeverity| je výčtovým typem s hodnotami odpovídajícími názvům severit v systému Zabbix. 
+
+Tabulka priorit a severit nemusí být kompletně vyplněna. Pokud uživatel nevyplní některou z priorit nebo severit, bude automaticky vyplněna hodnotou \uv{None}. Při nasazování systému pro dvojice priority a severity, jejichž konstantou je hodnota \uv{None}, nebude v systému Zabbix vytvořen žádný spouštěč.
+
+Příkladový soubor při nasazování systému vytvoří v systému Zabbix prototyp datového elementu pro statistiku \uv{sum} metriky \uv{Errors} z AWS CloudWatch a prototypy spouštěčů se severitami \uv{DISASTER}, \uv{HIGH}, \uv{AVERAGE} a \uv{WARNING} (jiné nejsou v žádné prioritě vyplněny). Logické výrazy prototypů spouštěčů obsahují automaticky dosazený identifikátor ještě neobjevených datových elementů a LLD makro konstanty této metriky. Po nasazení systému pak uživatel může u Lambda funkce, kterou chce sledovat, nastavit prioritní proměnnou prostředí například na hodnotu \verb|errors:3|. Objevovací Lambda funkce při další invokaci nalezne Lambda funkci a objeví ji v Zabbixu, čímž se vytvoří datový element a spouštěče se severitami \uv{HIGH}, \uv{AVERAGE} a \uv{WARNING}, v jejichž logických výrazech bude odkaz na již objevený datový element a konstanty 3, 2 a 1, respektive. Objevovací Lambda zároveň označí funkci jako objevenou. Transformační Lambda funkce následně při další invokaci zjistí, že funkce je již objevená a může zasílat požadované metriky.
+
+Příklad definuje pouze jednu metriku, uživatel jich však může definovat libovolné množství, pouze každá z nich musí mít jedinečný název.
 
 \subsection{Konfigurace Zabbix pomocí skriptu}
 %celý repo je Python module xd
+
+\subsection{CloudFormation šablony, nástroj SAM}
+% popis templates v projektu
+% popis vstupů do jednotlivých šablon!!
+% sam.py
+
 
 
 
