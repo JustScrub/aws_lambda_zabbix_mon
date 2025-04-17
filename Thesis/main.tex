@@ -424,7 +424,9 @@ Změnu bylo třeba provést také u přepsání pravidel. V tomto případě spo
 
 Model mezi objevenými spouštěči dále zavádí závislosti: všechny objevené spouštěče s nižší severitou jsou závislé na spouštěčích se severitou vyšší u dané metriky a priority Lambda funkce.
 
-Pro ilustraci opět uveďme příklad: uživatel nakonfiguroval metriku \uv{Doba trvání} s tabulkou priorit a severit jako v tabulce \ref{tab:multi-trig-prio_tab-example} a v AWS Lambda provozuje funkci \uv{MojeFunkce} s prioritou 3. Po zprovoznění vyvíjeného systému je funkce objevena (prozatím) stejným způsobem jako v minulém příkladu. 
+Nakonec tento model redukuje počet prototypů datových elementů a s tím také počet objevených datových elementů. V předchozím modelu byl pro každou metriku vytvořen prototyp datového elementu, který byl poté objeven pro každou objevenou funkci. Pokud tak uživatel nakonfiguroval více metrik, které ale sledují shodné statistiky z AWS CloudWatch\footnote{Důvodem takového požadavku by mohlo být sledování shodné metriky různými logickými výrazy v různých spouštěčích -- například jeden spouštěč sledující poslední hodnotu metriky a jiný sledující průměr v časovém okně.}, pak by pro každou z těchto metrik vznikl prototyp datového elementu. Objevené datové elementy by tak sbíraly shodná data z AWS CloudWatch. Nový model ale vytváří prototypy datových elementů s ohledem na statistiku a metriku z AWS CloudWatch. Více uživatelem konfigurovaných metrik sdílející shodnou statistiku a metriku AWS tak v novém modelu sdílí shodný objevený datový element v rámci jedné monitorované Lambda funkce.
+
+Pro ilustraci opět uveďme příklad: uživatel nakonfiguroval metriku \uv{Doba trvání}, která sleduje statistiku maximum z metriky \uv{Duration} v AWS, s tabulkou priorit a severit jako v tabulce \ref{tab:multi-trig-prio_tab-example} a v AWS Lambda provozuje funkci \uv{MojeFunkce} s prioritou 3. Po zprovoznění vyvíjeného systému je funkce objevena (prozatím) stejným způsobem jako v minulém příkladu. 
 
 \begin{table}[]
 \begin{tabular}{|l|l|l|l|l|l|}
@@ -440,7 +442,7 @@ sev\textbackslash prio          & \textbf{0} & \textbf{1} & \textbf{2} & \textbf
 \label{tab:multi-trig-prio_tab-example}
 \end{table}
 
-Při objevování Zabbix server na základě prototypů vytvořil jeden datový element pro metriku \uv{Doba trvání} Lambda funkce \uv{MojeFunkce} a podle poskytnuté tabulky dva spouštěče: jeden se severitou \emph{varování} a druhý s \emph{průměrnou} severitou. Konstanty v jejich výrazech jsou zastoupeny makry \verb|{$DOBA_TRVANI_WARNING:3}|, respektive \verb|{$DOBA_TRVANI_AVERAGE:3}|, jejichž hodnoty odpovídají hodnotám 750 a 1000 milisekund. Spouštěč se severitou \emph{varování} je navíc závislý na druhém spouštěči. Ostatní spouštěče (zbylých severit) pomocí přepsání pravidla nízkoúrovňového objevování nebyly vytvořeny, neboť je uživatel nepožadoval.
+Při objevování Zabbix server na základě prototypů vytvořil jeden datový element sbírající požadovanou statistiku Lambda funkce \uv{MojeFunkce} z AWS pro nakonfigurovanou metriku \uv{Doba trvání}\footnote{Pokud by uživatel nakonfiguroval další metriku např. \uv{Průměrná doba trvání} s vlastní tabulkou sledující také maximum z \uv{Duration}, byl by objeven pouze jeden datový element, jehož hodnoty by hlídaly spouštěče obou nakofigurovaných metrik -- jak metriky \uv{Doba trvání}, tak metriky \uv{Průměrná doba trvání}.} a podle poskytnuté tabulky dva spouštěče: jeden se severitou \emph{varování} a druhý s \emph{průměrnou} severitou. Konstanty v jejich výrazech jsou zastoupeny makry \verb|{$DOBA_TRVANI_WARNING:3}|, respektive \verb|{$DOBA_TRVANI_AVERAGE:3}|, jejichž hodnoty odpovídají hodnotám 750 a 1000 milisekund. Spouštěč se severitou \emph{varování} je navíc závislý na druhém spouštěči. Ostatní spouštěče (zbylých severit) pomocí přepsání pravidla nízkoúrovňového objevování nebyly vytvořeny, neboť je uživatel nepožadoval.
 
 Pokud příkladový Zabbix Server přijme hodnotu metriky \uv{Doba trvání} dané funkce 800 milisekund, spouštěč se severitou \emph{varování} vygeneruje problémovou událost. Jestliže následně přijme hodnotu 1100 milisekund, problémovou událost generuje spouštěč s \emph{průměrnou} severitou a předchozí událost je díky závislosti spouštěčů uzavřena. V systému tak setrvává pouze událost s nejvyšší severitou.
 
@@ -676,7 +678,7 @@ Datový typ hodnoty metriky musí být vyplněn \emph{logicky} podle typu metrik
 
 Argumenty názvu AWS metriky a statistiky specifikují, které hodnoty z AWS CloudWatch daná konfigurační metrika sleduje. Argumenty musejí nabývat přesných názvů z AWS včetně velikosti písmen. Seznam dostupných metrik a jejich statistik je dostupný v dokumentaci AWS CloudWatch \cite{lambda.docs.aws}. Ze statistik je možné volit mezi \uv{sum}, \uv{min}, \uv{max} a \uv{count}. Pro \emph{invokační metriky}, kterou je například i metrika \uv{Errors} z příkladu, je možné volit pouze statistiku \uv{sum}. 
 
-Vzor logického výrazu prototypů spouštěčů metriky je komplikovanější výraz, k jehož správněmu vyplnění uživatel musí znát syntaxi jazyka pro logické výrazy v systému Zabbix a možné funkce ve výrazech použitelné. Jedná se však pouze o vzor, který bude pro pohodlí uživatele vyplněn automaticky. Automaticky vyplňovanými hodnotami jsou identifikátor datového elementu, který spouštěč sleduje, a \emph{LLD makro} konstanty, vůči níž jsou hodnoty onoho datového elementu porovnávány. Konstanta samozřejmě odpovídá konstantě z tabulky priorit a severit. Uživatel na místo identifikátoru klíče vyplní vzor \verb|{0}| a na místo LLD makra konstanty vzor \verb|"{1}"| (uvozovky jsou důležité!). 
+Vzor logického výrazu prototypů spouštěčů metriky je komplikovanější výraz, k jehož správněmu vyplnění se uživatel musí seznámit se syntaxí jazyka pro logické výrazy v systému Zabbix a možné funkce ve výrazech použitelné. Jedná se však pouze o vzor, který bude pro pohodlí uživatele vyplněn automaticky. Automaticky vyplňovanými hodnotami jsou identifikátor datového elementu, který spouštěč sleduje, a \emph{LLD makro} konstanty, vůči níž jsou hodnoty onoho datového elementu porovnávány. Konstanta samozřejmě odpovídá konstantě z tabulky priorit a severit. Uživatel na místo identifikátoru klíče vyplní vzor \verb|{0}| a na místo LLD makra konstanty vzor \verb|"{1}"| (uvozovky jsou důležité!). 
 
 Tabulka priorit a severit je vnořeným slovníkem jazyka Python. Klíče vnějšího slovníku jsou zastoupeny instancemi třídy \verb|LambdaPriority|, které reprezentují priority metriky. Hodnotou těchto klíčů je pak vnitřní slovník, jehož klíče jsou instance třídy \verb|ZabbixSeverity| reprezentující severity spouštěčů. Hodnotami ve vnitřních slovnících jsou pak konkrétní konstanty, s nimiž je v rámci logického výrazu spouštěče porovnávána hodnota \emph{datového elementu}. Třída \verb|LambdaPriority| je instancována konstruktorem, který přijímá prioritu jako svůj jediný argument. Platné priority nabývají hodnot 0 až 4 nebo -1, při jiných hodnotách dojde k chybě. Třída \verb|ZabbixSeverity| je výčtovým typem s hodnotami odpovídajícími názvům severit v systému Zabbix. 
 
@@ -688,6 +690,39 @@ Příklad definuje pouze jednu metriku, uživatel jich však může definovat li
 
 \subsection{Konfigurace Zabbix pomocí skriptu}
 %celý repo je Python module xd
+
+Po vygenerování konfiguračních souborů skriptem \verb|prj_config.py| je potřeba konfigurovat systém Zabbix. Instance Zabbix Serveru, Frontend prostředí a případně Zabbix proxy v tomto kroku již musí existovat a běžet na vzdálených strojích nebo lokálním stroji se síťovými (IP) adresami dosažitelnými z aktuálního stroje. Pokud uživatel ještě neprovozuje vlastní instanci systému Zabbix, tento projekt mu poskytuje možnost vytvořit si vlastní volitelně s nebo bez proxy jako EC2 instance pomocí šablon AWS CloudFormation. Nasazení systému Zabbix pomocí šablon je popsáno v další sekci.
+
+Tento krok nasazování je velmi snadný a zahrnuje zavolání jednoho ze dvou příkazů z příkazové řádky v závislosti na tom, zda systém používá Zabbix proxy. Konfigurace však vyžaduje nainstalovanou knihovnu \verb|pyzabbix|, již je možné instalovat příkazem:
+
+\begin{verbatim}
+    pip3 install -r scripts/zapi/requirements.txt
+\end{verbatim}
+
+Pokud systém nepoužívá Zabbix proxy, je třeba z kořenového adresáře projektu spustit příkaz:
+
+\begin{verbatim}
+    python3 -m scripts.zapi <frontend_address> <frontend_port> server
+\end{verbatim}
+
+kde \verb|<frontend_address>| je IP adresa nebo DNS jméno stroje s webovým rozhraním systému Zabbix (komponenta Frontend) a \verb|<frontend_port>| je port transportní vrstvy, na němž webové rozhraní poslouchá. Výchozí hodnota portu je 80. Pokud uživatel používá proxy, příkaz se mírně liší:
+
+\begin{verbatim}
+    python3 -m scripts.zapi <frontend_address> <frontend_port> proxy <proxy_name>
+\end{verbatim}
+
+kde první dva argumenty jsou shodné s předchozím příkazem. Argument \verb|<proxy_name>| může zastupovat buď název již existující proxy v systému Zabbix, kterou uživatel pomocí webového rozhraní nebo API předem ručně nakonfiguroval, anebo IP adresa či DNS název stroje s proxy. V druhém případě, kdy se zadaný \verb|<proxy_name>| nevyskytuje mezi známými proxy systému Zabbix, musí instance Zabbix proxy poslouchat na dané adrese na portu 10051, což je výchozí port pro Zabbix proxy. V tomto případě konfigurační skript proxy automaticky vytvoří a nakonfiguruje.
+
+Po úspěšném provedení jednoho z příkazů je systém Zabbix nakonfigurován pro monitorování Lambda funkcí a je možné přejít k poslednímu kroku nasazení, kterým je nasazení systému do AWS. Je nutno podotknout, že od této chvíle není možné zavádět změny konfigurace metrik v souboru \verb|metrics_def.py| ani v konfiguračních souborech ručně i přes skript \verb|prj_config.py|. Pro změnu konfigurace systému monitorování Lambda funkcí je třeba nejdříve odstranit nasazený projekt a poté jej znovu nasadit s novou konfigurací.
+
+Ve zbytku této sekce bude pojednáno o tom, co provádí konfigurační skript \verb|zapi.py| připravující prostředí v Zabbixu a jak jsou tvořeny názvy entit.
+
+\subsubsection{Zabbix API a jmenná konvence entit v systému Zabbix}
+
+Cílem konfiguračního skriptu \verb|zapi.py| je do systému Zabbix zavést implementaci zvoleného modelu Lambda funkcí -- \uv{Jeden item, více triggerů}. Konfigurace je uskutečněna voláním API systému Zabbix pomocí knihovny \verb|pyzabbix|, pomocí nějž jsou v systému vytvořeny a nastaveny potřebné entity -- zejm. \emph{pravidlo nízkoúrovňového objevování}, \emph{prototypy datových elementů}, \emph{prototypy spouštěčů} a \emph{makra} na základě konfiguračních metrik. Před popisem Zabbix API a jeho použití se nejprve zaměřme na názvy entit v systému Zabbix.
+
+Každá entita v systému Zabbix nese svůj jedinečný název. Pro přehlednost je rozumné u entit patřících pod systém monitorování Lambda funkcí v názvu tuto skutečnost uvést, například pomocí přípony. Ještě přehednější je pak použití hierarchických názvů entit jako například u záznamů DNS, z nichž si systém bere příklad. V konfiguraci systému pomocí skriptu \verb|prj_config.py| uživatel tuto příponu (suffix) specifikuje a názvy entit jsou pak deterministicky tvořeny hierarchicky, kde specifikovaný suffix je kořenovým názvem. 
+
 
 \subsection{CloudFormation šablony, nástroj SAM}
 % popis templates v projektu
