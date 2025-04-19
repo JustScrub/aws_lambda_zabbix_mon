@@ -704,6 +704,7 @@ Pokud systém nepoužívá Zabbix proxy, je třeba z kořenového adresáře pro
 \begin{verbatim}
     python3 -m scripts.zapi <frontend_address> <frontend_port> server
 \end{verbatim}
+\footnote{Skript je nutné spouštět jako modul jazyka Python, neboť využívá relativní cesty v importech.}
 
 kde \verb|<frontend_address>| je IP adresa nebo DNS jméno stroje s webovým rozhraním systému Zabbix (komponenta Frontend) a \verb|<frontend_port>| je port transportní vrstvy, na němž webové rozhraní poslouchá. Výchozí hodnota portu je 80. Pokud uživatel používá proxy, příkaz se mírně liší:
 
@@ -715,23 +716,159 @@ kde první dva argumenty jsou shodné s předchozím příkazem. Argument \verb|
 
 Po úspěšném provedení jednoho z příkazů je systém Zabbix nakonfigurován pro monitorování Lambda funkcí a je možné přejít k poslednímu kroku nasazení, kterým je nasazení systému do AWS. Je nutno podotknout, že od této chvíle není možné zavádět změny konfigurace metrik v souboru \verb|metrics_def.py| ani v konfiguračních souborech ručně i přes skript \verb|prj_config.py|. Pro změnu konfigurace systému monitorování Lambda funkcí je třeba nejdříve odstranit nasazený projekt a poté jej znovu nasadit s novou konfigurací.
 
-Ve zbytku této sekce bude pojednáno o tom, co provádí konfigurační skript \verb|zapi.py| připravující prostředí v Zabbixu a jak jsou tvořeny názvy entit.
+Zbytek této sekce pojednává o tom, co provádí konfigurační skript \verb|zapi.py| připravující prostředí v Zabbixu a jak jsou tvořeny názvy entit.
 
 \subsubsection{Zabbix API a jmenná konvence entit v systému Zabbix}
 
 Cílem konfiguračního skriptu \verb|zapi.py| je do systému Zabbix zavést implementaci zvoleného modelu Lambda funkcí -- \uv{Jeden item, více triggerů}. Konfigurace je uskutečněna voláním API systému Zabbix pomocí knihovny \verb|pyzabbix|, pomocí nějž jsou v systému vytvořeny a nastaveny potřebné entity -- zejm. \emph{pravidlo nízkoúrovňového objevování}, \emph{prototypy datových elementů}, \emph{prototypy spouštěčů} a \emph{makra} na základě konfiguračních metrik. Před popisem Zabbix API a jeho použití se nejprve zaměřme na názvy entit v systému Zabbix.
 
-Každá entita v systému Zabbix nese svůj jedinečný název. Pro přehlednost je rozumné u entit patřících pod systém monitorování Lambda funkcí v názvu tuto skutečnost uvést, například pomocí přípony. Ještě přehednější je pak použití hierarchických názvů entit jako například u záznamů DNS, z nichž si systém bere příklad. V konfiguraci systému pomocí skriptu \verb|prj_config.py| uživatel tuto příponu (suffix) specifikuje a názvy entit jsou pak deterministicky tvořeny hierarchicky, kde specifikovaný suffix je kořenovým názvem. 
+Každá entita v systému Zabbix nese svůj jedinečný název. Pro přehlednost je rozumné u entit patřících pod systém monitorování Lambda funkcí v názvu tuto skutečnost uvést, například pomocí přípony. Ještě přehednější je pak použití hierarchických názvů entit jako například u záznamů DNS, z nichž si systém bere příklad. V konfiguraci systému pomocí skriptu \verb|prj_config.py| uživatel tuto příponu (suffix) specifikuje a názvy entit jsou pak deterministicky tvořeny hierarchicky, kde specifikovaný suffix je kořenovým názvem. Části názvu jsou odděleny tečkami. V dalším budeme uvažovat, že uživatel zvolil suffix \uv{zblamb}. 
 
+Model Lambda funkcí zahrnuje jeden \emph{síťový uzel}, jehož název odpovídá zvolenému suffixu -- tedy například \verb|zblamb|. Tento síťový uzel patří do skupiny s názvem \verb|group.zblamb|. Název pravidla pro nízkoúrovňové objevování je pak \verb|discover.zblamb|. Klíče prototypů datových elementů a následně také objevených datových elementů se na první pohled od této konvence odklánějí, avšak pouze využívají vlastnost systému Zabbix -- parametrů klíčů datových elementů. Datové elementy reprezentují statistiku metriky z AWS CloudWatch pro specifickou Lambda funkci -- musí se v jejich názvu nacházet obě informace. Název funkce však bude doplněn na základě objevování. Hierarchická část klíče obsahuje položky pro statistiku, metriku z AWS malými písmeny, řetězec \uv{metrics} a zvolený suffix. V parametru klíče leží LLD makro pro název Lambda funkce u prototypů a samotná název funkce u objevených datových elementů. Klíč prototypu datového elementu například pro statistiku \uv{sum} metriky \uv{Duration} z AWS CloudWatch by tak měl tvar:
+
+\begin{verbatim}
+    sum.duration.metrics.zblamb[{#FN_NAME}]
+\end{verbatim}
+
+a při objevení Lambda funkce s názvem například \verb|MojeFunkce| by klíč objeveného datového elementu měl tvar:
+
+\begin{verbatim}
+    sum.duration.metrics.zblamb[MojeFunkce]
+\end{verbatim}
+
+Prototypy spouštěčů a objevené spouštěče toto schéma následují, ač systém Zabbix nedefinuje parametry v názvech spouštěčů. Spouštěče spadají pod konkrétní konfigurační metriku a tak její název je obsažen i v názvu spouštěče jako předposlední úroveň hierarchického názvu -- názvy spouštěčů jsou tak přímo ovlivněny uživatelem. V názvu spouštěče se musí nacházet i jeho severita, která je listem v hierarchickém názvu. Například z konfigurační metriky s názvem \verb|errors| by pak mohl vzniknout prototyp spouštěče s názvem:
+
+\begin{verbatim}
+    HIGH.errors.triggers.zblamb[{#FN_NAME}]
+\end{verbatim}
+
+a podobně jako u datových elementů by pak vznikl název objeveného spouštěče s doplněným názvem Lambda funkce.
+
+Dále jsou v systému Zabbix vytvářena uživatelská makra pro každou konfigurační metriku a její severity, s kontexty pro všechny priority dané severity. Makra již systém hierarchických názvů nesplňují, neboť se jedná o konstanty, u nichž je konvence používat velká písmena a slova oddělovat podtržítky. Název makra obsahuje název metriky z konfigurace (jako u spouštěčů) velkými písmeny, název severity a v kontextech se nachází hodnota priority. Příkladem pro metriku s názvem \verb|errors| tak může být makro \verb|{$ERRORS_HIGH:"3"}|. LLD makra pro priority konfigurovaných metrik nesou v názvu velkými písmeny název metriky a příponu \verb|_PRIO|, například \verb|{#ERRORS_PRIO}|. LLD makro pro název funkce je \verb|{#FN_NAME}|.
+
+Poslední entitou, která v systému Zabbix může při nasazování vzniknout, je záznam pro Zabbix proxy. Pokud uživatel při spuštění skritpu \verb|zapi.py| zadal jako proxy IP adresu nebo DNS název proxy, skript vytvoří v systému Zabbix záznam pro proxy s názvem \verb|proxy.zblamb|. 
+
+Dále bude popsán průběh konfigurace skriptem \verb|zapi.py|. Skript nejdříve zjistí z argumentů na příkazové řádce, zda uživatel zadal proxy. Pokud ano, pokusí se pomocí knihovny \verb|pyzabbix| zavolat metodu \verb|proxy.get| Zabbix RPC API, která buď vrátí existující záznam (uživatel tedy poskytl již existující proxy), nebo prázdný seznam (uživatel zadal IP adresu nebo DNS název proxy). V druhém případě skript zavolá metodu \verb|proxy.create| a vytvoří nový záznam pro proxy. Bez proxy skript tento krok neprovádí.
+
+Následně skript pokračuje ve vytvoření skupiny síťových uzlů a síťového uzlu, který případně označí jako spravovaný pomocí poskytnuté proxy, s využitím příslušných API metod (\verb|hostgroup.create| a \verb|host.create|). Po jejich vytvoření a přiřazení vytvořeného uzlu do skupiny je vytvořeno pravidlo pro nízkoúrovňové objevování typu \emph{trapper} s dobou pro ponechání zdrojů nastavenou na nulu pomocí metody \verb|discoveryrule.create|.
+
+Po vytvoření pravidla skript prochází seznam konfiguračních metrik, t.j. instancí třídy \verb|LLDMultiTriggerMetricConfig|, a pro každou vytvoří její entity pomocí metod třídy, které vracejí argumenty pro metody Zabbix API (resp. pro příslušné funkce knihovny \verb|pyzabbix|). U každé metriky jsou nejprve vytvořena její makra pro každou severitu s kontextem pro každou prioritu. Každé severitě je navíc vytvořeno makro bez kontextu, jehož hodnotou je buď hodnota specifikovaná uživatelem v tabulce priorit a severit v \uv{řádku} s prioritou -1, nebo hodnota $2^{24}$, pokud je dvojice priority a severity vynechána. Konstanta $2^{24}$ je zvolena jako hodnota natolik veliká, že je nepravděpodobné, že by se vyskytla jako hodnota metriky. U některých metrik však nemusí být ideální -- u metrik, jež můžou tuto hodnotu překročit a nechtěně tak sepnout spouštěče. Zajištění vhodné hodnoty je tak zodpovědnost uživatele.
+
+Následuje vytvoření prototypu datového elementu pro statistiku a metriku z AWS CloudWatch. Prototypu se shodným názvem (t.j. sbírající shodnou statistiku metriky) může využívat více metrik a proto jsou chyby o existují entitě u vytváření prototypu ignorovány. Metoda třídy \verb|LLDMultiTriggerMetricConfig| zkonstruuje správný klíč prototypu datového elementu, nastaví typ na \emph{trapper} a přiřadí mu uživatelem poskytnutý datový typ, vytvořený síťový uzel a nízkoúrovňové pravidlo. 
+
+Dále skript u každé metriky pro každou severitu vytvoří prototyp spouštěče postupně od nejvyšší severity po nejnižší a identifikátory vytvořených prototypů spouštěčů ukládá do seznamu závislostí, aby spuštěče nižších severit byly závislé na vyšších severitách. Metoda konfigurační třídy pro generování prototypů spouštěče navíc kontroluje, zda uživatel vyplnil tabulku priorit a severit pro danou severitu. Pokud ano, skript vytvoří prototyp spouštěče a přidá jej do seznamu závislostí. Pokud ne, metoda vrátí prázdný slovník argumentů pro API a skript spouštěč nevytvoří.
+
+V poslední řadě skript přidá \emph{přepsání pravidla} pro nízkoúrovňové objevování na základě všech konfiguračních metrik. Pro každou metriku přidá několik přepsání: první přepsání zabraňuje vytvoření všech spouštěčů, pokud v objevovací zprávě není přítomno LLD makro metriky, následujících až pět přepsání zabraňuje vytváření spouštěčů pro severity, které uživatel nevyplnil v tabulce priorit a severit, v případech, kdy hodnota LLD makra odpovídá konkrétní validní hodnotě priority, a poslední přepsání zachycuje případ, kdy se LLD makro ve zprávě sice nachází, avšak jeho hodnota není platná. V takovém případě přepsání zabraňuje vytvoření spouštěčů severit s chybějící hodnotou v tabulce priorit a severit v \uv{řádku} s prioritou -1, která odpovídá neplatným hodnotám priority. Přepsání pravidla nízkoúrovňového objevování tak pouze redukují počet vytvářených spouštěčů o uživatelem nechtěné spouštěče a neovlivňují jejich funkčnost.
 
 \subsection{CloudFormation šablony, nástroj SAM}
 % popis templates v projektu
 % popis vstupů do jednotlivých šablon!!
 % sam.py
 
+Dalším krokem v nasazování systému pro monitorování Lambda funkcí je vytvoření infrastruktury v AWS. K tomu slouží šablony pro AWS SAM, které jsou součástí projektu. Šablon je několik, pro systém je však potřebná pouze jedna. Každá ze šablon je popsána ve formátu YAML a popisuje infrastrukturu, kterou je potřeba vytvořit. Šablony navíc mohou přijímat vstupní parametry, které ovlivňují výslednou infrastrukturu. Parametry uživatel vyplnil pomocí konfiguračního skriptu \verb|prj_config.py| v prvním kroku nasazování. Všechny soubory potřebné k nasazení systému jsou umístěny v adresáři projektu \verb|zblamb-sam|, do nějž je vygenerován také konfigurační soubor \verb|template_params.json| obsahující vyplněné parametry pro šablony. 
 
+Pro samotné nasazení je možné použít nástroj AWS SAM CLI přímo, nebo doporučeně pomocí Python skriptu \verb|sam.py|, který je součástí projektu a nachází se v tomtéž adresáři. Až tento skript umožňuje využít vygenerovaný soubor s parametry -- použití pouze nástroje AWS SAM CLI by vyžadovalo opětovné ruční vyplnění parametrů v příkazové řádce. Veškerá potřebná infrastruktura je popsána v šabloně \verb|metric-stream.yaml| a je tedy vhodné, aby se uživatel seznámil aspoň s jejímy parametry, jež budou popsány v následující podsekci. K naszení komponent této šablony je potřeba zavolat skript \verb|sam.py| ve dvou příkazech. První sestaví šablonu a vytvoří balíček pro nasazení:
 
+\begin{verbatim}
+    python3 sam.py build ./template_params.json
+\end{verbatim}
 
+Druhý příkaz pak nasadí balíček do AWS CloudFormation a vytvoří infrastrukturu v AWS:
+
+\begin{verbatim}
+    python3 sam.py deploy ./template_params.json
+\end{verbatim}
+
+Skript přijímá jako argumenty příkaz nástroje AWS SAM CLI, volitelně následují přepínače pro tento příkaz, jimž nástroj rozumí, a posledním argumentem je cesta k vygenerovanému souboru s parametry. V prvním příkazu může uživatel pomocí přepínače \verb|-t| zvolit jinou šablonu, pokud ji chce použít. V druhém příkazu mohou být žádoucí přepínače \verb|--guided| (bez argumentů), který uživatele nasazováním provede a umožní mu na poslední chvíli změnit parametry, nebo \verb|--stack-name|, který uživateli umožní zvolit název nasazované infrastruktury. Například lze použít následující příkaz pro nasazení EC2 instancí provozujících systém Zabbix:
+
+\begin{verbatim}
+    python3 sam.py build -t zbx_server_proxy.yaml ./template_params.json &&\
+    python3 sam.py deploy --guided --stack-name zbx_infra ./template_params.json
+\end{verbatim}
+
+Po nasazení šablony \verb|metric-stream.yaml| je systém monitorování Lambda funkcí připraven k použití. Uživatel pouze musí nastavit proměnné prostředí pro Lambda funkce, které chce monitorovat. 
+
+Dále budou popsány jednotlivé šablony a jejich parametry.
+
+\subsubsection{Šablona pro systém monitorování Lambda funkcí}
+
+Šablona \verb|metric-stream.yaml| popisuje infrastrukturu pro systém monitorování Lambda funkcí. Obsahuje definice transformační a objevovací Lambda funkce, které mohou být umístěny ve virtuálním privátním cloudu (VPC), stream služby AWS Firehose a Metric stream služby AWS CloudWatch. Destinace Firehose streamu, S3 bucket, je poskytnuta uživatelem v parametrech šablony a musí být vytvořena nezávisle na tomto systému. Šablona dále vytváří potřebná oprávnění pro Lambda funkce a streamy, aby mohly vzájemně komunikovat. 
+
+Nakonec může šablona volitelně (pomocí parametru) vytvořit testovací Lambda funkci s názvem \verb|ZBLambMockLambda1|, která může proběhnout úspěšně nebo selhat různými způsoby na základě jejího vstupu. Vstupem funkce je JSON objekt, který má pouze jeden klíč \verb|"result"|, jehož hodnotou mohou být následující textové řetězce: 
+
+\begin{itemize}
+    \item \verb|"pass"| -- funkce proběhne úspěšně a vrátí textový řetězec \verb|"passed"|
+    \item \verb|"raise"| -- funkce vyhodí výjimku se zprávou \verb|"raised"|
+    \item \verb|"timeout"| -- funkce neskončí do uplynutí časového limitu 2 sekundy
+    \item cokoliv jiného -- funkce skončí s návratovou hodnotou 1, značící chybu
+\end{itemize}
+
+Šablona přijímá následující parametry, nastavené pomocí konfiguračního skriptu \verb|prj_config.py|:
+
+\begin{itemize}
+    \item \verb|ZBLambDummyDeliveryStreamBucket| -- ARN (identifikátor) S3 bucketu, který slouží jako destinace streamu AWS Firehose. Tento bucket musí být vytvořen uživatelem před nasazením šablony a musí mít povolení pro zápis z AWS Firehose.
+    \item \verb|ZBLambTransformBufferingSeconds| -- doba, po kterou stream AWS Firehose sbírá data od služby metric stream před invokací transformační Lambda funkce v sekundách. Validní rozsah hodnot je 0 až 900 sekund. Výchozí hodnota je 60 sekund.
+    \item \verb|ZBLambTransformBufferingMegabytes| -- maximální velikost dat, která může být odeslána do transformační Lambda funkce v MB vyjádřena racionálním číslem. Možný rozsah hodnot je 0.2 až 3.0 MB. Výchozí hodnota je 1.0 MB. Číslo používá desetinnou tečku jako oddělovač.
+    \item \verb|ZBLambTransformationLambdaRetries| -- maximální počet pokusů o opětovné zpracování vstupních dat transformační Lambda funkcí, která skončila chybou. Výchozí hodnota je 1 opravný pokus.
+    \item \verb|ZBLambDiscoveryRate| -- perioda v minutách, po níž je invokována objevovací Lambda funkce. Výchozí hodnota je 60 minut. Perioda musí být větší než jedna minuta.
+    \item \verb|ZBLambCreateMockLambda| -- příznaková hodnota, zda má být vytvořena testovací Lambda funkce. Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne).
+    \item \verb|ZBLambLambdaTimeout| -- časový limit v sekundách pro objevovací a transformační Lambda funkci. Výchozí hodnota je 5 sekund. Validní rozsah hodnot je 1 až 300 sekund\cite{firehose.docs.aws}.
+    \item \verb|ZBLambZabbixIP| -- síťová adresa nebo DNS jméno stroje, na němž běží server nebo proxy systému Zabbix. Tento stroj musí být dostupný z AWS Lambda funkcí. Pokud uživatel nasazuje systém Zabbix pomocí šablony \verb|zbx_server_proxy.yaml|, tento parametr nevyplňuje.
+    \item \verb|ZBLambLambdasInVPC| -- příznaková hodnota, zda mají být objevovací a transformační Lambda funkce umístěny ve virtuálním privátním cloudu (VPC). Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne). Vhodné, pokud Zabbix server nebo proxy běží v EC2 instanci v témže VPC.
+    \item \verb|ZBLambVPC| -- ID virtuálního privátního cloudu, do něhož mají být Lambda funkce umístěny. Tento parametr je vyžadován v případě, že je nastaven příznak \verb|ZBLambLambdasInVPC| na hodnotu \verb|yes|. Pokud je VPC vytvářeno uživatelem pomocí šablony \verb|networking.yaml|, tento parametr uživatel nevyplňuje ani v případě umístění Lambda funkcí do VPC.
+    \item \verb|ZBLambPrivSubnet| -- ID privátní podsítě, do níž mají být Lambda funkce umístěny. Tento parametr je vyžadován v případě, že je nastaven příznak \verb|ZBLambLambdasInVPC| na hodnotu \verb|yes|. Pokud je VPC vytvářeno uživatelem pomocí šablony \verb|networking.yaml|, tento parametr uživatel nevyplňuje ani v případě umístění Lambda funkcí do VPC.
+    \item \verb|ZBLambZBXPortRange| -- rozsah \emph{IP adres}, s nimiž může v rámci transformační a objevovací Lambda funkce komunikovat Zabbix server nebo proxy na svých portech (10050, resp. 10051), pokud jsou Lambda funkce umisťovány do VPC. Doporučen je rozsah adres specifikovaného VPC. Notace rozsahu odpovídá CIDR notaci s lomítkem, například 10.2.0.0/16. Výchozí rozsah je 0.0.0.0/0, tedy všechny adresy.
+\end{itemize}
+
+Pokud uživatel zvolil umístění Lambda funkcí do VPC, musí být Lambda funkce umístěny v privátní podsíti, která má přístup k internetu pomocí NAT gateway. Šablona \verb|networking.yaml| vytváří privátní podsíť s NAT gateway a potřebnými oprávněními pro Lambda funkce. Uživatel však může použít i vlastní VPC a podsíť.
+
+\subsubsection{Šablona pro systém Zabbix}
+
+Šablona \verb|zbx_server_proxy.yaml| popisuje infrastrukturu pro systém Zabbix. Obsahuje definice EC2 instancí pro server a případně proxy systému Zabbix. Šablona dále vytváří potřebná oprávnění pro EC2 instance, aby mohly komunikovat se specifickými síťovými adresami na portech pro SSH (port 22), Zabbix (10050 a 10051) a HTTP/S (443, 80, 8080 a 8443). Navíc šablona vytváří SSH klíč, pomocí nějž je možné se k instancím připojit. Klíč je bezpečně uložen ve službě AWS System Manager Parameter Store.\cite{cloudformation.docs.aws}
+
+Vytvořené EC2 instance spustí komponenty systému Zabbix v Docker kontejnerech pomocí nástroje docker compose. Instance serveru spustí Zabbix server, Zabbix frontend a Zabbix Agent pro monitorování této instance, instance proxy pak pouze Zabbix proxy v pasivním módu. Soubory pro docker compose se nachází v adresáří \verb|compose|, který je součástí projektu. Na každou instanci je tedy stažen repozitář s tímto projektem -- do adresáře \verb|/root/alzm| v jejím souborovém systému.
+
+Šablona přijímá následující parametry, nastavené pomocí konfiguračního skriptu \verb|prj_config.py|:
+
+\begin{itemize}
+    \item \verb|ZBLambVPC| -- ID virtuálního privátního cloudu, do něhož mají být EC2 instance umístěny. Pokud je VPC vytvářeno uživatelem pomocí šablony \verb|networking.yaml|, tento parametr uživatel nevyplňuje.
+    \item \verb|ZBLambPrivSubnet| -- ID privátní podsítě, do níž má být umístěna instance se Zabbix Proxy. Pokud je VPC vytvářeno uživatelem pomocí šablony \verb|networking.yaml|, tento parametr uživatel nevyplňuje.
+    \item \verb|ZBLambPubSubnet| -- ID veřejné podsítě, do níž má být umístěna instance se Zabbix Serverem. Pokud je VPC vytvářeno uživatelem pomocí šablony \verb|networking.yaml|, tento parametr uživatel nevyplňuje. Síť může být privátní, avšak je v takovém případě nutné zajistit přístup k webovému rozhraní systému Zabbix jinými prostředky -- například pomocí VPN.
+    \item \verb|ZBLambSSHRange| -- rozsah síťových adres v CIDR notaci, které se mohou připojit k SSH portu instancí (port 22). Doporučený rozsah jsou veřejné adresy uživatele (resp. vlastněné jeho firmou) nebo IP adresa VPN, skrze níž probíhá spojení s instancemi. Výchozí hodnotou je rozsah 0.0.0.0/0, tedy všechny adresy.
+    \item \verb|ZBLambHTTPRange| -- podobně jako předchozí parametr, tento se týká portů 80, 443, 8080 a 8443. Výchozím rozsahem jsou všechny adresy.
+    \item \verb|ZBLambZBXPortRange| -- podobně jako předchozí parametry, týká portů se portů komponent Zabbx: 10050 a 10051. Doporučený rozsah odpovídá rozsahu specifikováného VPC. Výchozím rozsahem jsou opět všechny adresy.
+    \item \verb|ZBLambInstanceType| -- typ EC2 instance, na níž poběží Zabbix server a proxy. Výchozí hodnotou je \verb|t3.micro|, což je typ s nízkou cenou a výkonem.
+    \item \verb|ZBLambImage| -- ID AMI (Amazon Machine Image), která bude použita pro vytvoření EC2 instancí. Výchozí hodnotou je ID AMI pro Amazon Linux 2. Instance musí používat balíčkovací systém yum a musí mít předinstalované nástroje curl a sed. Zbylé nástroje (git a docker) jsou doinstalovány pomocí balíčkovacího systému.
+    \item \verb|ZBLambDBUser| -- uživatelské jméno pro databázi PostgreSQL, která je součástí systému Zabbix. Výchozí hodnotou je \verb|zabbix|.
+    \item \verb|ZBLambDBPwd| -- heslo pro uživatelské jméno pro databázi PostgreSQL, která je součástí systému Zabbix. Výchozí hodnotou je \verb|zabbix|.
+    \item \verb|ZBLambCreateProxy| -- příznaková hodnota, zda má být vytvořena EC2 instance se Zabbix proxy. Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne).
+\end{itemize}
+
+Šablona navíc také vrací \emph{výstupní parametry}, které mohou být užitečné pro uživatele. Prvním výstupem je privátní IP adresa instance se Zabbix serverem, druhým je privátní IP adresa instance se Zabbix proxy, pokud byla vytvářena, jinak opět privátní IP adresa instance se Zabbix serverem. Třetím výstupem je ID vytvořeného SSH klíče, který umístěn v repozitáří \verb|/ec2/keypair/<KeyID>| ve službě AWS System Manager Parameter Store, kde \verb|<KeyID>| je výstupní ID. První dva výstupy jsou navíc \emph{exportní} -- služba AWS CloudFormation ukládá jejich hodnoty pod zvolené názvy, na něž je možné referovat v budoucích šablonách. Názvy exportů jsou \verb|ZBLamb::ZabbixServerPrivateIp|, resp. \verb|ZBLamb::ZabbixProxyPrivateIp|. 
+
+\subsubsection{Šablona pro síťovou infrastrukturu}
+
+Šablona \verb|networking.yaml| popisuje infrastrukturu pro virtuální privátní cloud (VPC) a podsítě, které mohou být použity pro EC2 instance, například se Zabbix serverem a proxy. Pokud se uživatel rozhodne tuto šablonu použít, musí její infrastrukturu nasadit jako první před zbylými šablonami (kromě šablony \verb|demo.yaml|). VPC využívá rozsah síťových adres 10.0.0.0/16, jeho privátní podsíť pak rozsah 10.0.1.0/24 a veřejná podsíť rozsah 10.0.2.0/24. Šablona dále vytváří internetovou bránu pro vytvořený VPC a NAT bránu s vlastní \emph{elastickou IP adresou} (EIP) sídlící ve veřejné podsíti pro privátní podsíť. Každé síti navíc přiřadí směrovací tabulku, každou se záznamem pro \emph{výchozí cestu} -- u privátní sítě směřuje na NAT bránu a u veřejné přímo na internetovou bránu. NAT brána standardním způsobem zamaskuje privátní IP adresu na svou veřejnou IP adresu a umožní tak privátní podsíti přístup k internetu. 
+
+Šablona nepřijímá žádné parametry, ale některé podobně jako předchozí šablona vrací -- všechny jako \emph{exportní}. Parametry s exportními názvy \verb|ZBLamb::VpcId|, \verb|ZBLamb::PrivateSubnetId| a \verb|ZBLamb::PublicSubnetId| obsahují popořadě ID vytvořeného VPC, privátní podsítě a veřejné podsítě. Jestliže uživatel použije šablonu \verb|networking.yaml| pro vytvoření VPC a podsítí, nemusí vyplňovat některé parametry jiných šablon, protože ty využívají zmíněné exportní parametry z této šablony.
+
+\subsubsection{Šablona pro ukázkovou infrastrukturu}
+
+Poslední šablona slouží k vytvoření ukázkové infrastruktury pro testování systému monitorování Lambda funkcí. Nasadí plně funkční systém pro monitorování Lambda funkcí, ovšem s omezenou parametrizací a nevhodný pro produkční nasazení. Tato šablona pouze nasazuje předchozí šablony pro vytvoření EC2 instancí se systémem Zabbix (proxy volitelná), volitelně pro vytvoření síťové infrastruktury a nakonec pro samotnou infrastrukturu systému pro monitorování Lambda funkcí.
+
+Šablona přijímá následující parametry, nastavené pomocí konfiguračního skriptu \verb|prj_config.py|:
+\begin{itemize}
+    \item \verb|ZBLambDummyDeliveryStreamBucket| -- ARN (identifikátor) S3 bucketu, který slouží jako destinace streamu AWS Firehose.
+    \item \verb|ZBLambDiscoveryRate| -- perioda v minutách, po níž je invokována objevovací Lambda funkce. Výchozí hodnota je 60 minut. Perioda musí být větší než jedna minuta.
+    \item \verb|ZBLambCreateMockLambda| -- příznaková hodnota, zda má být vytvořena testovací Lambda funkce. Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne).
+    \item \verb|DemoCreateNetwork| -- zda má šablona vytvářet síťovou infrastrukturu. Možné hodnoty jsou \verb|yes| (ano) a \verb|no| (ne, výchozí).
+    \item \verb|ZBLambVPC| -- ID virtuálního privátního cloudu, v němž mají být vytvořeny EC2 instance a všechny nasazované Lambda funkce. Při vytváření síťové infrastruktury pomocí šablony tohoto projektu není tento parametr potřeba vyplňovat, protože šablona \verb|networking.yaml| vrací exportní ID VPC.
+    \item \verb|ZBLambPrivSubnet| -- ID privátní podsítě, do níž má být umístěna EC2 instance se Zabbix proxy. Obdobně jako v předchozím parametru není tento parametr potřeba vyplňovat, pokud je VPC vytvářeno pomocí šablony \verb|networking.yaml|.
+    \item \verb|ZBLambPubSubnet| -- ID veřejné podsítě, do níž má být umístěna EC2 instance se Zabbix serverem a webovým rozhraním. Není třeba vyplňovat, pokud je VPC vytvářeno pomocí šablony \verb|networking.yaml|.
+    \item \verb|ZBLambCreateProxy| -- příznaková hodnota, zda má být vytvořena EC2 instance se Zabbix proxy. Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne).
+\end{itemize}
+
+Zbylé parametry šablon jsou nastaveny na výchozí a není je v ukázkovém systému možné měnit.
 
 \section{Benchmarking}
 % bench skript, skript na generování vstupu do Transf. Lambdy
