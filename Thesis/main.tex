@@ -879,7 +879,7 @@ Ve výsledném systému proběhlo testování výkonu (benchmarking) nejkritičt
 
 Před prezentováním výsledků je třeba rozebrat metodiku testování. Testovací skript nechává generovat vstupy s postupně rostoucím počtem záznamů a funkcí podle uživatelského nastavení. Nad každým vygenerovaným vstupem následně pomocí nástroje AWS SAM CLI invokuje \emph{vzdálenou} transformační Lambda funkci v cloudovém prostředí\footnote{Je tedy potřeba, aby byla nasazena alespoň Transformační funkce a nakonfigurovaný Zabbix server s objevenými Lambda funkcemi.}. Po vykonání funkce AWS Lambda odpoví zprávou zahrnující čas trvání invokace nebo chybu. Pro jeden počet záznamů a funkcí skript provede počet opakování, který zadal uživatel. Ze všech opakování jsou pak vypočítány statistiky průměr, směrodatná odchylka, minimum, maximum trvání a počet chyb. Skript nejprve navyšuje počet funkcí a poté počet záznamů. Pokud vygenerovaná vstupní data převyšují maximální velikost 6 MB\cite{lambda.docs.aws}, skript nad nimi transformační Lambdu neinvokuje a přeskočí na další vyšší počet záznamů -- přeskočí vyšší počty funkcí pro daný počet záznamů, jelikož další vstupy by akorát obsahovaly stejně nebo více dat a také přesahovaly maximální velikost.
 
-Vstupní data odpovídají formátu představenému v sekci \ref{sec:transf-lambda}. Skript generuje vstupy s metrikami \uv{Errors} a \uv{Duration} s dimenzemi pro název funkce a její verze, pouze pro název funkce a bez specifikovaných dimenzí. Verze jsou každé vstupní funkci generovány staticky -- tři verze pro každou funkci. Skript tedy generuje čtyři objekty JSON (tři s verzemi a jeden pouze s názvem funkce) pro každou funkci. Každý záznam tedy obsahuje $4*n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí. Zbylé dva objekty jsou pro obě metriky bez specifikovaných dimenzí. 
+Vstupní data odpovídají formátu představenému v sekci \ref{sec:transf-lambda}. Skript generuje vstupy s metrikami \uv{Errors} a \uv{Duration} s dimenzemi pro název funkce a její verze, pouze pro název funkce a bez specifikovaných dimenzí. Verze jsou každé vstupní funkci generovány staticky -- tři verze pro každou funkci. Skript tedy generuje čtyři objekty JSON (tři s verzemi a jeden pouze s názvem funkce) pro každou funkci u obou metrik. Každý záznam tedy obsahuje $2*(4*n_f+1) = 8*n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí. Násobení dvěma na levé straně odpovídá dvěma metrikám, zvětšení o jedna uvnitř závorky odpovídá objektu bez dimenzí.
 
 Výstup testovacího skriptu je textový řetězec ve formátu CSV, který obsahuje hlavičku s následujícími sloupci:
 
@@ -962,6 +962,59 @@ Testovací skript byl spuštěn tak, aby generoval vstupy s počtem záznamů od
     9 & 100 & 2553.3708333333334 & 94.13775317039219 & 2457.3 & 2838.68 & 0 & 12 \\ \hline
 \end{longtable}
 \end{center}
+
+Pro přehlednost byla část tabulky zpracována do grafu \ref{fig:benchmark}. Do grafu byly zaznamenány řádky z tabulky s jedním až pěti záznamy včetně -- zbylé počty záznamů zahrnují pouze dva nebo jeden řádek a jejich trendy odpovídají řádkům předchozím. Graf znázorňuje všechny sloupce s výjimkou posledního, nýbrž je pro všechny průběhy stejný. Vodorovná osa značí celkový počet vstupních funkcí, z nichž byly generovány metriky -- jedná se tedy o násobek počtu záznamů a počtu funkcí na záznam. Svislá osa pak představuje dobu trvání invokace transformační Lambda funkce v milisekundách. Body grafu jsou barevně odděleny podle počtu záznamů. Samotné body pak reprezentují průměrný čas trvání invokace transformační Lambda funkce z dvanácti opakování pro daný celkový počet funkcí. Svislé úsečky procházející body spojují minima a maxima této doby z tabulky, průhledné oblasti kolem bodů pak znázorňují směrodatnou odchylku od průměru. Červený křížek značí, že v daném případě došlo alespoň k jedné chybě v invokaci transformační Lambda funkce. Nakonec vizualizace obsahuje také graf lineární funkce, která pomocí metody \uv{nejmenších čtverců} nejlépe aproximuje průběh průměrné doby trvání invokace transformační Lambda funkce. Funkce je znázorněna černou přerušovanou čarou a její rovnice je uvedena v popisu grafu.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/bech_results_1-5.png}
+    \caption{Výsledky benchmarkingu transformační Lambda funkce}
+    \label{fig:benchmark}
+\end{figure}
+
+První viditelnou vlastností dat z tabulky je, že pro navyšující se počet záznamů ubývá řádků v tabulce. To vyplívá z chování testovacího skriptu. Byl sice spuštěn tak, aby pro všechny počty záznamů generoval stejné počty funkcí na záznam, avšak skript přeskakuje vygenerované vstupy větší než maximální velikost 6 MB. Skutečné velikosti vstupů nebyly měřeny a tak lze pouze z dat jak v tabulce, tak v grafu odvodit, že hranice maximální velikosti je překročena kolem počtu 1~800 celkových funkcí -- nejblíže se k ní dostaly běhy s jedním záznamem. Je však nutné si uvědomit, že se jedná o počet vstupních funkcí, pro něž je generováno více objektů JSON. Skutečný počet metrik, které musí transformační Lambda zpracovat, je o dvě větší než osminásobek počtu funkcí. Lze tak odhadnout, že vstupy do funkce mohou mít vzhledem k limitacím AWS nanejvýš zhruba 14~400 metrik. 
+
+Nutné je také podotknout, že skript volal transformační Lambda funkcí \emph{přímo}, ve skutečném systému přichází vstupní data z AWS Firehose, u nějž je velikost shraňovaných dat nastavitelná maximálně na velikost 3 MB\cite{firehose.docs.aws}, viz výše. Jestliže růst velikosti vstupních dat je lineární, jak napovídá logika, nejobjemnější možný vstup do transformační Lambda funkce bude obshovat zhruba 7~200 metrik (polovina pro poloviční objem dat), což pro testovací skript představuje zhruba 900 funkcí.
+
+V grafu dále vidíme, že mezi různými počty záznamů je doba trvání pro shodný celkový počet vstupních funkcí porovnatelný a skutečným rozhodujícím faktorem je právě celkový počet vstupních metrik. Podle očekávání doba trvání invokace roste s počtem metrik lineárně (alespoň na daném vzorku dat). Díky tomuto pozorování dává smysl body proložit přímku, která nejlépe aproximuje průběh průměrné doby trvání invokace transformační Lambda funkce. Nalezená přímka odpovídá předpisu $t = 2,40x + 421,99$, kde $t$ je doba trvání funkce a $x$ je celkový počet vstupních funkcí. Z výše uvedeného vztahu mezi počtem funkcí vstupujících do testovacího skriptu a počtem vygenerovaných metrik lze odvodit vztah, který velmi zhruba umožňuje odhadnout průměrnou dobu invokace transformační Lambda funkce pro libovolný počet vstupů. Nechť $m$ značí počet metrik (JSON objektů), které funkce zpracovává. Pak platí:
+
+\begin{equation}
+    m = 8x + 2
+    x = \frac{m-2}{8}
+    t = 2,40\frac{m-2}{8} + 421,99
+    t = 0,30m - 0,60 + 421,99
+    t = 0,30m + 421,39
+\end{equation}
+
+Je ale třeba uvědomit si, že transformační Lambda funkce ze vstupních dat skutečně zpracovávala pouze dvě pětiny funkcí, pro něž byly metriky generovány -- zbylé byly odfiltrovány. Vztah může sloužit také k orientačnímu odhadu nastavení časového limitu Lambda funkce, koniguraci \verb|ZBLambLambdaTimeout|. Pokud má uživatel představu o počtu metrik zasílaných z AWS CloudWatch, může tuto hodnotu dosadit do vzorce za $m$. Bylo by pak však vhodné výsledný limit navýšit, jelikož se jedná o hrubý odhad. Pokud je ale skutečným možným maximálním počtem metrik 7~200, pak invokace transformační Lambda funkce měla nejdéle trvat zhruba 2~582,39 ms. Výchozí nastavení časového limitu 5 sekund se tedy zdá být rozumný.
+
+Všechny body grafu dále leží na své úsečce spojující minimum s maximem znatelně blíže minimu. To napovídá, že se doba trvání invokace transformační Lambda funkce k vyšším hodnotám nevychyluje příliš často. Rozdíly mezi průměrnými časy a maximalními časy dosahují průměru 359,43 ms, který je ale značně ovlivněn neobvykle vysokými hodnotami prvního a desátého experimentu. 
+
+Směrodatné odchylky rostou společně s počtem funkcí, což je očekávané, avšak ne výrazně. Poměřením směrodatné odchylky a průměrné doby trvání invokace transformační Lambda funkce získáme koeficient variace, jehož hodnoty si zachovávají konstantní trend i při zvyšujícím se počtu funkcí. Koeficient variace v průměru činí 0,06, jejž opět zkresluje první experiment s hodnotou 0,60 a desátý experiment s 0,26. Bez prvního experimentu je průměrný koeficient variace téměř 0,05. 
+
+Pro lepší názornost byly zpracovány další dva grafy v obrázku \ref{fig:benchmark-2} zachycující jednak rozdíly mezi maximálními a minimálními hodnotami a mezi průměrem a jednak koeficienty variací. V grafu s rozdíly kromě nerostoucího rozdílu mezi průměrem a maximem dále vidíme, že roste rozdíl mezi průměrem a minimen a tak také rozdíl mezi oběma extrémy. Toto chování je však konzistentní se zjištěním, že roste také směrodatná odchylka. Do grafu s koeficienty variace byly zaneseny přímky znázorňující jejich průměrnou hodnotu a graf regresní \uv{křivky} podobně jako v předchozím grafu. Ve druhém grafu byl vynechán první experiment značně zkreslující hodnoty.
+
+\begin{figure}[htb!]
+    \centering
+    \begin{subfigure}{\textwidth}
+  	\centering
+  	\includegraphics[width=\linewidth]{figs/min_max_1-5.png}
+  	\caption{Rozdíly mezi průměrem, maximem a minimem všech experimentů}
+    \end{subfigure}
+
+    \begin{subfigure}{\textwidth}
+  	\centering
+  	\includegraphics[width=\linewidth]{figs/coef_var_graph_1-5_outlier_gone.png}
+  	\caption{Koeficienty variace všech experimentů bez prvního}
+    \end{subfigure}
+    
+    \caption{Dodatečné charakteristiky benchmarkingu transformační Lambda funkce}
+    \label{fig:benchmark-2}
+\end{figure}
+
+Chyba transformační Lambda funkce se v experimentech objevila pouze jedna a hodnota maximální doby trvání daného experimentu nám zároveň udává důvod -- funkce běžela déle než maximální povolenou dobu 5 sekund. Takto zvýšená doba trvání funkce je však společně s prvním experimentem ojedinělá a lze se tak domnívat, že problémy vznikly na straně AWS.
+
+Z výše uvedeného vyplývá, že transformační Lambda funkce je spolehlivá a stabilní.
 
 \chapter{Diskuze}
 % zhodnocení, co by bylo dobrý udělat atp.
