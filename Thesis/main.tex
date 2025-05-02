@@ -497,7 +497,7 @@ Výslednou architekturu systému pro monitorování AWS Lambda funkcí znázorň
 
 Tento návrh byl již představen v analýze, doposud však nebyl popsán způsob automatikého objevování Lambda funkcí. Možnými metodami se zabývá pozdější sekce \ref{sec:lld-aws}. Konečná implementace představuje další Lambda funkci, jejíž úlohou je právě nalezení všech monitorovaných Lambda funkcí (a jejich priorit) a zaslání těchto informací do systému Zabbix. Tato Lambda funkce je spouštěna pomocí služby AWS EventBridge, která mimo jiné poskytuje plánovače schopné spouštět Lambda funkce periodicky.
 
-\begin{figure}[H]
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{figs/arch_simple_diag.png}
     \caption{Architektura systému pro monitorování AWS Lambda funkcí}
@@ -550,7 +550,7 @@ Metriky jsou tedy předány v poli \verb|data| jako textový řetězec zakódova
 \begin{itemize}
     \item \textbf{namespace} -- jméno jmenného prostoru, do něhož metriky patří; pro metriky AWS Lambda je to \uv{AWS/Lambda}
     \item \textbf{dimensions} -- objekt obsahující dimenze metriky; pro metriky AWS Lambda může obsahovat dimenze \uv{FunctionName} a \uv{Resource}
-    \item \textbf{metric_name} -- název metriky
+    \item \textbf{metric\_name} -- název metriky
     \item \textbf{timestamp} -- časová značka hodnoty metriky (statistiky) v milisekundách
     \item \textbf{value} -- objekt s poli odpovídajícími statistikám metriky; bez dodatečné konfigurace AWS CloudWatch zasílá metriky \uv{count}, \uv{max}, \uv{min} a \uv{sum} (viz sekci \ref{sec:aws-cloudwatch-metrics})
 \end{itemize}
@@ -619,11 +619,11 @@ Jelikož systém sestává ze dvou stran, AWS a Zabbix, je potřeba obě strany 
 Prvním krokem konfigurace systému je definování \uv{konfiguračních metrik}. Tyto konfigurační jednotky popisují, které metriky z AWS CloudWatch budou odpovídat kterým prototypům datových elementů v systému zabbix a chování spouštěčů. Jedná se o nejsložitější krok konfigurace a tak bude dopodrobna popsán ve vlastní podsekci, která následuje tuto sekci. Po definování konfiguračních metrik je potřeba vygenerovat konfigurační soubory pro různé komponenty projektu pomocí Python skriptu \verb|prj_config.py| umístěného v kořenovém adresáři projektu. Skript je třeba spustit z příkazové řádky a nevyžaduje žádné knihovny. Skript interaktivně provede uživatele vyplňováním konfiguračních proměnných ve dvou sadách. První sada proměnnýh vyplňuje konfiguraci Python skriptů pro následující konfiguraci systému Zabbix a pro obě Lambda funkce (transformační a objevovací). V první sadě uživatel vyplní dvě hodnoty:
 
 \begin{itemize}
-    \item \textbf{ZBX_SUFFIX} -- přípona pro názvy síťových uzlů a datových elementů v systému Zabbix; výchozí hodnota je \uv{zblamb}
-    \item \textbf{AWS_PRIO_VAR} -- název proměnné prostředí pro priority metrik Lambda funkcí; výchozí hodnota je \uv{ZBLAMB_PRIO}
+    \item \textbf{ZBX\_SUFFIX} -- přípona pro názvy síťových uzlů a datových elementů v systému Zabbix; výchozí hodnota je \uv{zblamb}
+    \item \textbf{AWS\_PRIO\_VAR} -- název proměnné prostředí pro priority metrik Lambda funkcí; výchozí hodnota je \uv{ZBLAMB\_PRIO}
 \end{itemize}
 
-Hodnota \textbf{ZBX_SUFFIX} slouží zejména pro uživatele pro rozeznání entit v systému Zabbix, které patří systému pro monitorování Lambda funkcí. Názvy entit patřící systému jsou hierarchické -- podobně jako záznamy DNS -- a tak je uživatel může snadno rozeznat. \uv{Kořenovým} názvem je pak právě hodnota této konfigurace. Druhá konfigurace pak systému říká, jak se nazývá proměnná prostředí, jež obsahuje priority metrik Lambda funkcí. Uživatel pak u Lambda funkcí, které chce monitorovat, nastaví tuto proměnnou prostředí na seznam priorit. Konfigurační skript následně k těmto hodnotám přidá i další konfigurace, které uživatel nemůže ovlivnit\footnote{Leda by uživatel upravil konfigurační skript.}. Patří mezi ně například také seznam AWS metrik a jejich statistik, podle nějž transformační Lambda funkce vybírá, které hodnoty zasílat do systému Zabbix. Seznam je automatiky vytvořen na základě konfigurace metrik.
+Hodnota \textbf{ZBX\_SUFFIX} slouží zejména pro uživatele pro rozeznání entit v systému Zabbix, které patří systému pro monitorování Lambda funkcí. Názvy entit patřící systému jsou hierarchické -- podobně jako záznamy DNS -- a tak je uživatel může snadno rozeznat. \uv{Kořenovým} názvem je pak právě hodnota této konfigurace. Druhá konfigurace pak systému říká, jak se nazývá proměnná prostředí, jež obsahuje priority metrik Lambda funkcí. Uživatel pak u Lambda funkcí, které chce monitorovat, nastaví tuto proměnnou prostředí na seznam priorit. Konfigurační skript následně k těmto hodnotám přidá i další konfigurace, které uživatel nemůže ovlivnit\footnote{Leda by uživatel upravil konfigurační skript.}. Patří mezi ně například také seznam AWS metrik a jejich statistik, podle nějž transformační Lambda funkce vybírá, které hodnoty zasílat do systému Zabbix. Seznam je automatiky vytvořen na základě konfigurace metrik.
 
 Druhá sada konfiguračních proměnných se týká šablon služby AWS CloudFormation, respektive AWS SAM. Těchto proměnných je mnoho a ne všechny musí být při nasazení projektu využity v závislosti na tom, které šablony uživatel použije. Jednotlivé konfigurační hodnoty budou vysvětleny v pozdější sekci, která se šablonami v projektu zabývá.
 
@@ -666,11 +666,11 @@ Soubor nejprve importuje potřebné třídy z projektu. Jelikož adresářová s
 
 \begin{itemize}
     \item \textbf{name} -- jedinečný název metriky v rámci systému monitorování Lambda funkcí
-    \item \textbf{zbx_value_type} -- datový typ hodnoty metriky v systému Zabbix
-    \item \textbf{aws_metric_name} -- název metriky z AWS CloudWatch, jež má být sledována
-    \item \textbf{aws_statistic_name} -- statistika metriky z AWS CloudWatch, jež má být sledována
-    \item \textbf{zbx_trigger_expression_pattern} -- vzor pro logický výraz prototypů spouštěčů v systému Zabbix
-    \item \textbf{priority_mapping} -- tabulka priorit a severit pro danou metriku
+    \item \textbf{zbx\_value\_type} -- datový typ hodnoty metriky v systému Zabbix
+    \item \textbf{aws\_metric\_name} -- název metriky z AWS CloudWatch, jež má být sledována
+    \item \textbf{aws\_statistic\_name} -- statistika metriky z AWS CloudWatch, jež má být sledována
+    \item \textbf{zbx\_trigger\_expression\_pattern} -- vzor pro logický výraz prototypů spouštěčů v systému Zabbix
+    \item \textbf{priority\_mapping} -- tabulka priorit a severit pro danou metriku
 \end{itemize}
 
 Název metriky je jedinečným identifikátorem metriky a používá se na obou stranách systému monitorování Lambda funkcí. V systému Zabbix se tento název objevuje v názvu spouštěčů a v názvu makra nízkoúrovňového objevování. Na straně AWS tento název figuruje v proměnné prostředí monitorovaných Lambda funkcí pro přiřazení priority metriky. Objevovací Lambda funkce pak tento název používá pro generování zprávy pro nízkoúrovňové objevování. Z příkladu \ref{lst:metrics_def.py} by tak hodnota proměnné prostředí monitorované Lambda funkce odpovídala například výrazu \verb|errors:3| pro přiřazení priority 3 u této jediné definované metriky.
@@ -875,9 +875,11 @@ Zbylé parametry šablon jsou nastaveny na výchozí a není je v ukázkovém sy
 % bench skript, skript na generování vstupu do Transf. Lambdy
 % výsledky -- grafy? tabulka?
 
-Ve výsledném systému proběhlo testování výkonu (benchmarking) nejkritičtěší vyvíjené komponenty -- transformační Lambda funkce. Pro tyto účely byl vytvořen skript pro měření doby trvání invokace transformační Lambda funkce při různých počtech záznamů obsahujících různý počet metrik. Vstupy generuje další skript \verb|generate_events.py| umístěný v podadresáři \verb|utility_scripts| adresáře \verb|scritps|. Kromě generování vstupů tento skript dokáže zjistit všechny Lambda funkce v daném AWS účtu a regionu pomocí knihovny \verb|boto3|. Testovací skript je spustitelným Python modulem s cestou \verb|zblamb-sam.tests.stress|.
+Ve výsledném systému proběhlo testování výkonu (benchmarking) nejkritičtější vyvíjené komponenty -- transformační Lambda funkce. Pro tyto účely byl vytvořen skript pro měření doby trvání invokace transformační Lambda funkce při různých počtech záznamů obsahujících různý počet metrik. Vstupy generuje další skript \verb|generate_events.py| umístěný v podadresáři \verb|utility_scripts| adresáře \verb|scritps|. Kromě generování vstupů tento skript dokáže zjistit všechny Lambda funkce v daném AWS účtu a regionu pomocí knihovny \verb|boto3|. Testovací skript je spustitelným Python modulem s cestou \verb|zblamb-sam.tests.stress|.
 
 Před prezentováním výsledků je třeba rozebrat metodiku testování. Testovací skript nechává generovat vstupy s postupně rostoucím počtem záznamů a funkcí podle uživatelského nastavení. Nad každým vygenerovaným vstupem následně pomocí nástroje AWS SAM CLI invokuje \emph{vzdálenou} transformační Lambda funkci v cloudovém prostředí\footnote{Je tedy potřeba, aby byla nasazena alespoň Transformační funkce a nakonfigurovaný Zabbix server s objevenými Lambda funkcemi.}. Po vykonání funkce AWS Lambda odpoví zprávou zahrnující čas trvání invokace nebo chybu. Pro jeden počet záznamů a funkcí skript provede počet opakování, který zadal uživatel. Ze všech opakování jsou pak vypočítány statistiky průměr, směrodatná odchylka, minimum, maximum trvání a počet chyb. Skript nejprve navyšuje počet funkcí a poté počet záznamů. Pokud vygenerovaná vstupní data převyšují maximální velikost 6 MB\cite{lambda.docs.aws}, skript nad nimi transformační Lambdu neinvokuje a přeskočí na další vyšší počet záznamů -- přeskočí vyšší počty funkcí pro daný počet záznamů, jelikož další vstupy by akorát obsahovaly stejně nebo více dat a také přesahovaly maximální velikost.
+
+\todo{do výrazů nedávat *}
 
 Vstupní data odpovídají formátu představenému v sekci \ref{sec:transf-lambda}. Skript generuje vstupy s metrikami \uv{Errors} a \uv{Duration} s dimenzemi pro název funkce a její verze, pouze pro název funkce a bez specifikovaných dimenzí. Verze jsou každé vstupní funkci generovány staticky -- tři verze pro každou funkci. Skript tedy generuje čtyři objekty JSON (tři s verzemi a jeden pouze s názvem funkce) pro každou funkci u obou metrik. Každý záznam tedy obsahuje $2*(4*n_f+1) = 8*n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí. Násobení dvěma na levé straně odpovídá dvěma metrikám, zvětšení o jedna uvnitř závorky odpovídá objektu bez dimenzí.
 
@@ -902,10 +904,10 @@ Testovací skript byl spuštěn tak, aby generoval vstupy s počtem záznamů od
 
 \begin{center}
 \begin{longtable}{l l | c c c c c c}
-\caption{Benchmarking transformační Lambda funkce}\\
+\caption{Benchmarking transformační Lambda funkce: $n_r$ je počet záznamů ve vstupních datech, $n_f$ je počet funkcí v každém záznamu, $\bar{T}$ je průměrná doba běhu Transformační funkce z dvanácti opakování, $\sigma_T$ je směrodatná odchylka doby trvání, min($T$) a max($T$) jsou minimální a maximální doba trvání a $n_E$ je počet chyb ve dvanácti opakováních. Racionální čísla byla zaokrouhlena na dvě desetinná místa.}\\
 \label{tab:benchmark}\\
 \toprule[1.5pt]
-\textbf{počet záznamů} & \textbf{počet funkcí} & \textbf{průměrná doba trvání} & \textbf{směrodatná odchylka} & \textbf{minimální doba trvání} & \textbf{maximální doba trvání} & \textbf{počet chyb} & \textbf{skutečný počet opakování}\\
+\textbf{$n_r$} & \textbf{$n_f$} & \textbf{$\bar{T}$} & \textbf{$\sigma_T$} & \textbf{min($T$)} & \textbf{max($T$)} & \textbf{$n_E$}\\
 \midrule
 \endfirsthead
 \multicolumn{8}{c}{\tablename{}~\thetable{}
@@ -920,58 +922,59 @@ Testovací skript byl spuštěn tak, aby generoval vstupy s počtem záznamů od
 \endfoot
 \bottomrule[1.5pt]
 \endlastfoot
-    1 & 100 & 807.6416666666667 & 487.7814719697435 & 610.89 & 2316.66 & 0 & 12 \\ \hline
-    1 & 200 & 886.5558333333333 & 25.87214734677687 & 861.51 & 946.11 & 0 & 12 \\ \hline
-    1 & 300 & 1119.6083333333333 & 58.255280343319846 & 1079.17 & 1295.97 & 0 & 12 \\ \hline
-    1 & 400 & 1377.1441666666667 & 114.72646111974608 & 1299.88 & 1732.69 & 0 & 12 \\ \hline
-    1 & 500 & 1618.2225 & 113.65109511330962 & 1535.7 & 1962.43 & 0 & 12 \\ \hline
-    1 & 600 & 1822.6916666666666 & 41.53660287972377 & 1776.91 & 1915.85 & 0 & 12 \\ \hline
-    1 & 700 & 2099.3283333333334 & 128.09137504377898 & 2014.14 & 2493.66 & 0 & 12 \\ \hline
-    1 & 800 & 2356.95 & 102.6629897019635 & 2285.29 & 2668.42 & 0 & 12 \\ \hline
-    1 & 900 & 2570.8908333333334 & 97.78558570653297 & 2497.16 & 2870.59 & 0 & 12 \\ \hline
-    1 & 1000 & 3192.4783333333335 & 832.2018666802309 & 2763.24 & 5058.53 & 1 & 12 \\ \hline
-    1 & 1250 & 3430.4775 & 184.80777193048212 & 3301.04 & 3931.73 & 0 & 12 \\ \hline
-    1 & 1500 & 3987.695833333333 & 98.23170942015649 & 3878.34 & 4273.5 & 0 & 12 \\ \hline
-    1 & 1750 & 4602.71 & 166.070417211276 & 4457.28 & 4965.51 & 0 & 12 \\ \hline
-    2 & 100 & 863.9775 & 16.096113661378023 & 836.98 & 891.63 & 0 & 12 \\ \hline
-    2 & 200 & 1330.2675 & 33.67052099524016 & 1293.54 & 1406.86 & 0 & 12 \\ \hline
-    2 & 300 & 1865.3425 & 105.54725207438867 & 1760.92 & 2154.52 & 0 & 12 \\ \hline
-    2 & 400 & 2319.8816666666667 & 130.38092497359307 & 2220.65 & 2720.28 & 0 & 12 \\ \hline
-    2 & 500 & 2802.3766666666666 & 99.98811077808055 & 2721.62 & 3105.05 & 0 & 12 \\ \hline
-    2 & 600 & 3287.3825 & 142.3910548853531 & 3188.48 & 3722.77 & 0 & 12 \\ \hline
-    2 & 700 & 3767.9441666666667 & 141.49500283230898 & 3649.54 & 4098.15 & 0 & 12 \\ \hline
-    2 & 800 & 4256.121666666667 & 141.59920793520988 & 4114.96 & 4669.67 & 0 & 12 \\ \hline
-    3 & 100 & 1121.3966666666668 & 21.513472030053155 & 1081.51 & 1146.24 & 0 & 12 \\ \hline
-    3 & 200 & 1837.4758333333334 & 118.3907892193042 & 1760.31 & 2206.76 & 0 & 12 \\ \hline
-    3 & 300 & 2563.554166666667 & 133.63738858012442 & 2486.65 & 2976.51 & 0 & 12 \\ \hline
-    3 & 400 & 3267.935 & 115.48494301698541 & 3182.77 & 3574.65 & 0 & 12 \\ \hline
-    3 & 500 & 4014.1191666666664 & 159.34753713236844 & 3903.22 & 4409.56 & 0 & 12 \\ \hline
-    4 & 100 & 1317.9816666666666 & 15.600010392381927 & 1296.7 & 1353.09 & 0 & 12 \\ \hline
-    4 & 200 & 2311.0375 & 113.67278031301473 & 2226.43 & 2644.68 & 0 & 12 \\ \hline
-    4 & 300 & 3275.0791666666664 & 109.47286060176444 & 3182.81 & 3593.26 & 0 & 12 \\ \hline
-    4 & 400 & 4226.0216666666665 & 136.63603682998894 & 4086.65 & 4523.18 & 0 & 12 \\ \hline
-    5 & 100 & 1586.695 & 35.78591101638643 & 1542.26 & 1643.97 & 0 & 12 \\ \hline
-    5 & 200 & 2776.548333333333 & 111.63534311916332 & 2670.33 & 3111.93 & 0 & 12 \\ \hline
-    5 & 300 & 4010.6375 & 153.59984647985948 & 3906.39 & 4393.6 & 0 & 12 \\ \hline
-    6 & 100 & 1852.2875 & 88.900307405645 & 1783.94 & 2102.6 & 0 & 12 \\ \hline
-    6 & 200 & 3271.0175 & 114.46010850351477 & 3200.02 & 3624.76 & 0 & 12 \\ \hline
-    7 & 100 & 2078.515 & 116.38450408413092 & 1991.35 & 2435.1 & 0 & 12 \\ \hline
-    7 & 200 & 3748.1625 & 123.38632944204892 & 3658.17 & 4130.05 & 0 & 12 \\ \hline
-    8 & 100 & 2317.7425 & 104.54108414876904 & 2233.91 & 2618.38 & 0 & 12 \\ \hline
-    8 & 200 & 4263.754166666667 & 153.39055876234443 & 4113.23 & 4608.57 & 0 & 12 \\ \hline
-    9 & 100 & 2553.3708333333334 & 94.13775317039219 & 2457.3 & 2838.68 & 0 & 12 \\ \hline
+1 & 100 & 807.64 & 487.78 & 610.89 & 2316.66 & 0 \\ \hline
+1 & 200 & 886.56 & 25.87 & 861.51 & 946.11 & 0 \\ \hline
+1 & 300 & 1119.61 & 58.26 & 1079.17 & 1295.97 & 0 \\ \hline
+1 & 400 & 1377.14 & 114.73 & 1299.88 & 1732.69 & 0 \\ \hline
+1 & 500 & 1618.22 & 113.65 & 1535.70 & 1962.43 & 0 \\ \hline
+1 & 600 & 1822.69 & 41.54 & 1776.91 & 1915.85 & 0 \\ \hline
+1 & 700 & 2099.33 & 128.09 & 2014.14 & 2493.66 & 0 \\ \hline
+1 & 800 & 2356.95 & 102.66 & 2285.29 & 2668.42 & 0 \\ \hline
+1 & 900 & 2570.89 & 97.79 & 2497.16 & 2870.59 & 0 \\ \hline
+1 & 1000 & 3192.48 & 832.20 & 2763.24 & 5058.53 & 1 \\ \hline
+1 & 1250 & 3430.48 & 184.81 & 3301.04 & 3931.73 & 0 \\ \hline
+1 & 1500 & 3987.70 & 98.23 & 3878.34 & 4273.50 & 0 \\ \hline
+1 & 1750 & 4602.71 & 166.07 & 4457.28 & 4965.51 & 0 \\ \hline
+2 & 100 & 863.98 & 16.10 & 836.98 & 891.63 & 0 \\ \hline
+2 & 200 & 1330.27 & 33.67 & 1293.54 & 1406.86 & 0 \\ \hline
+2 & 300 & 1865.34 & 105.55 & 1760.92 & 2154.52 & 0 \\ \hline
+2 & 400 & 2319.88 & 130.38 & 2220.65 & 2720.28 & 0 \\ \hline
+2 & 500 & 2802.38 & 99.99 & 2721.62 & 3105.05 & 0 \\ \hline
+2 & 600 & 3287.38 & 142.39 & 3188.48 & 3722.77 & 0 \\ \hline
+2 & 700 & 3767.94 & 141.50 & 3649.54 & 4098.15 & 0 \\ \hline
+2 & 800 & 4256.12 & 141.60 & 4114.96 & 4669.67 & 0 \\ \hline
+3 & 100 & 1121.40 & 21.51 & 1081.51 & 1146.24 & 0 \\ \hline
+3 & 200 & 1837.48 & 118.39 & 1760.31 & 2206.76 & 0 \\ \hline
+3 & 300 & 2563.55 & 133.64 & 2486.65 & 2976.51 & 0 \\ \hline
+3 & 400 & 3267.93 & 115.48 & 3182.77 & 3574.65 & 0 \\ \hline
+3 & 500 & 4014.12 & 159.35 & 3903.22 & 4409.56 & 0 \\ \hline
+4 & 100 & 1317.98 & 15.60 & 1296.70 & 1353.09 & 0 \\ \hline
+4 & 200 & 2311.04 & 113.67 & 2226.43 & 2644.68 & 0 \\ \hline
+4 & 300 & 3275.08 & 109.47 & 3182.81 & 3593.26 & 0 \\ \hline
+4 & 400 & 4226.02 & 136.64 & 4086.65 & 4523.18 & 0 \\ \hline
+5 & 100 & 1586.69 & 35.79 & 1542.26 & 1643.97 & 0 \\ \hline
+5 & 200 & 2776.55 & 111.64 & 2670.33 & 3111.93 & 0 \\ \hline
+5 & 300 & 4010.64 & 153.60 & 3906.39 & 4393.60 & 0 \\ \hline
+6 & 100 & 1852.29 & 88.90 & 1783.94 & 2102.60 & 0 \\ \hline
+6 & 200 & 3271.02 & 114.46 & 3200.02 & 3624.76 & 0 \\ \hline
+7 & 100 & 2078.51 & 116.38 & 1991.35 & 2435.10 & 0 \\ \hline
+7 & 200 & 3748.16 & 123.39 & 3658.17 & 4130.05 & 0 \\ \hline
+8 & 100 & 2317.74 & 104.54 & 2233.91 & 2618.38 & 0 \\ \hline
+8 & 200 & 4263.75 & 153.39 & 4113.23 & 4608.57 & 0 \\ \hline
+9 & 100 & 2553.37 & 94.14 & 2457.30 & 2838.68 & 0 \\ \hline
 \end{longtable}
 \end{center}
 
 Pro přehlednost byla část tabulky zpracována do grafu \ref{fig:benchmark}. Do grafu byly zaznamenány řádky z tabulky s jedním až pěti záznamy včetně -- zbylé počty záznamů zahrnují pouze dva nebo jeden řádek a jejich trendy odpovídají řádkům předchozím. Graf znázorňuje všechny sloupce s výjimkou posledního, nýbrž je pro všechny průběhy stejný. Vodorovná osa značí celkový počet vstupních funkcí, z nichž byly generovány metriky -- jedná se tedy o násobek počtu záznamů a počtu funkcí na záznam. Svislá osa pak představuje dobu trvání invokace transformační Lambda funkce v milisekundách. Body grafu jsou barevně odděleny podle počtu záznamů. Samotné body pak reprezentují průměrný čas trvání invokace transformační Lambda funkce z dvanácti opakování pro daný celkový počet funkcí. Svislé úsečky procházející body spojují minima a maxima této doby z tabulky, průhledné oblasti kolem bodů pak znázorňují směrodatnou odchylku od průměru. Červený křížek značí, že v daném případě došlo alespoň k jedné chybě v invokaci transformační Lambda funkce. Nakonec vizualizace obsahuje také graf lineární funkce, která pomocí metody \uv{nejmenších čtverců} nejlépe aproximuje průběh průměrné doby trvání invokace transformační Lambda funkce. Funkce je znázorněna černou přerušovanou čarou a její rovnice je uvedena v popisu grafu.
 
-\begin{figure}[H]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figs/bech_results_1-5.png}
+    \includegraphics[width=\textwidth]{figs/bench_results_1-5.png}
     \caption{Výsledky benchmarkingu transformační Lambda funkce}
     \label{fig:benchmark}
 \end{figure}
 
+\label{lab:bench-input-size}
 První viditelnou vlastností dat z tabulky je, že pro navyšující se počet záznamů ubývá řádků v tabulce. To vyplívá z chování testovacího skriptu. Byl sice spuštěn tak, aby pro všechny počty záznamů generoval stejné počty funkcí na záznam, avšak skript přeskakuje vygenerované vstupy větší než maximální velikost 6 MB. Skutečné velikosti vstupů nebyly měřeny a tak lze pouze z dat jak v tabulce, tak v grafu odvodit, že hranice maximální velikosti je překročena kolem počtu 1~800 celkových funkcí -- nejblíže se k ní dostaly běhy s jedním záznamem. Je však nutné si uvědomit, že se jedná o počet vstupních funkcí, pro něž je generováno více objektů JSON. Skutečný počet metrik, které musí transformační Lambda zpracovat, je o dvě větší než osminásobek počtu funkcí. Lze tak odhadnout, že vstupy do funkce mohou mít vzhledem k limitacím AWS nanejvýš zhruba 14~400 metrik. 
 
 Nutné je také podotknout, že skript volal transformační Lambda funkcí \emph{přímo}, ve skutečném systému přichází vstupní data z AWS Firehose, u nějž je velikost shraňovaných dat nastavitelná maximálně na velikost 3 MB\cite{firehose.docs.aws}, viz výše. Jestliže růst velikosti vstupních dat je lineární, jak napovídá logika, nejobjemnější možný vstup do transformační Lambda funkce bude obshovat zhruba 7~200 metrik (polovina pro poloviční objem dat), což pro testovací skript představuje zhruba 900 funkcí.
@@ -979,32 +982,34 @@ Nutné je také podotknout, že skript volal transformační Lambda funkcí \emp
 V grafu dále vidíme, že mezi různými počty záznamů je doba trvání pro shodný celkový počet vstupních funkcí porovnatelný a skutečným rozhodujícím faktorem je právě celkový počet vstupních metrik. Podle očekávání doba trvání invokace roste s počtem metrik lineárně (alespoň na daném vzorku dat). Díky tomuto pozorování dává smysl body proložit přímku, která nejlépe aproximuje průběh průměrné doby trvání invokace transformační Lambda funkce. Nalezená přímka odpovídá předpisu $t = 2,40x + 421,99$, kde $t$ je doba trvání funkce a $x$ je celkový počet vstupních funkcí. Z výše uvedeného vztahu mezi počtem funkcí vstupujících do testovacího skriptu a počtem vygenerovaných metrik lze odvodit vztah, který velmi zhruba umožňuje odhadnout průměrnou dobu invokace transformační Lambda funkce pro libovolný počet vstupů. Nechť $m$ značí počet metrik (JSON objektů), které funkce zpracovává. Pak platí:
 
 \begin{equation}
-    m = 8x + 2
-    x = \frac{m-2}{8}
-    t = 2,40\frac{m-2}{8} + 421,99
-    t = 0,30m - 0,60 + 421,99
-    t = 0,30m + 421,39
+\begin{split}
+    m& = 8x + 2 \\
+    x& = \frac{m-2}{8} \\
+    t& = 2,40\frac{m-2}{8} + 421,99 \\
+    t& = 0,30m - 0,60 + 421,99 \\
+    t& = 0,30m + 421,39 \\
+\end{split}
 \end{equation}
 
-Je ale třeba uvědomit si, že transformační Lambda funkce ze vstupních dat skutečně zpracovávala pouze dvě pětiny funkcí, pro něž byly metriky generovány -- zbylé byly odfiltrovány. Vztah může sloužit také k orientačnímu odhadu nastavení časového limitu Lambda funkce, koniguraci \verb|ZBLambLambdaTimeout|. Pokud má uživatel představu o počtu metrik zasílaných z AWS CloudWatch, může tuto hodnotu dosadit do vzorce za $m$. Bylo by pak však vhodné výsledný limit navýšit, jelikož se jedná o hrubý odhad. Pokud je ale skutečným možným maximálním počtem metrik 7~200, pak invokace transformační Lambda funkce měla nejdéle trvat zhruba 2~582,39 ms. Výchozí nastavení časového limitu 5 sekund se tedy zdá být rozumný.
+Je ale třeba počítat s tím, že transformační Lambda funkce ze vstupních dat skutečně zpracovávala pouze dvě pětiny funkcí, pro něž byly metriky generovány -- zbylé byly odfiltrovány. Vztah může sloužit také k orientačnímu odhadu nastavení časového limitu Lambda funkce, koniguraci \verb|ZBLambLambdaTimeout|. Pokud má uživatel představu o počtu metrik zasílaných z AWS CloudWatch, může tuto hodnotu dosadit do vzorce za $m$. Bylo by pak však vhodné výsledný limit navýšit, jelikož se jedná o hrubý odhad. Pokud je ale skutečným možným maximálním počtem metrik 7~200, pak invokace transformační Lambda funkce měla nejdéle trvat zhruba 2~582,39 ms. Výchozí nastavení časového limitu 5 sekund se tedy zdá být rozumný.
 
 Všechny body grafu dále leží na své úsečce spojující minimum s maximem znatelně blíže minimu. To napovídá, že se doba trvání invokace transformační Lambda funkce k vyšším hodnotám nevychyluje příliš často. Rozdíly mezi průměrnými časy a maximalními časy dosahují průměru 359,43 ms, který je ale značně ovlivněn neobvykle vysokými hodnotami prvního a desátého experimentu. 
 
 Směrodatné odchylky rostou společně s počtem funkcí, což je očekávané, avšak ne výrazně. Poměřením směrodatné odchylky a průměrné doby trvání invokace transformační Lambda funkce získáme koeficient variace, jehož hodnoty si zachovávají konstantní trend i při zvyšujícím se počtu funkcí. Koeficient variace v průměru činí 0,06, jejž opět zkresluje první experiment s hodnotou 0,60 a desátý experiment s 0,26. Bez prvního experimentu je průměrný koeficient variace téměř 0,05. 
 
-Pro lepší názornost byly zpracovány další dva grafy v obrázku \ref{fig:benchmark-2} zachycující jednak rozdíly mezi maximálními a minimálními hodnotami a mezi průměrem a jednak koeficienty variací. V grafu s rozdíly kromě nerostoucího rozdílu mezi průměrem a maximem dále vidíme, že roste rozdíl mezi průměrem a minimen a tak také rozdíl mezi oběma extrémy. Toto chování je však konzistentní se zjištěním, že roste také směrodatná odchylka. Do grafu s koeficienty variace byly zaneseny přímky znázorňující jejich průměrnou hodnotu a graf regresní \uv{křivky} podobně jako v předchozím grafu. Ve druhém grafu byl vynechán první experiment značně zkreslující hodnoty.
+Pro lepší názornost byly zpracovány další dva grafy v obrázku \ref{fig:benchmark-2} zachycující jednak rozdíly mezi maximálními a minimálními hodnotami a mezi průměrem a jednak koeficienty variací. V grafu s rozdíly jednak vidíme, že minimální doby trvání se od průměrné vzdalují (rozdíl roste), avšak rozdíl mezi průměrem a maximem se zdá být počtem vstupních funkcí neovlivněn.  První vlastnost je konzistentní se zjištěním, že roste také směrodatná odchylka, konstantní rozdíly maxima od průměru dále poukazují na to, že s většímy vstupy se doba trvání posouvá blíže k maximům -- průměr je ovlivněn vyššími hodnotami. Do grafu s koeficienty variace byly zaneseny přímky znázorňující jejich průměrnou hodnotu a graf regresní \uv{křivky} podobně jako v předchozím grafu. Ve druhém grafu byl vynechán první experiment značně zkreslující hodnoty.
 
 \begin{figure}[htb!]
     \centering
     \begin{subfigure}{\textwidth}
   	\centering
-  	\includegraphics[width=\linewidth]{figs/min_max_1-5.png}
+  	\includegraphics[width=0.95\linewidth]{figs/min_max_1-5.png}
   	\caption{Rozdíly mezi průměrem, maximem a minimem všech experimentů}
     \end{subfigure}
 
     \begin{subfigure}{\textwidth}
   	\centering
-  	\includegraphics[width=\linewidth]{figs/coef_var_graph_1-5_outlier_gone.png}
+  	\includegraphics[width=0.95\linewidth]{figs/coef_var_graph_1-5_outlier_gone.png}
   	\caption{Koeficienty variace všech experimentů bez prvního}
     \end{subfigure}
     
@@ -1020,6 +1025,9 @@ Z výše uvedeného vyplývá, že transformační Lambda funkce je spolehlivá 
 % zhodnocení, co by bylo dobrý udělat atp.
 % indikátor, že systém selhává -- metriky padaj do S3 bucketu
 % AWS strana a konfigurace nezávislá na monitorovacim systému (Zabbix) -- handler pro konkr. monitor
+
+Vyvinutý systém pro monitorování AWS Lambda funkcí pomocí systému Zabbix využívá komplexní infrastrukturu složenou z již existujících komponent -- služeb AWS a systému s otevřeným zdrojovým kódem Zabbix. Systém je plně funkční a odpovídá požadavkům zákazníka, je schopen spolehlivě zpracovávat větší počty metrik, než jaké se objevují v reálném provozu (viz sekci \ref{lab:bench-input-size}), a poskytuje snadný způsob výběru monitorovaných Lambda funkcí bez požadavků na externí nástroje, pouze se znalostí vlastní konfigurace. Konfigurace sbíraných metrik a definice výstrah je poměrně náročná, avšak nejsnazší možná vzhledem k míře konfigurovatelnosti výstrah (\emph{spouštěčů}) a jejich odstupňování.
+
 \section{SPOF, bottlenecks}
 % zvlášť kapitola
 
