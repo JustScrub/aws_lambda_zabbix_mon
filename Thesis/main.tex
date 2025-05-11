@@ -479,7 +479,7 @@ Přesto lze u něj najít některé nedostatky. Z uživatelského hlediska je op
 
 Lepší model by však z těchto nedostatků mohl vyřešit pouze nepřehlednost. Pro zachování funkctionality by nebylo možné snižit náročnost konfigurace ani počet entit.
 
-\subsection{Model \uv{Funkce jako host}}
+%\subsection{Model \uv{Funkce jako host}}
 
 % pouze teoretický, neimplementován
 % dokumentace neříká, jak objevovat hosty :(
@@ -879,15 +879,13 @@ Ve výsledném systému proběhlo testování výkonu (benchmarking) nejkritičt
 
 Před prezentováním výsledků je třeba rozebrat metodiku testování. Testovací skript nechává generovat vstupy s postupně rostoucím počtem záznamů a funkcí podle uživatelského nastavení. Nad každým vygenerovaným vstupem následně pomocí nástroje AWS SAM CLI invokuje \emph{vzdálenou} transformační Lambda funkci v cloudovém prostředí\footnote{Je tedy potřeba, aby byla nasazena alespoň Transformační funkce a nakonfigurovaný Zabbix server s objevenými Lambda funkcemi.}. Po vykonání funkce AWS Lambda odpoví zprávou zahrnující čas trvání invokace nebo chybu. Pro jeden počet záznamů a funkcí skript provede počet opakování, který zadal uživatel. Ze všech opakování jsou pak vypočítány statistiky průměr, směrodatná odchylka, minimum, maximum trvání a počet chyb. Skript nejprve navyšuje počet funkcí a poté počet záznamů. Pokud vygenerovaná vstupní data převyšují maximální velikost 6 MB\cite{lambda.docs.aws}, skript nad nimi transformační Lambdu neinvokuje a přeskočí na další vyšší počet záznamů -- přeskočí vyšší počty funkcí pro daný počet záznamů, jelikož další vstupy by akorát obsahovaly stejně nebo více dat a také přesahovaly maximální velikost.
 
-\todo{do výrazů nedávat *}
-
-Vstupní data odpovídají formátu představenému v sekci \ref{sec:transf-lambda}. Skript generuje vstupy s metrikami \uv{Errors} a \uv{Duration} s dimenzemi pro název funkce a její verze, pouze pro název funkce a bez specifikovaných dimenzí. Verze jsou každé vstupní funkci generovány staticky -- tři verze pro každou funkci. Skript tedy generuje čtyři objekty JSON (tři s verzemi a jeden pouze s názvem funkce) pro každou funkci u obou metrik. Každý záznam tedy obsahuje $2*(4*n_f+1) = 8*n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí. Násobení dvěma na levé straně odpovídá dvěma metrikám, zvětšení o jedna uvnitř závorky odpovídá objektu bez dimenzí.
+Vstupní data odpovídají formátu představenému v sekci \ref{sec:transf-lambda}. Skript generuje vstupy s metrikami \uv{Errors} a \uv{Duration} s dimenzemi pro název funkce a její verze, pouze pro název funkce a bez specifikovaných dimenzí. Verze jsou každé vstupní funkci generovány staticky -- tři verze pro každou funkci. Skript tedy generuje čtyři objekty JSON (tři s verzemi a jeden pouze s názvem funkce) pro každou funkci u obou metrik. Každý záznam tedy obsahuje $2 \cdot (4n_f+1) = 8n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí. Násobení dvěma na levé straně odpovídá dvěma metrikám, zvětšení o jedna uvnitř závorky odpovídá objektu bez dimenzí.
 
 Výstup testovacího skriptu je textový řetězec ve formátu CSV, který obsahuje hlavičku s následujícími sloupci:
 
 \begin{itemize}
     \item \verb|# records| -- počet záznamů v jednom vstupu
-    \item \verb|# functions| -- počet funkcí, pro něž jsou metriky generovány v každém záznamu; každý záznam obsahuje $4*n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí
+    \item \verb|# functions| -- počet funkcí, pro něž jsou metriky generovány v každém záznamu; každý záznam obsahuje $8n_f+2$ objektů JSON s metrikami, kde $n_f$ je počet funkcí
     \item \verb|duration average| -- průměrná doba trvání invokace transformační Lambda funkce pro daný počet záznamů a funkcí
     \item \verb|duration standard deviation| -- směrodatná odchylka doby trvání invokace transformační Lambda funkce pro daný počet záznamů a funkcí
     \item \verb|duration minimum| -- minimální doba trvání invokace transformační Lambda funkce pro daný počet záznamů a funkcí
@@ -913,7 +911,7 @@ Testovací skript byl spuštěn tak, aby generoval vstupy s počtem záznamů od
 \multicolumn{8}{c}{\tablename{}~\thetable{}
     \textit{(pokračování z~předchozí stránky)}}\\
 \midrule
-%\textbf{počet záznamů} & \textbf{počet funkcí} & \textbf{průměrná doba trvání} & \textbf{směrodatná odchylka} & \textbf{minimální doba trvání} & \textbf{maximální doba trvání} & \textbf{počet chyb} & \textbf{skutečný počet opakování}\\
+%\textbf{$n_r$} & \textbf{$n_f$} & \textbf{$\bar{T}$} & \textbf{$\sigma_T$} & \textbf{min($T$)} & \textbf{max($T$)} & \textbf{$n_E$}\\
 \midrule
 \endhead
 \midrule
@@ -1028,8 +1026,22 @@ Z výše uvedeného vyplývá, že transformační Lambda funkce je spolehlivá 
 
 Vyvinutý systém pro monitorování AWS Lambda funkcí pomocí systému Zabbix využívá komplexní infrastrukturu složenou z již existujících komponent -- služeb AWS a systému s otevřeným zdrojovým kódem Zabbix. Systém je plně funkční a odpovídá požadavkům zákazníka, je schopen spolehlivě zpracovávat větší počty metrik, než jaké se objevují v reálném provozu (viz sekci \ref{lab:bench-input-size}), a poskytuje snadný způsob výběru monitorovaných Lambda funkcí bez požadavků na externí nástroje, pouze se znalostí vlastní konfigurace. Konfigurace sbíraných metrik a definice výstrah je poměrně náročná, avšak nejsnazší možná vzhledem k míře konfigurovatelnosti výstrah (\emph{spouštěčů}) a jejich odstupňování.
 
-\section{SPOF, bottlenecks}
+I přes svou úplnost vůči požadavkům systému schází některé vlastnosti, které by jej mohly vylepšit. Hlavní z absentních vlastností je idempotence nasazování systému. Dvě po sobě jdoucí nasazení systému (s rozdílnou konfigurací) mohou prvně nasazený systém přivést do nekonzistentního stavu. Pro úpravu konfigurace tak je nutné systém nejprve odstranit a poté znovu nasadit, čímž dojde ke smazání historie metrik monitorovaných Lambda funkcí v systému Zabbix. Tato skutečnost však nemusí představovat překážku, jestliže uživatel má zájem pouze o aktuální stav Lambda funkcí a ne o historii metrik, což zákazník v požadavcích neuvedl.
+
+Dalším možným vylepšením by bylo zavedení pokročilejšího modelu Lambda funkcí v systému Zabbix. Současný model vytváří entity systému Zabbix v rámci jednoho \emph{síťového uzlu} pro každou monitorovanou Lambda funkci a při větším počtu může být nepřehledný. Nový model by mohl pro každou monitorovanou Lambda funkci objevit samostatný \emph{síťový uzel} a přiřadit mu entity. Referenci Zabbix API pro verzi 5.4 uvádí metody pro vytváření a manipulaci s \emph{prototypy síťových uzlů}, avšak dokumentace se o prototypech síťových uzlů nezmiňuje. Nový model by pouze přispěl k vnitřní přehlednosti systému a nerozšiřoval by jeho funkčnost.
+
+Výhodnou vlastností by dále bylo externí upozornění na selhávání transformační a objevovací Lambda funkce. Toto chování systém podporuje, avšak nepřímo a uživatel jej musí nastavit sám pomocí konfigurační metriky, v níž vzor pro logický výraz spouštěče obsahuje některou z funkcí sledující dobu přijetí metriky, například funkci \verb|nodata| nebo \verb|count|. Vzory \verb|nodata({0}, "{1}") = 1| a \verb|count({0}, "{1}") = 0| vytvoří spouštěče generující chybovou událost při absenci dat po dobu (v sekundách) definovanou v tabulce priorit a severit. Událost generovaná takovým spouštěčem pro transformační Lambda funkci při překročení doby odpovídající součtu konfigurací \verb|ZBLambTransformBufferingSeconds| a \verb|ZBLambLambdaTimeout| může značit její výpadky. Lepší postup by však byl explicitní a více přímočarý.
+
+V další diskuzi rozeberme, zda se v systému nachází nějaka \uv{jediněčná} místa selhání (Single Point of Failure, SPoF) nebo úzká místa (bottlenecks) a případně jaká.
+
+\section{Úzká místa, SPoF}
 % zvlášť kapitola
+
+Systém je koncipován z mnoha třetími stranamy vyvíjených komponent, jež nebyly během vývoje uprovovány a za jejichž škálovatelnost a odstranění úzkých míst tak zodpovídá jejich vývojář. Těmito úzkými místy může být interní komunikace služeb AWS (posílání metrik z AWS Lambda do AWS CloudWatch a z něj do AWS FireHose) a správa připojení v systému Zabbix -- jak připojení k instancím transformační a objevovací Lambda funkce, tak připojení mezi Zabbix proxy a serverem. Systém Zabbix obstál pod větší než běžnou zátěží během benchmarkingu transformační Lambda funkce, avšak nebyl testován pod extrémními podmínkami. Vzhledem k tomu, že systém Zabbix je navržen pro zpracování velkého množství dat a jeho architektura je škálovatelná, lze předpokládat, že by obstál i v těchto podmínkách.
+
+Cloudové služby AWS jsou navrženy pro škálovatelnost a vysokou dostupnost. Spravuje je tým AWS, který se stará o jejich údržbu a definuje vlastní limity, jimiž se musí řídit i systém pro monitorování AWS Lambda funkcí. Lze tedy předpokládat, že i tyto služby obstojí pod většími zátěžemi a nejsou tedy úzkými místy.
+
+Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
 
 \chapter{Závěr}
 
