@@ -504,7 +504,7 @@ Tento návrh byl již představen v analýze, doposud však nebyl popsán způso
     \label{fig:architecture_diagram}
 \end{figure}
 
-Navržená architektura tak odpovídá kombinaci událostně řízeného a dávkovacího architektonického stylu. Vstup do systému a přechody mezi jednotlivými službami AWS jsou řízeny událostmi, které spouštěji další služby. Data se mezi jednotlivými komponentami systému přenáší v dávkách.
+Navržená architektura tak odpovídá kombinaci událostně řízeného a sekvenčně dávkovacího architektonického stylu. Vstup do systému a přechody mezi jednotlivými službami AWS jsou řízeny událostmi, které spouštěji další služby. Data se mezi jednotlivými komponentami systému přenáší sekvenčně v dávkách.
 
 \subsection{Zasílání metrik transformační Lambda funkcí}
 \label{sec:transf-lambda}
@@ -1037,11 +1037,19 @@ V další diskuzi rozeberme, zda se v systému nachází nějaka \uv{jediněčn�
 \section{Úzká místa, SPoF}
 % zvlášť kapitola
 
-Systém je koncipován z mnoha třetími stranamy vyvíjených komponent, jež nebyly během vývoje uprovovány a za jejichž škálovatelnost a odstranění úzkých míst tak zodpovídá jejich vývojář. Těmito úzkými místy může být interní komunikace služeb AWS (posílání metrik z AWS Lambda do AWS CloudWatch a z něj do AWS FireHose) a správa připojení v systému Zabbix -- jak připojení k instancím transformační a objevovací Lambda funkce, tak připojení mezi Zabbix proxy a serverem. Systém Zabbix obstál pod větší než běžnou zátěží během benchmarkingu transformační Lambda funkce, avšak nebyl testován pod extrémními podmínkami. Vzhledem k tomu, že systém Zabbix je navržen pro zpracování velkého množství dat a jeho architektura je škálovatelná, lze předpokládat, že by obstál i v těchto podmínkách.
+Systém je koncipován z mnoha třetími stranamy vyvíjených komponent, jež nebyly během vývoje uprovovány a za jejichž škálovatelnost a odstranění úzkých míst tak zodpovídá jejich vývojář. Těmito úzkými místy může být interní komunikace služeb AWS (posílání metrik z AWS Lambda do AWS CloudWatch a z něj do AWS FireHose) a správa připojení v systému Zabbix -- jak připojení k instancím transformační a objevovací Lambda funkce, tak připojení mezi Zabbix proxy a serverem. Systém Zabbix obstál pod větší než běžnou zátěží během benchmarkingu transformační Lambda funkce, avšak nebyl testován pod extrémními (nereálnými) podmínkami. Vzhledem k tomu, že systém Zabbix je navržen pro zpracování velkého množství dat a jeho architektura je škálovatelná, lze předpokládat, že by obstál i v těchto podmínkách.
 
 Cloudové služby AWS jsou navrženy pro škálovatelnost a vysokou dostupnost. Spravuje je tým AWS, který se stará o jejich údržbu a definuje vlastní limity, jimiž se musí řídit i systém pro monitorování AWS Lambda funkcí. Lze tedy předpokládat, že i tyto služby obstojí pod většími zátěžemi a nejsou tedy úzkými místy.
 
-Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
+Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně při překrývání dob běhů více invokací\footnote{Pokud bude například doba sběru dat \verb|ZBLambTransformBufferingSeconds| nastavena na jednu sekundu a jedna invokace transformační Lambda funkce bude z nějakého důvodu pracovat 3,5 sekundy, AWS Firehose spustí další dvě její instance v průběhu této invokace nad novějšími daty}. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
+
+Kvůli povaze sekvenčně dávkové architektury celého systému je pravděpodobný výskyt jedinečných míst selhání. V tomto smyslu je nejkritičtějším místem server nebo proxy systému Zabbix, při jejichž výpadku by došlo k výpadku zbytku systému. Systém je však oproti tomuto selhání chráněn -- pokud se transformační Lambda funkci nepodaří data úspěšně doručit, skončí s chybou, načež služba AWS Firehose znovu pokusí o doručení. V případě, že se doručení nezdaří ani po specifikovaném počtu pokusů, data skončí v S3 bucketu, který tak zároveň zastává roli abstraktního typu Dead Letter Queue (DLQ). Výpadek komponenty systému Zabbix neovlivní funkce systému do tohoto bodu.
+
+Dalšími jedinečnými místy selhání jsou pak obě Lambda funkce. V případě výpadku objevovací Lambda funkce za běhu systému by došlo k částečnému výpadku, jelikož by v systému Zabbix objevené funkce zůstaly a nadále byly monitorovány, avšak nové funkce by nebyly objeveny a funke se zrušeným monitoringem by v systému přetrvávaly. Výpadek této Lambda funkce po nasazení systému by znamenal selhání zbytku systému za tímto bodem. 
+
+Výpadky transformační Lambda funkce by opět znamenaly pouze částečný výpadek systému, jelikož by došlo k přerušení monitorování Lambda funkcí v systému Zabbix. Data, tedy metriky z AWS CloudWatch, by ale byla zachována ve specifikovaném S3 bucketu. 
+
+Služby AWS by se kvůli skevenčnímu zpracovávání také mohly považovat za jedinečná místa selhání. Jejich selhání je však kvůli škále poskytovale nepravděpodobný a navíc by se jednalo o mnohem závažnější problém, než je výpadek systému pro monitorování AWS Lambda funkcí.
 
 \chapter{Závěr}
 
