@@ -36,7 +36,7 @@
 %
 \acknowledgement{
 
-% poděkovat Aimtecu za umožnění spolupráce, zejména pak spolupracovníkum Lukáši Rampovi, Honzovi <>, Jirkovi <>, ... za poskytnutí informací, zpětnou vazbu a ochotu pomoct
+% poděkovat Aimtecu za umožnění spolupráce, zejména pak spolupracovníkum Lukáši Rampovi, Honzovi Šmucrovi, Jirkovi <>, ... za poskytnutí informací, zpětnou vazbu a ochotu pomoct
 
 }
 % _____________________________________________________________________________
@@ -52,14 +52,34 @@
 
 \chapter{Úvod}
 
+%V moderním světě rozvinutých informačních technologií každodenně využíváme aplikace a služby, které stojí na komplexní infrastruktuře tvořené mnoha vzájemně propojenými výpočetními jednotkami tvoříčími komunikační síť, leč se jejich uživatelům mohou zvenčí jevit jako jediný celek. Takové systémy se nazývají distribuované nebo decentralizované, i když o rozdílech těchto dvou označení panují rozdílné názory\cite{distrib_sys_4}.
+
 %\section{Termíny a jazyk}
 % termíny anglicky, v textu český překlad nebo anglicky bez skloňování jenom v 1.p. sg.
 
 \chapter{Distribuovaná výpočetní prostředí a cloud}
+Aplikace nebo služby, jež, ač se mohou na venek jevit jako jediný celek, se skládají z mnoha vzájemně propojených výpočetních jednotek tvořících komunikační síť a infrastrukturu se nazývají distribuované nebo decentralizované, i když o rozdílech těchto dvou označení panují rozdílné názory\cite{distrib_sys_4}. Takové systémy mohou nabývat různých podob -- například ve formě komunikujících softwarových komponent běžících na různých fyzických či virtuálních strojích v obrovských datových centrech, ve formě bezdrátových senzorických sítí nebo internetu věcí (IoT) anebo jako decentralizované účetní knihy (blockchain). V této práci se zaměříme na první typ distribuovaných systémů, které jsou v současnosti nejrozšířenější a nejvíce využívané.
+
+U mnoha takových aplikací není distribuovanost apriorní podmínkou pro jejich funkcionalitu -- teoreticky by bylo možné je provozovat jako monolitickou aplikaci na jednom výpočetním zařízení. Avšak distribuce komponent přináší systému mnohé výhodné mimo-funkční (non-fuctional) vlastnosti, zejména škálovatelnost, dostupnost, odolnost vůči chybám a selháním, nebo možnost rozložení zátěže mezi více výpočetních jednotek. Tyto vlastnosti jsou v současnosti pro většinu aplikací nezbytné a jejich dosažení je jedním z hlavních cílů návrhu distribuovaných systémů. Důležitým aspektem distribuovaných systémů je transparentnost, díky níž se uživatelům jeví jako monolitické aplikace se snadným jednotným rozhraním\cite{distrib_sys_4}.
+
+Provoz datových center a správa výpočetních prostředků je náročná činnost, která vyžaduje značné investice do hardwaru, softwaru a lidských zdrojů. Tato skutečnost vedla k rozvoji poskytování těchto prostředků \emph{jako služeb} (zkratka \emph{aaS}, as a Service) externími poskytovateli za nižší náklady díky úsporám z rozsahu \cite{cloud_theory_practice}, což umožňuje firmám a jednotlivcům využívat výpočetní kapacity bez nutnosti investovat do vlastního hardwaru a infrastruktury (outsourcing). Tito poskytovatelé začali provozovat tzv. \emph{cloudová prostředí} [klaudová], v rámci nichž nabízí různé zdroje a služby přes internet. Cloud computing (cloudové výpočetní prostředí) se vyznačuje podle definice Národního institutu standardů a technologie (NIST) vlastnostmi samoobsluhy na vyžádání (on-demand self-service), širokým přístupem k síti (broad network access), sdílenými prostředky (resource pooling), rychlou elasticitou (rapid elasticity) a \uv{měřením služeb}, placením pouze za skutečně spotřebované zdroje poskytovatele (measured service, pay-as-you-go) \cite{cloud_patterns}. 
 
 \section{Cloud a cloudové služby}
 % IaaS/IaC, PaaS, úvod FaaS (v další sekci)
-% úložiště a konzistenční modely?
+
+Důvody vzniku cloudových služeb (ekonomická výhodnost) a jejich základní charakteristiky byly popsány v úvodu této kapitoly, v předchozím odstavci. Tato sekce dále rozebere typy cloudových služeb podle modelů nasazení a modelů služeb.
+
+Z hlediska služeb lze cloudová prostředí rozdělit do tří základních kategorií: IaaS (infrastruktura jako služba), PaaS (platforma jako služba) a SaaS (software jako služba). Model IaaS poskytuje zákazníkům základní výpočetní infrastrukturu, typicky ve formě virtuálních strojů, úložišť a síťových služeb. Zákazníci mají plnou kontrolu nad operačními systémy a aplikacemi, avšak správa fyzické infrastruktury zůstává na straně poskytovatele. Nejvýznamnějším poskytovatelem IaaS je Amazon Web Services\cite{cloud_theory_practice}. Naproti tomu model PaaS poskytuje zákazníkům platformu pro vývoj, nasazení a správu aplikací bez nutnosti správy základní infrastruktury. Zákazníci se mohou soustředit na vývoj aplikací a využívat různé nástroje a služby poskytované platformou. Příkladem PaaS služby může být Google AppEngine nebo AWS Elastic Beanstalk. Poslední model SaaS poskytuje hotové aplikace, které jsou provozovány a spravovány poskytovatelem. Zákazníci mají přístup k aplikacím přes internet bez nutnosti instalace nebo správy, příkladem mohou být Google Workspace nebo Microsoft 365 \cite{cloud_theory_practice}.
+
+Modely nasazení definuje NIST čtyři: veřejný, soukromý, hybridní a komunitní cloud. Veřejný cloud (public cloud) umožňuje poskytování služeb široké veřejnosti pomocí standardizovaného rozhraní přes internet. Tento model nabízí vysokou úroveň elasticity, dostupnost a výhodné nákladové schéma \uv{pay-per-use}, díky čemuž je vhodný pro dynamické aplikace. Privátní cloud (private cloud) je určen výhradně jedné organizaci, což umožňuje vyšší míru kontroly a zabezpečení na úkor úspor z rozsahu, jelikož skupina uživatelů je oproti veřejným cloudům značně menší. Poskytovatelé veřejných cloudů mohou také nabízet exkluzivní vyhrazení části svého prostředí pro konkrétního zákazníka jako \emph{virtuální} privátní cloud (VPC, virtual private cloud). Rozhraní k přístupu do takových cloudů může již být sdíleno více \uv{nájemníky}\cite{cloud_patterns}
+
+Mezistupněm mezi těmito dvěma extrémy se nachází komunitní cloud (community cloud), který je sdílen mezi více organizacemi se společnými cíli či požadavky. Hybridní cloud (hybrid cloud) pak představuje kombinaci výše uvedených modelů a umožňuje například využití privátního cloudu pro běžný provoz a veřejného cloudu v případě výkyvů zátěže (tzv. cloud bursting)\cite{cloud_patterns}.
+
+Poskytovatelé nabízejí šiřokou škálu cloudových služeb a produktů, které pokrývají různé potřeby a požadavky zákazníků. Mezi nejznámější poskytovatele patří Amazon Web Services (AWS), Microsoft Azure, Google Cloud Platform (GCP) a IBM Cloud\cite{cloud_theory_practice}. Častými službami jsou databáze (např. Amazon RDS, Google Cloud SQL), bloková nebo objektová úložiště (např. Amazon S3, Google Cloud Storage), výpočetní kapacity (např. Amazon EC2, Google Compute Engine), nástroje pro analýzu dat (např. Amazon Redshift, Google BigQuery) a infrastruktura jako kód (AWS CloudFormation, nástroj Terraform). Moderní trendy v cloud computingu zahrnují také serverless computing zastoupený zejména model funkce jako služba (FaaS), jemuž se bude vzhledem k orientaci této práce věnovat další sekce.
+
+Cloudová prostředí přináší mnoho zejména ekonomických výhod, avšak představují také určitá úskalí. Významnou roli hrají bezpečnostní rizika, ztráta kontroly nad daty a smluvní (právní) nejasnosti. Tradiční útoky, chyby v hypervizorech a konfiguracích mohou ve sdíleném prostředí ohrozit mnoho uživatelů současně. Data jsou uložena na serverech poskytovatele, což může vyvolávat obavy o jejich ochranu a soukromí, a distribuována napříč mnoha legislativními oblastmi, čímž vznikají problémy s jurisdikcí a souladem s regulacemi, např. GDPR\cite{cloud_theory_practice}. 
+
+Problematickým a velmi významným rizikem je také tzv. \uv{vendor lock-in}, kdy kvůli absenci standardizovaných rozhraní a protokolů je obtížné přenést aplikaci nebo data mezi různými poskytovateli cloudových služeb. Tento problém může vést k vysokým nákladům na migraci a ztrátě flexibility. V případech nejasně definovaného rozdělení zodpovědností uživatele a poskytovatele může dále docházet k právním nesrovnalostem například při úniku dat nebo selhání aplikací\cite{cloud_theory_practice}.
 
 \section{Serverless computing}
 % teorie + konkr od providerů
@@ -1043,13 +1063,13 @@ Cloudové služby AWS jsou navrženy pro škálovatelnost a vysokou dostupnost. 
 
 Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně při překrývání dob běhů více invokací\footnote{Pokud bude například doba sběru dat \verb|ZBLambTransformBufferingSeconds| nastavena na jednu sekundu a jedna invokace transformační Lambda funkce bude z nějakého důvodu pracovat 3,5 sekundy, AWS Firehose spustí další dvě její instance v průběhu této invokace nad novějšími daty}. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
 
-Kvůli povaze sekvenčně dávkové architektury celého systému je pravděpodobný výskyt jedinečných míst selhání. V tomto smyslu je nejkritičtějším místem server nebo proxy systému Zabbix, při jejichž výpadku by došlo k výpadku zbytku systému. Systém je však oproti tomuto selhání chráněn -- pokud se transformační Lambda funkci nepodaří data úspěšně doručit, skončí s chybou, načež služba AWS Firehose znovu pokusí o doručení. V případě, že se doručení nezdaří ani po specifikovaném počtu pokusů, data skončí v S3 bucketu, který tak zároveň zastává roli abstraktního typu Dead Letter Queue (DLQ). Výpadek komponenty systému Zabbix neovlivní funkce systému do tohoto bodu.
+Kvůli povaze sekvenčně dávkové architektury celého systému je pravděpodobný výskyt jedinečných míst selhání. V tomto smyslu je nejkritičtějším místem server nebo proxy systému Zabbix, při jejichž výpadku by došlo k výpadku zbytku systému. Systém je však oproti tomuto selhání chráněn -- pokud se transformační Lambda funkci nepodaří data úspěšně doručit, skončí s chybou, načež se služba AWS Firehose znovu pokusí o doručení. V případě, že se doručení nezdaří ani po specifikovaném počtu pokusů, data skončí v S3 bucketu, který tak zároveň zastává roli abstraktního typu Dead Letter Queue (DLQ). Výpadek komponenty systému Zabbix neovlivní funkce systému do tohoto bodu.
 
 Dalšími jedinečnými místy selhání jsou pak obě Lambda funkce. V případě výpadku objevovací Lambda funkce za běhu systému by došlo k částečnému výpadku, jelikož by v systému Zabbix objevené funkce zůstaly a nadále byly monitorovány, avšak nové funkce by nebyly objeveny a funke se zrušeným monitoringem by v systému přetrvávaly. Výpadek této Lambda funkce po nasazení systému by znamenal selhání zbytku systému za tímto bodem. 
 
 Výpadky transformační Lambda funkce by opět znamenaly pouze částečný výpadek systému, jelikož by došlo k přerušení monitorování Lambda funkcí v systému Zabbix. Data, tedy metriky z AWS CloudWatch, by ale byla zachována ve specifikovaném S3 bucketu. 
 
-Služby AWS by se kvůli skevenčnímu zpracovávání také mohly považovat za jedinečná místa selhání. Jejich selhání je však kvůli škále poskytovale nepravděpodobný a navíc by se jednalo o mnohem závažnější problém, než je výpadek systému pro monitorování AWS Lambda funkcí.
+Služby AWS by se kvůli skevenčnímu zpracovávání také mohly považovat za jedinečná místa selhání. Jejich selhání je však kvůli škále poskytovale nepravděpodobné a navíc by se jednalo o mnohem závažnější problém, než je výpadek systému pro monitorování AWS Lambda funkcí.
 
 \chapter{Závěr}
 
