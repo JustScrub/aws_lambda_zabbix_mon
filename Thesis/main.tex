@@ -9,6 +9,30 @@
 %\usepackage{svg}
 %\DeclareUnicodeCharacter{0301}{*************************************}
 
+\lstdefinestyle{DIP_lst_style}{
+	backgroundcolor=\color{white},
+	commentstyle=\rmfamily\itshape\color{gray},
+	keywordstyle=\bfseries,
+	numberstyle=\tiny\color{gray},
+	stringstyle=\color{black},
+	basicstyle=\ttfamily\footnotesize,  % was ttzfamily, threw errors when '-' used
+	breakatwhitespace=false,
+	breaklines=true,
+	captionpos=t,
+	frame=tb,
+	rulecolor=\color{lightgray},
+	keepspaces=true,
+	numbers=left,
+	numbersep=5pt,
+	showspaces=false,
+	showstringspaces=true,
+	showtabs=false,
+	tabsize=2,
+	extendedchars=true,
+	literate={á}{{\'a}}1 {č}{{\v{c}}}1 {ď}{{\v{d}}}1 {é}{{\'e}}1 {ě}{{\v{e}}}1 {è}{{\`{e}}}1 {í}{{\'{\i}}}1 {ľ}{{\v{l}}}1 {ň}{{\v{n}}}1 {ó}{{\'o}}1 {ŕ}{{\'r}}1 {ř}{{\v{r}}}1 {š}{{\v{s}}}1 {ť}{{\v{t}}}1 {ú}{{\'u}}1 {ů}{{\r{u}}}1 {ý}{{\'y}}1 {ž}{{\v{z}}}1
+	{Á}{{\'A}}1 {Č}{{\v{C}}}1 {Ď}{{\v{D}}}1 {É}{{\'E}}1 {Ě}{{\v{E}}}1 {È}{{\`{E}}}1 {Í}{{\'I}}1 {Ľ}{{\v{L}}}1 {Ň}{{\v{N}}}1 {Ó}{{\'O}}1 {Ŕ}{{\'R}}1 {Ř}{{\v{R}}}1 {Š}{{\v{Š}}}1 {Ť}{{\v{T}}}1 {Ú}{{\'U}}1 {Ů}{{\r{U}}}1 {Ý}{{\'Y}}1 {Ž}{{\v{Z}}}1
+}
+
 \title{Monitoring serverless aplikací založených na technologii AWS Lambda Functions}
 \author{Jakub}{Mladý}{Bc.}{}
 \supervisor{Ing. Maxmilián Otta, Ph.D.}
@@ -79,7 +103,7 @@ Poskytovatelé nabízejí šiřokou škálu cloudových služeb a produktů, kte
 
 Cloudová prostředí přináší mnoho zejména ekonomických výhod, avšak představují také určitá úskalí. Významnou roli hrají bezpečnostní rizika, ztráta kontroly nad daty a smluvní (právní) nejasnosti. Tradiční útoky, chyby v hypervizorech a konfiguracích mohou ve sdíleném prostředí ohrozit mnoho uživatelů současně. Data jsou uložena na serverech poskytovatele, což může vyvolávat obavy o jejich ochranu a soukromí, a distribuována napříč mnoha legislativními oblastmi, čímž vznikají problémy s jurisdikcí a souladem s regulacemi, např. GDPR\cite{cloud_theory_practice}. 
 
-Problematickým a velmi významným rizikem je také tzv. \uv{vendor lock-in}, kdy kvůli absenci standardizovaných rozhraní a protokolů je obtížné přenést aplikaci nebo data mezi různými poskytovateli cloudových služeb. Tento problém může vést k vysokým nákladům na migraci a ztrátě flexibility. V případech nejasně definovaného rozdělení zodpovědností uživatele a poskytovatele může dále docházet k právním nesrovnalostem například při úniku dat nebo selhání aplikací\cite{cloud_theory_practice}.
+Problematickým a velmi významným rizikem je také tzv. \uv{vendor lock-in}, kdy kvůli absenci standardizovaných rozhraní a protokolů je obtížné přenést aplikaci nebo data mezi různými poskytovateli cloudových služeb. Tento problém může vést k vysokým nákladům na migraci a ztrátě flexibility. V případech nejasně definovaného rozdělení zodpovědností uživatele a poskytovatele může dále docházet k právním nesrovnalostem například při úniku dat nebo selhání aplikací. V neposlední řadě představuje výzvu i složitost distribuovaných systémů, jejichž neočekávané interakce mohou vést k rozsáhlým výpadkům\cite{cloud_theory_practice}.
 
 \section{Serverless computing}
 % teorie + konkr od providerů
@@ -165,6 +189,7 @@ Další analyzovanou službou nechť je AWS CloudWatch. Jedná se o službu pro 
 Jelikož naším hlavním zájmem jsou Lambda funkce, budeme se v této sekci dále zaměřovat pouze na možnosti monitorování těchto funkcí v rámci CloudWatch.
 
 \subsubsection{Metriky Lambda funkcí}
+\label{sec:aws-cloudwatch-metrics}
 Metrika je z pohledu CloudWatch pojmenovaná časově seřazená množina hodnot nějaké proměnné, například využití CPU (u EC2 instancí) nebo doba výpočtu Lambda funkce. CloudWatch dělí metriky do tzv. jmenných prostorů (Namespaces), které slouží k organizaci metrik, zajištění jednoznačnosti jejich názvů a izolaci. Každá monitorovatelná AWS služba má svůj vyhrazený Namespace, pro Lambda funkce je to \texttt{AWS/Lambda}, a další jmenné prostory může definovat uživatel. 
 
 Kromě jmenného prostoru a názvu jsou metriky definovány ještě \emph{dimezemi}. Dimenze je dvojice název-hodnota přidávající další identitu dané metrice. Názvy dimenzí jsou kategorie, do nichž může metrika patřit, například jméno Lambda funkce, verze, nebo region, ve kterém je funkce spuštěna. Hodnoty dimenzí jsou konkrétní instance těchto kategorií, které od sebe oddělují metriky. Metrika může mít až 30 dimenzí (nebo žádnou). Dimenze se dají libovolně kombinovat a hodnota metriky se uloží pouze pro danou kombinaci dimenzí. Monitorovatelné služby definují vlastní dimenze a narozdíl od uživatelsky definovaných dimenzí je služba AWS CloudWatch schopna agregovat hodnoty z vynechaných dimenzí \cite{cloudwatch.docs.aws}. 
@@ -219,7 +244,7 @@ Se službou AWS Data Firehose jsme se již setkali v kontextu Metric Stream. Slu
 
 Producenti AWS Data Firehose se dělí na tři typy, jsou jimi Direct PUT, Amanzon Kinesis Data Streams a Amazon MSK. U posledních dvou se jedná o další streamovací služby AWS; Metric Streams spadá pod Direct PUT producenty, kteří posílají data do Firehose streamu přímo. Možných destinací je omezený počet, jejž z většiny tvoří služby AWS a služby třetích stran. Zabbix mezi službami není a tak bude potřeba prozkoumat jiné možnosti doručení dat z Metric Streams, jestliže se rozhodneme je využít. Poměrně flexibilními možnostmi jsou destinace AWS S3 bucket, pro niž AWS CloudWatch Metric Stream nabízí rychlou konfiguraci, a vlastní HTTP endpoint (server například běžící pod EC2), který je možné konfigurovat dle potřeb. 
 
-HTTP endpoint nabízí více možností, jelikož se jedná o vlastní software schopný zpracovávat data přesně podle potřeb zákazníka, avšak je pro něj nutný udržovat dedikovaný server a správně implementovat API komunikující s Firehose streamem. Na druhou stranu destinace v podobě S3 bucketu nabízí v předešlé sekci zmíněné integrace s Lambda funkcemi, které mohou zpracovávat data z bucketu a posílat je dále do systému Zabbix. Bucket by v takovém případě sloužil pouze jako mezikrok pro přenos dat a výhodnější by bylo streamovat metriky přímo do Lambda funkce, avšak Firehose nenabízí Lambda funkci jako destinaci. Nicméně zpracovávání metrik z CloudWatch se zdá být výhodnější z Lambda funkce z důvodů nákladů na provoz, udržovatelnosti, škákovatelnosti (o niž se za nás bude starat AWS) a mezi dalšímí také \uv{sebe-monitorovatelnosti}: pokud impementace bude realizována v Lambda funkci, je možné samotnou monitorovací funkci monitorovat bez dalších nákladů.
+HTTP endpoint nabízí více možností, jelikož se jedná o vlastní software schopný zpracovávat data přesně podle potřeb zákazníka, avšak je pro něj nutný udržovat dedikovaný server a správně implementovat API komunikující s Firehose streamem. Na druhou stranu destinace v podobě S3 bucketu nabízí v předešlé sekci zmíněné integrace s Lambda funkcemi, které mohou zpracovávat data z bucketu a posílat je dále do systému Zabbix. Bucket by v takovém případě sloužil pouze jako mezikrok pro přenos dat a výhodnější by bylo streamovat metriky přímo do Lambda funkce, avšak Firehose nenabízí Lambda funkci jako destinaci. Nicméně zpracovávání metrik z CloudWatch se zdá být výhodnější z Lambda funkce z důvodů nákladů na provoz, udržovatelnosti, škákovatelnosti (o niž se za nás bude starat AWS) a mezi dalšímí také \uv{sebe-monitorovatelnosti}: pokud implementace bude realizována v Lambda funkci, je možné samotnou monitorovací funkci monitorovat bez dalších nákladů.
 
 Firehose nabízí další zajímavou možnost ve formě transformací vstupních dat. Podporované jsou transformace komprese a dekomprese, konverze formátu dat a obecná transformace pomocí vlastní Lambda funkce, na niž se v následujícím zaměřme. Při nastavené transformaci Lambda funkcí pro daný Firehose stream jsou vstupní data shraňována podobně jako při vstupu do streamu: do naplnění nastavené velikosti nebo vypršení časového intervalu. S první splněnou podmínkou jsou data poslána do transformační Lambda funkce, která je zpracuje a vrátí zpět do Firehose streamu. 
 
@@ -250,14 +275,14 @@ Kromě usnadnění nasazování aplikací nástroj SAM CLI poskytuje mnohé dal�
 
 \todo{přepsat anglicismy do českých překladů, nebo aspoň neskloňovat}
 \section{Systém Zabbix}
-Zabbix je open-source monitorovací systém umožňující sledovat stav různých komponent infrastruktury. Je schopen monitorovat širokou škálu služeb a zdrojů, jako jsou například servery, databáze, síťová zařízení, cloudové služby nebo vlastní aplikace. Zabbix implementuje push i pull modely monitorování \cite{zabbix.docs}.
+Zabbix je open-source monitorovací systém umožňující sledovat stav různých komponent infrastruktury. Je schopen monitorovat širokou škálu služeb a zdrojů, jako jsou například servery, databáze, síťová zařízení, cloudové služby nebo vlastní aplikace. Zabbix implementuje push i pull modely monitorování \cite{docs.zabbix}.
 
 Pro pokračování analýzy možných řešení pro monitorování Lambda funkcí v Zabbixu je třeba se seznámit s jeho architekturou, komponentami a funkcemi k odhalení možnosti doručit metriky z výše popsané transformační Lambda funkce do instance Zabbix serveru. Na přání zákazníka se budeme věnovat již nepodporované verzi Zabbix 5.4.
 
 \subsection{Komponenty Zabbix}
-Systém sestává z několika komponent, jimiž jsou Zabbix server, frontend, agent a volitelně proxy. Server je hlavní komponentou systému, která ukládá a zpracovává metriky. Zabbix agent je software nainstalovaný na monitorovaných zařízeních, který sbírá data a posílá je na server, případně na proxy. Frontend je webové rozhraní pro uživatele, které umožňuje zobrazovat metriky, vytvářet grafy, alarmy a další. Proxy je volitelná komponenta distribující zátěž od serveru \cite{zabbix.docs}.
+Systém sestává z několika komponent, jimiž jsou Zabbix server, frontend, agent a volitelně proxy. Server je hlavní komponentou systému, která ukládá a zpracovává metriky. Zabbix agent je software nainstalovaný na monitorovaných zařízeních, který sbírá data a posílá je na server, případně na proxy. Frontend je webové rozhraní pro uživatele, které umožňuje zobrazovat metriky, vytvářet grafy, alarmy a další. Proxy je volitelná komponenta distribující zátěž od serveru \cite{docs.zabbix}.
 
-Proxy a agenti mohou být konfigurováni jako aktivní nebo pasivní, nastavení odpovídající modelům push a pull. V aktivním modelu agenti a proxy pravidelně posílají data na server, zatímco v pasivním modelu server žádá o data agenty a proxy. Aktivní model je výchozí \cite{zabbix.docs}.
+Proxy a agenti mohou být konfigurováni jako aktivní nebo pasivní, nastavení odpovídající modelům push a pull. V aktivním modelu agenti a proxy pravidelně posílají data na server, zatímco v pasivním modelu server žádá o data agenty a proxy. Aktivní model je výchozí \cite{docs.zabbix}.
 
 Z komponent by mohl sloužit vyvíjenému systému Zabbix agent, jelikož se stará o sběr a posílání metrik do centrální komponenty, serveru. V našem případě je však provoz specificky nakonfigurovaného agenta problematický kvůli serverless schámatu transformační Lambda funkce\footnote{Nespravujeme server, na němž funkce běží, a nemůžeme tak agenta předinstalovat.}. Nabízí se teoretická možnost poskytnout agenta jako externí rozšíření Lambda funkce, přičemž by byla potřeba zajistit komunikaci mezi agentem a kódem funkce, nebo možnost implementovat protokol Zabbix agenta v transformační Lambda funkci, aby se serveru (nebo proxy) tvářila sama jako \emph{aktivní} agent. V další sekci však zjistíme, že Zabbix nabízí vhodnější možnosti bez nutnosti instalace agenta.
 
@@ -271,7 +296,7 @@ Dále rozeberme tyto a další pojmy a funkce Zabbixu podrobně.
 \subsection{Makra}
 Zabbix umožňuje definovat \uv{makra}, pojmenované uživatelské hodnoty, která mohou být použity na různých místech konfigurace systému. Makra se dělí na \uv{vnitřní}, \uv{uživatelská} a \uv{uživatelská s kontextem}. Vnitřní makra jsou předdefinovaná a jejich hodnota může záviset, na kterém z pro dané makro podporovaných místech je použito -- například makro pro poslední hodnotu itemu. Uživatelská makra jsou definována uživatelem na jedné z několika úrovní, jimiž jsou globální úroveň, úroveň specifického hosta a úroveň šablony\footnote{Šablony budou předmětem pozdější sekce}.
 
-Uživatelská makra s kontextem mají stejné využití jako makra bez kontextu, ale umožňují \uv{zastiňovat} výchozí hodnotu makra. V definici makra je v názvu specifikován kontext jako konkrétní textový řetězec nebo jako regulární výraz. Při použití makra je také možné specifikovat kontext, v němž má být makro vyhodnoceno. V takovém případě pak Zabbix nahradí makro hodnotou podle toho, kterému kontextu makra odpovídá (rovnost řetězců nebo splnění regulárního výrazu). Pokud kontext neodpovídá žádnému z definovaných, je využita výchozí hodnota makra, tedy jakoby uživatel nepoužil kontext vůbec \cite{zabbix.docs}.
+Uživatelská makra s kontextem mají stejné využití jako makra bez kontextu, ale umožňují \uv{zastiňovat} výchozí hodnotu makra. V definici makra je v názvu specifikován kontext jako konkrétní textový řetězec nebo jako regulární výraz. Při použití makra je také možné specifikovat kontext, v němž má být makro vyhodnoceno. V takovém případě pak Zabbix nahradí makro hodnotou podle toho, kterému kontextu makra odpovídá (rovnost řetězců nebo splnění regulárního výrazu). Pokud kontext neodpovídá žádnému z definovaných, je využita výchozí hodnota makra, tedy jakoby uživatel nepoužil kontext vůbec \cite{docs.zabbix}.
 
 Pro lepší pochopení maker s kontextem uveďme příklad. Uvažujme, že uživatel definuje následující makra s hodnotami:
 
@@ -293,10 +318,10 @@ Všimněme si zároveň formátu názvu -- je obsažen ve složených závorkác
 
 Kontext tak přidává makrům jistou míru dynamičnosti a jejich využití úzce souvisí s nízkoúrovňovým objevováním (\emph{low-level discovery}), jemuž se budeme věnovat později.
 
-Hodnotu některých maker je při použití také možné transformovat pomocí \uv{makro funkcí} \cite{zabbix.docs}. Jejich použití je však poměrně omezené.
+Hodnotu některých maker je při použití také možné transformovat pomocí \uv{makro funkcí} \cite{docs.zabbix}. Jejich použití je však poměrně omezené.
 
 \subsection{Šablony}
-Šablona je v systému Zabbix předkonfigurovaná množina různých jiných entit Zabbixu. Šablony slouží ke zjednodušení konfigurace hostů sdílejících shodné monitorované prvky (itemy). Šablona může být přiřazena k několika hostům a jeden host může mít přiřazených více šablon. Navíc lze šabloně přiřadit jiné šablony, čímž se vytváří hierarchie šablon. Entity, které šablony mohou obsahovat, zahrnují itemy, triggery, pravidla pro nízkoúrovňové objevování, jimž se budeme věnovat i nadále, a vizuální prvky jako grafy nebo \uv{nástěnky} (\emph{dashboards}) \cite{zabbix.docs}.
+Šablona je v systému Zabbix předkonfigurovaná množina různých jiných entit Zabbixu. Šablony slouží ke zjednodušení konfigurace hostů sdílejících shodné monitorované prvky (itemy). Šablona může být přiřazena k několika hostům a jeden host může mít přiřazených více šablon. Navíc lze šabloně přiřadit jiné šablony, čímž se vytváří hierarchie šablon. Entity, které šablony mohou obsahovat, zahrnují itemy, triggery, pravidla pro nízkoúrovňové objevování, jimž se budeme věnovat i nadále, a vizuální prvky jako grafy nebo \uv{nástěnky} (\emph{dashboards}) \cite{docs.zabbix}.
 
 Zabbix nabízí několik předdefinovaných šablon, které pokrývají běžné případy monitorování, jako jsou například šablony pro monitorování serverů, síťových prvků, databází, cloudových služeb nebo aplikací. Uživatelé mohou samozřejmě vytvářet vlastní šablony, které odpovídají jejich potřebám.
 
@@ -333,16 +358,16 @@ V našem případě by bylo oproti předem navrhovaným přístupům přiliš ob
 
 Volba HTTP agenta by však přinášela několik problémů a nevýhod oproti datovým elementům typu Zabbix Trapper. HTTP agent není dobře škálovatelný, jelikož Zabbix Server, případně Proxy, musí dotazovat všechny koncové body, což může způsobit zbytečnou zátěž na serveru nebo proxy. Dále je nutné zajistit autentizaci a autorizaci Zabbix Serveru nebo Proxy vůči AWS REST API. 
 
-Hlavní nevýhodou pak je \emph{zbytečné} dotazování na metriky funkcí, které v daném dotazovacím intervalu nebyly spuštěny. U datových elementů typu Zabbix Trapper můžeme v transformační Lambda funkci posílat metriky pouze, když je to nutné (t.j. pouze nově získané metriky od jejího posledního volání). Další nevýhodou je nutnost konfigurace monitorování daných Lambda funkcí v Zabbixu a ne na straně AWS bez dodatečných komponent v AWS. Vývojář Lambda funkcí by tak musel mít znalost Zabbixu a ručně konfigurovat monitorování svých funkcí v systému Zabbix. U předchozího přístupu stačí označit Lambda funkci ve službě AWS Lambda -- vývojář tak pouze potřebuje znát formát značení, jejž si představíme později v kapitole \ref{ch:impementace}, a nemusí se starat o konkrétní monitorovací systém; tuto starost řeší transformační Lambda funkce.
+Hlavní nevýhodou pak je \emph{zbytečné} dotazování na metriky funkcí, které v daném dotazovacím intervalu nebyly spuštěny. U datových elementů typu Zabbix Trapper můžeme v transformační Lambda funkci posílat metriky pouze, když je to nutné (t.j. pouze nově získané metriky od jejího posledního volání). Další nevýhodou je nutnost konfigurace monitorování daných Lambda funkcí v Zabbixu a ne na straně AWS bez dodatečných komponent v AWS. Vývojář Lambda funkcí by tak musel mít znalost Zabbixu a ručně konfigurovat monitorování svých funkcí v systému Zabbix. U předchozího přístupu stačí označit Lambda funkci ve službě AWS Lambda -- vývojář tak pouze potřebuje znát formát značení, jejž si představíme později v kapitole \ref{ch:implementace}, a nemusí se starat o konkrétní monitorovací systém; tuto starost řeší transformační Lambda funkce.
 
 Mezi nevýhody také patří účtování za volání AWS REST API, které by mohlo být v případě velkého množství monitorovaných funkcí vysoké. Volání transformační Lambda funkce sice také stojí finanční zdroje, na druhou stranu v jednom jejím volání je žádoucí poslat všechny metriky v jednom dotazu. HTTP agenti by naopak periodicky dotazovali metriky pro každou jednotlivou Lambda funkci zvlášť (pro tu funkci, již by každý agent monitoroval izolovaně).
 
 \subsection{Host a host group}
 Host (síťový uzel) v Zabbixu reprezentuje jeden monitorovaný objekt. Prakticky můžeme hosta přirovnat ke \emph{jmennému prostoru} u AWS služby CloudWatch, jelikož slouží k seskupení metrik (datových elementů), alarmů (\emph{spouštěčů}) a dalších entit, z nichž pro nás později důležitá budou \emph{pravidla pro nízkoúrovňové objevování}. 
 
-Při konfiguraci entity host je nutné specifikovat jeho název, který musí být unikátní v rámci Zabbix Serveru, a skupiny síťových uzlů, do nichž bude host zařazen. Dále je možné dodat zobrazovaný název, zda je host monitorován pomocí Zabbix Proxy (nebo přímo pomocí Zabbix Serveru) a několik \emph{rozhraní}, která jsou však relevantní pouze pro některé typy datových elementů s pasivním přístupem monitorování, jimž se dále věnovat nebudeme\footnote{Nejvhodnější je Zabbix Trapper, u nějž se jedná o aktivní přístup, případně typ HTTP agent, pro který je rozhraní irelevantní, i když povinné.}. Dále je možné přiřadit síťovému uzlu šablony, makra a další konfigurace \cite{zabbix.docs}. Vytvořenému síťovému uzlu lze ve webovém rozhraní nebo pomocí Zabbix API přidat datové elementy, spouštěče, grafy, pravidla pro objevování a další. 
+Při konfiguraci entity host je nutné specifikovat jeho název, který musí být unikátní v rámci Zabbix Serveru, a skupiny síťových uzlů, do nichž bude host zařazen. Dále je možné dodat zobrazovaný název, zda je host monitorován pomocí Zabbix Proxy (nebo přímo pomocí Zabbix Serveru) a několik \emph{rozhraní}, která jsou však relevantní pouze pro některé typy datových elementů s pasivním přístupem monitorování, jimž se dále věnovat nebudeme\footnote{Nejvhodnější je Zabbix Trapper, u nějž se jedná o aktivní přístup, případně typ HTTP agent, pro který je rozhraní irelevantní, i když povinné.}. Dále je možné přiřadit síťovému uzlu šablony, makra a další konfigurace \cite{docs.zabbix}. Vytvořenému síťovému uzlu lze ve webovém rozhraní nebo pomocí Zabbix API přidat datové elementy, spouštěče, grafy, pravidla pro objevování a další. 
 
-Skupiny síťových uzlů pouze slouží k organizaci a nemají žádný vliv na monitorování. Skupině může být přiřazen libovolný počet šablon, které se automaticky přiřadí všem síťovým uzlům v dané skupině. Entita Host může být zařazena do více skupin \cite{zabbix.docs}.
+Skupiny síťových uzlů pouze slouží k organizaci a nemají žádný vliv na monitorování. Skupině může být přiřazen libovolný počet šablon, které se automaticky přiřadí všem síťovým uzlům v dané skupině. Entita Host může být zařazena do více skupin \cite{docs.zabbix}.
 
 \subsection{Trigger}
 Trigger (\uv{spouštěč}) je v Zabbixu entita hlídající \emph{normální} hodnoty metrik podle určitého logického výrazu. Slouží jako alarm při problémových hodnotách metrik -- interně se může nacházet v jednom ze stavů \uv{OK} nebo \uv{PROBLEM} v závislosti na vyhodnocení daného logického výrazu (nepravdivý, resp. pravdivý).
@@ -359,7 +384,7 @@ U vytvořených spouštěčů je pravdivost výrazu vyhodnocována, když systé
 
 Konfigurace entity trigger dovoluje specifikovat závislosti na jiných spouštěčích. Dokud se některý spouštěč v nachází ve stavu PROBLEM, pak všechny na něm závislé spouštěče do tohoto stavu nepřejdou. Tato vlastnost například umožňuje vytvořit více odstupňovaných spouštěčů tak, aby při problému spouštěče s vyšší severitou nebyl systém zahlcen událostmi od spouštěčů s nižší severitou, což v důsledku zvýší také přehlednost (na nástěnce se problém objeví pouze jednou a to s tou nejvyšší severitou).
 
-Ve vztahu k monitorovacímu systému AWS Lambda funkcí jsou spouštěče konfigurovatelným prvkem -- jejich specifikaci tak určitým způsobem (navrženo dále v kapitole \ref{ch:impementace}) musí dodat uživatel. 
+Ve vztahu k monitorovacímu systému AWS Lambda funkcí jsou spouštěče konfigurovatelným prvkem -- jejich specifikaci tak určitým způsobem (navrženo dále v kapitole \ref{ch:implementace}) musí dodat uživatel. 
 
 \subsection{Discovery}
 
@@ -572,7 +597,7 @@ Metriky jsou tedy předány v poli \verb|data| jako textový řetězec zakódova
     \item \textbf{dimensions} -- objekt obsahující dimenze metriky; pro metriky AWS Lambda může obsahovat dimenze \uv{FunctionName} a \uv{Resource}
     \item \textbf{metric\_name} -- název metriky
     \item \textbf{timestamp} -- časová značka hodnoty metriky (statistiky) v milisekundách
-    \item \textbf{value} -- objekt s poli odpovídajícími statistikám metriky; bez dodatečné konfigurace AWS CloudWatch zasílá metriky \uv{count}, \uv{max}, \uv{min} a \uv{sum} (viz sekci \ref{sec:aws-cloudwatch-metrics})
+    \item \textbf{value} -- objekt s poli odpovídajícími statistikám metriky; bez dodatečné konfigurace AWS CloudWatch zasílá metriky \uv{count}, \uv{max}, \uv{min} a \uv{sum} (viz sekci \ref{sec:analysis_metric_stream})
 \end{itemize}
 
 Příkladem takového objektu může být:
@@ -656,7 +681,9 @@ Prvním a zároveň nejnáročnějším krokem konfigurace je uživatelská defi
 
 Postup definice konfiguračních metrik ukážeme na příkladu obsahu souboru \verb|metrics_def.py| z kódu \ref{lst:metrics_def.py}. 
 
-\begin{code}{Python}{Ukázkový konfigurační soubor \verb|metrics_def.py|\label{lst:metrics_def.py}}
+%\begin{code}{Python}{Ukázkový konfigurační soubor \verb|metrics_def.py|\label{lst:metrics_def.py}}
+\lstset{style=DIP_lst_style, numberblanklines=false} %, keywordstyle=\color{red}}
+\begin{lstlisting}[language=Python, caption={Ukázkový konfigurační soubor metrik \label{lst:metrics_def.py}}]
 # import tříd z projektu
 from scripts.zapi import LLDMultiTriggerMetricConfig 
 from scripts.zapi import LambdaPriority, ZabbixSeverity
@@ -680,7 +707,8 @@ MetricConfigs = [
             }
         )
 ]
-\end{code}
+\end{lstlisting}
+%\end{code}
 
 Soubor nejprve importuje potřebné třídy z projektu. Jelikož adresářová struktura projektu je zároveň modulem jazyka Python, je možné importovat třídy z jiných adresářů pomocí relativních importů. Následuje definice seznamu \verb|MetricConfigs|, jemuž jsou v dalších řádcích přiřazeny instance konfigruační třídy, které specifikuje uživatel pomocí konstruktoru. Konstruktor přebírá několik argumentů:
 
@@ -720,17 +748,16 @@ Tento krok nasazování je velmi snadný a zahrnuje zavolání jednoho ze dvou p
     pip3 install -r scripts/zapi/requirements.txt
 \end{verbatim}
 
-Pokud systém nepoužívá Zabbix proxy, je třeba z kořenového adresáře projektu spustit příkaz:
+Pokud systém nepoužívá Zabbix proxy, je třeba z kořenového adresáře projektu spustit příkaz\footnote{Skript je nutné spouštět jako modul jazyka Python, neboť využívá relativní cesty v importech.}:
 
 \begin{verbatim}
     python3 -m scripts.zapi <frontend_address> <frontend_port> server
 \end{verbatim}
-\footnote{Skript je nutné spouštět jako modul jazyka Python, neboť využívá relativní cesty v importech.}
 
 kde \verb|<frontend_address>| je IP adresa nebo DNS jméno stroje s webovým rozhraním systému Zabbix (komponenta Frontend) a \verb|<frontend_port>| je port transportní vrstvy, na němž webové rozhraní poslouchá. Výchozí hodnota portu je 80. Pokud uživatel používá proxy, příkaz se mírně liší:
 
 \begin{verbatim}
-    python3 -m scripts.zapi <frontend_address> <frontend_port> proxy <proxy_name>
+  python3 -m scripts.zapi <frontend_address> <frontend_port> proxy <proxy_name>
 \end{verbatim}
 
 kde první dva argumenty jsou shodné s předchozím příkazem. Argument \verb|<proxy_name>| může zastupovat buď název již existující proxy v systému Zabbix, kterou uživatel pomocí webového rozhraní nebo API předem ručně nakonfiguroval, anebo IP adresa či DNS název stroje s proxy. V druhém případě, kdy se zadaný \verb|<proxy_name>| nevyskytuje mezi známými proxy systému Zabbix, musí instance Zabbix proxy poslouchat na dané adrese na portu 10051, což je výchozí port pro Zabbix proxy. V tomto případě konfigurační skript proxy automaticky vytvoří a nakonfiguruje.
@@ -1061,7 +1088,7 @@ Systém je koncipován z mnoha třetími stranamy vyvíjených komponent, jež n
 
 Cloudové služby AWS jsou navrženy pro škálovatelnost a vysokou dostupnost. Spravuje je tým AWS, který se stará o jejich údržbu a definuje vlastní limity, jimiž se musí řídit i systém pro monitorování AWS Lambda funkcí. Lze tedy předpokládat, že i tyto služby obstojí pod většími zátěžemi a nejsou tedy úzkými místy.
 
-Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně při překrývání dob běhů více invokací\footnote{Pokud bude například doba sběru dat \verb|ZBLambTransformBufferingSeconds| nastavena na jednu sekundu a jedna invokace transformační Lambda funkce bude z nějakého důvodu pracovat 3,5 sekundy, AWS Firehose spustí další dvě její instance v průběhu této invokace nad novějšími daty}. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
+Jedinými nově navrženými komponentami systému jsou transformační a objevovací Lambda funkce. Nejvyšší objemy dat protékají transformační Lambda funkcí a je tak kandidátem na úzké místo. Funkce však byla jednak testována na nereálně velkých objemech dat z důvodu větší limitace maximální velikosti služby AWS Firehose, i přes něž funkce obstála, a jednak může služba AWS Firehose tuto funkci invokovat paralelně při překrývání dob běhů více invokací\footnote{Pokud bude například doba sběru dat \texttt{ZBLambTransformBufferingSeconds} nastavena na jednu sekundu a jedna invokace transformační Lambda funkce bude z nějakého důvodu pracovat 3,5 sekundy, AWS Firehose spustí další dvě její instance v průběhu této invokace nad novějšími daty.}. Funkce je tedy škálovatelná a neměla by být úzkým místem. Objevovací Lambda funkce je pak z pohledu objemu dat zanedbatelná.
 
 Kvůli povaze sekvenčně dávkové architektury celého systému je pravděpodobný výskyt jedinečných míst selhání. V tomto smyslu je nejkritičtějším místem server nebo proxy systému Zabbix, při jejichž výpadku by došlo k výpadku zbytku systému. Systém je však oproti tomuto selhání chráněn -- pokud se transformační Lambda funkci nepodaří data úspěšně doručit, skončí s chybou, načež se služba AWS Firehose znovu pokusí o doručení. V případě, že se doručení nezdaří ani po specifikovaném počtu pokusů, data skončí v S3 bucketu, který tak zároveň zastává roli abstraktního typu Dead Letter Queue (DLQ). Výpadek komponenty systému Zabbix neovlivní funkce systému do tohoto bodu.
 
