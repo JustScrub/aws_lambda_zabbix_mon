@@ -119,10 +119,6 @@ Elastic Compute Cloud, zkráceně EC2, je základní služba AWS, která poskytu
 
 Jelikož se jedná o centrální službu, můžeme v AWS najít mnoho dalších způsobů konfigurace EC2 instancí i služeb s nimi spojených, jako například automatické škálování, load balancing, nebo služby pro správu virtuální sítě.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Pro účely monitorovacího systému je možné na EC2 instancích provozovat vlastní Zabbix server a proxy, ale také případně provozovat software sloužící jako prostředník mezi AWS a Zabbix proxy.
-\end{tiny}
 
 \subsection{AWS Simple Storage Service}
 Další významnou službou AWS je Simple Storage Service, zkráceně S3. Jedná se o službu pro ukládání a správu dat v cloudu. S3 je vhodné pro ukládání velkého množství dat, jako jsou například statické webové stránky, zálohování, nebo multimediální soubory. S3 nabízí různé třídy úložišť podle předpokládané frekvence přístupu a širokou škálu funkcí, jako je šifrování, správa přístupových práv nebo verze souborů. Mnoho dalších služeb AWS integruje S3 pro své účely. Základní přístup k S3 je přes \emph{REST API}, ale AWS poskytuje i \emph{SDK} pro mnoho programovacích jazyků. Další možností je využití tzv. \emph{přístupových bodů} (access points) pro jednodušší a konfigurovatelný přístup k datům \cite{s3.docs.aws}.
@@ -139,29 +135,11 @@ Služba AWS Data Firehose slouží k posílání velkých dat (big data) od růz
 
 Producenti AWS Data Firehose se dělí na tři typy, jsou jimi Direct PUT, Amanzon Kinesis Data Streams a Amazon MSK. U posledních dvou se jedná o další streamovací služby AWS. Pro tuto práci je zajímavým producentem tzv. \emph{Metric Streams} služby AWS CloudWatch (popsána v sekci \ref{sec:aws-cloudwatch}), který spadá pod Direct PUT producenty, již posílají data do proudu Firehose přímo. Možných destinací je omezený počet, z většiny jej tvoří služby AWS a služby třetích stran -- například Amazon S3, Amazon Redshift, Elastic Search, Snowflake a obecný HTTP Endpoint, který může provozovat uživatel například na instanci AWS EC2 a který musí splňovat požadavky z dokumentace \cite{firehose.docs.aws}.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Zabbix mezi službami není a tak bude potřeba prozkoumat jiné možnosti doručení dat z Metric Streams, jestliže se rozhodneme je využít. Poměrně flexibilními možnostmi jsou destinace AWS S3 bucket, pro niž AWS CloudWatch Metric Stream nabízí rychlou konfiguraci, a vlastní HTTP endpoint (server například běžící pod EC2), který je možné konfigurovat dle potřeb \cite{firehose.docs.aws}. 
-
-HTTP endpoint nabízí více možností, jelikož se jedná o vlastní software schopný zpracovávat data přesně podle potřeb zákazníka, avšak je pro něj nutný udržovat dedikovaný server a správně implementovat API komunikující s Firehose streamem. Na druhou stranu destinace v podobě S3 bucketu nabízí integrace s Lambda funkcemi, které mohou zpracovávat data z úložiště a posílat je dále do systému Zabbix. Bucket by v takovém případě sloužil pouze jako mezikrok pro přenos dat a výhodnější by bylo streamovat metriky přímo do Lambda funkce, avšak Firehose nenabízí Lambda funkci jako destinaci. Nicméně zpracovávání metrik z CloudWatch se zdá být výhodnější z Lambda funkce z důvodů nákladů na provoz, udržovatelnosti, škákovatelnosti (o niž se za nás bude starat AWS) a mezi dalšímí také \uv{sebe-monitorovatelnosti}: pokud implementace bude realizována v Lambda funkci, je možné samotnou monitorovací funkci monitorovat bez dalších nákladů.
-\end{tiny}
 
 Firehose nabízí další zajímavou možnost ve formě transformací vstupních dat. Podporované jsou transformace komprese a dekomprese, konverze formátu dat a obecná transformace pomocí vlastní AWS Lambda funkce (FaaS paradigma v AWS, viz sekci \ref{sec:aws-lambda}), na niž se v následujícím zaměřme. Při nastavené transformaci Lambda funkcí pro daný Firehose stream jsou vstupní data shraňována podobně jako při vstupu do streamu: do naplnění nastavené velikosti nebo vypršení časového intervalu. S první splněnou podmínkou jsou data poslána do transformační Lambda funkce, která je zpracuje a vrátí zpět do Firehose streamu \cite{firehose.docs.aws}. 
 
 Transformační Lambda funkce je volána synchronně, jelikož Firehose čeká na zpracovaná data. Výstup transformační funkce je pak znovu shraňován jako při klasickém vstupu do proudu Firehose \cite{firehose.docs.aws} -- při využití transformace Lambda funkcí existují dvě rozdílná nastavení bufferingu, jedno pro vstup do Lambda funkce a druhé po výstupu z transformace před vstupem do proudu. Výstup Lamba funkce musí být ve specifickém formátu podle dokumentace AWS. Formát umožňuje označit výstupní (zpracované) záznamy jako zpracované, k zahození, nebo nezpracovatelné. Data k zahození nejsou poslána dále do streamu a nezpracovatelné způsobí chybu transformace.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Pro naše účely by bylo možné využít transformace Lambda funkcí pro změnu formátu vstupních dat na formát, kterému rozumí systém Zabbix (tělo HTTP požadavku volání Zabbix API). Možnosti zde ale nekončí. Jelikož se jedná o libovolně implementovanou Lambda funkci, můžeme ji zároveň využít pro poslání vstupních metrik do systému Zabbix, což řeší i předešlý problém, že Lamba funkci nelze nastavit jako destinaci Firehose streamu. 
-
-Zde by mohla končit cesta dat na straně AWS, avšak je nutné destinaci specifikovat, ač pro ni nemusíme mít využití. Výchozí \uv{transformovaná} data nemají žadný význam, jelikož jsou z transformační funkce poslaná \uv{postranní cestou} do Zabbix a tak je možné všechny záznamy nechat prázdné a označit k zahození. Destinaci můžeme nastavit na S3 bucket, do nějž by se však nikdy žádná data zapsat neměla, neboť nastavení této destinace je nejsnazší a nejméně nákladné (není potřeba konfigurovat nevyužitou službu nebo HTTP endpoint). 
-
-Všimněme si také, že taková transformační Lambda funkce zastává funkci návrhového vzoru adaptér, jelikož princip její činnosti spočívá v převodu vstupních dat z Metric Streamu do formátu požadovaného Zabbixem.
-
-Nějaká data však do S3 bucketu zapisována být mohou, jelikož u této destinace AWS Data Firehose ukládá oznámení o chybách transformační Lambda funkce (timeout, výjimka při běhu...). Oznámení je soubor v JSON formátu nesoucí důvod chyby, počet pokusů volání transformace\footnote{Počet pokusů o nové volání je jedna z konfigurací transformace Lambda funkcí, spolu se zmíněnými buffering intervalem a velikostí} a kompletní vstup: metriky tak při chybě nejsou ztraceny. Maximální doba běhu transformační funkce je 5 minut, dá se však zkrátit v konfiguraci.
-
-Analýza nám doteď odhalila způsob, jakým můžeme metriky z AWS CloudWatch Metric Stream dostat do systému Zabbix. V následujících kapitolách se zaměříme na analýzu systému Zabbix a jeho možností monitorování, předtím ale ještě stručně rozebereme službu AWS CloudFormation umožňující snadné nasazení komponent a správu infrastruktury v AWS.
-\end{tiny}
 
 \subsection{AWS CloudFormation}
 AWS CloudFormation zprostředkovává přístup tzv. insfrastruktury jako kódu (IaC) v prostředí Amazon Web Services. Umožňuje definovat a nasadit celou infrastrukturu AWS služeb a zdrojů pomocí šablon ve formátu JSON nebo YAML popisujících zdroje, jejich vlastnosti a vzájemné vztahy. CloudFormation poté zdroje nasadí a zajišťuje, že jsou vytvořeny v požadovaném stavu. Při změně šablony je možné CloudFormation použít k aktualizaci zdrojů, případně k jejich odstranění \cite{cloudformation.docs.aws}.
@@ -170,10 +148,6 @@ CloudFormation šablony se skládají ze tří hlavních částí: \emph{zdrojů
 
 Služba AWS CloudFormation je tak velmi zajímavá z pohledu DevOps, neboť umožňuje snadnou správu životního cyklu distribuované aplikace při kontinuálních integracích a nasazování (CI/CD). Infrastrukturu je tak snazší nasazovat z automatizovaného pracovního proudu (workflow, pipeline) při dodání změn do repozitáře projektu, verzovat, sledovat její změny a \uv{drift} a celkově monitorovat.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Část vyvíjeného systému pro monitorování Lamba funkcí pomocí Zabbix může využívat CloudFormation šablony pro snadné nasazení potřebných zdrojů v AWS: doteď odhalený Metric stream, jeho Firehose stream a transformační Lambda funkci.
-\end{tiny}
 
 \subsubsection{AWS Serverless Application Model}
 
@@ -275,10 +249,6 @@ Dále se zaměříme na službu AWS CloudWatch pro monitorování zdrojů a osta
 \todo{čeština}
 Služba AWS CloudWatch slouží k monitorování a logování v AWS, umožňuje sledovat metriky a výpisy (logy) z různých zdrojů, jako jsou například EC2 instance, Lambda funkce, nebo S3 buckety. Metriky jsou číselné hodnoty, které měří výkon služeb AWS a zdrojů. Jsou agregovány do tzv. \uv{statistik}, které mohou být zobrazeny v grafu na výchozí nebo vlastní \uv{nástěnce} (dashboard) nebo použity pro vytváření alarmů, konfigurovatelných notifikací zasílaných při dosažení určité hodnoty zvolené statistiky \cite{cloudwatch.docs.aws}. 
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Je zřejmé, že CloudWatch bude stěžejní službou pro vyvíjený systém, neboť poskytuje veškeré potřebné informace pro monitorování Lambda funkcí. Hlavním cílem práce je dopravit tyto informace (resp. jejich konfigurovatelnou podmnožinu) do interního monitorovacího systému Zabbix.
-\end{tiny}
 
 Jelikož naším hlavním zájmem jsou Lambda funkce, budeme se v této sekci dále zaměřovat pouze na možnosti monitorování Lambda funkcí v rámci CloudWatch.
 
@@ -317,10 +287,6 @@ Z výpisu je zřejmé, že ne všechny metriky se týkají přímo Lambda funkc�
 
 Všechny takové metriky definují dimenze pro název funkce, \uv{zdroj} (resource), pod niž spadají verze a aliasy funkce, a některé další. Dokumentace tuto skutečnost dopodrobna nerozvíjí a pouze se letmo o dimenzích metrik pro AWS Lambda zmiňuje, a tak byl tento poznatek zjištěn experimentálně\footnote{Během vývoje ve zkušebním stavu, kdy byl zkoumán formát požadavků do transformační Lambda funkce z Data Firehose se zdrojem v Metric streamu, viz dále.}. 
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Vyvíjený systém má dle požadavků zákazníka monitorovat metriky pro jednotlivé funkce bez odlišování verzí, což prakticky znamená, že bude třeba exportovat metriky pouze s dimenzí názvu funkce. AWS Lambda do těchto metrik automaticky agreguje i hodnoty pro všechny verze a aliasy funkce s daným názvem, jak bylo poznamenáno v sekci \ref{sec:aws-cloudwatch-metrics}.
-\end{tiny}
 
 \subsubsection{Metric Stream}
 \label{sec:analysis_metric_stream}
@@ -345,10 +311,6 @@ Systém sestává z několika komponent, jimiž jsou Zabbix server, frontend, ag
 
 Proxy a agenti mohou být konfigurováni jako aktivní nebo pasivní, nastavení odpovídající modelům push a pull. V aktivním modelu agenti a proxy pravidelně posílají data na server, zatímco v pasivním modelu server žádá o data agenty a proxy. Aktivní model je výchozí \cite{docs.zabbix}.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Z komponent systému Zabbix by mohl sloužit vyvíjenému systému Zabbix agent, jelikož se stará o sběr a posílání metrik do centrální komponenty, serveru. V našem případě je však provoz specificky nakonfigurovaného agenta problematický kvůli serverless schámatu transformační Lambda funkce\footnote{Nespravujeme server, na němž funkce běží, a nemůžeme tak agenta předinstalovat.}. Nabízí se teoretická možnost poskytnout agenta jako externí rozšíření Lambda funkce, přičemž by byla potřeba zajistit komunikaci mezi agentem a kódem funkce, nebo možnost implementovat protokol Zabbix agenta v transformační Lambda funkci, aby se serveru (nebo proxy) tvářila sama jako \emph{aktivní} agent. Zabbix ale nabízí vhodnější možnosti bez nutnosti instalace nebo implementace agenta.
-\end{tiny}
 
 \subsection{Pojmy, funkce}
 % pojmy -- host, item, severity, trigger, discovery, makra, trapper itemy
@@ -407,36 +369,18 @@ Základním typem je v předešlém příkladu použitý Zabbix Agent, u nějž 
 
 Aktivní komunikaci zahajuje agent zprávou, v níž žádá o klíče datových elementů, jež má monitorovat. Tato počáteční zpráva obsahuje název \emph{síťového uzlu} (host), který je jedinečný pro daný Zabbix Server. V odpovědi serveru se pak nachází všechny klíče datových elementů daného síťového uzlu. Dále posílá agent zprávy obsahující kolekci objektů, jež zahrnují tentýž název síťového uzlu, klíč datového elementu a jeho hodnotu. 
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Ze zjevných důvodů je typ Zabbix Agent nevhodný pro monitorování Lambda funkcí, jelikož nejsme schopni na serveru, na němž funkce běží, nainstalovat a provozovat agenta. Aktivní agent v našem případě může být alespoň teoreticky užitečný, pokud bychom jeho protokol implementovali v transformační Lambda funkci posílající metriky z AWS CloudWatch do systému Zabbix. Jednoduchost jeho protokolu dále nabádá k jeho implementaci v Lambda funkci.
-\end{tiny}
 
 \subsubsection{Zabbix Trapper}
 Dalším typem datových elementů je Zabbix Trapper, který umožňuje posílat data do Zabbixu z vnějších zdrojů. Ve své podstatě je Zabbix Trapper velmi podobný aktivnímu Zabbix agentovi, komunikační protokol je však ještě snazší. Očekávaný způsob použití tohoto typu je s pomocí softwarového nástroje zabbix sender, který pouze implementuje protokol Zabbix Trapper. 
 
 V rámci protokolu komunikaci iniciuje \uv{Zabbix Sender} (klient) implementující protokol Zabbix Trapper. Namísto dvou fází však klient již od začátku posílá serveru nebo proxy přímo zapisované metriky identifikované názvem síťového uzlu a klíčem datového elementu.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Protokol používaný u typu datového elementu Zabbix Trapper by však byl pro implementaci v transformační Lambda funkci vhodnější než protokol aktivního Zabbix agenta.
-\end{tiny}
 
 Další vlastností tohoto typu je arbitrárnost klíčů itemů -- Zabbix Trapper nespecifikuje předem definované klíče, jelikož jsou uživatelsky iniciované, a tak poskytuje volnost ve vlastním formátu klíče. Klíč datového elementu je akorát nutné specifikovat v zasílané zprávě, aby bylo možné metriky správně přiřadit.
 
 \subsubsection{HTTP/S Agent}
 Další typ datových elementů, HTTP Agent (schopný komunikovat i přes protokol HTTPS), implementuje komunikaci se Zabbix Serverem pomocí HTTP/S rozhraní (nejčastěji REST API, avšak typ itemu je kompatibilní s libovolným přístupem). HTTP agent je dodatečně konfigurován pomocí URL koncového bodu rozhraní, parametrů v URL, typem HTTP dotazu, případně jeho tělem a hlavičkami. HTTP Agent navíc umožňuje povolit \uv{trapping}, čímž se zpřístupní všechny možnosti Zabbix Trapper itemu, tedy zejména posílat metriky Zabbix Trapper protokolem zevnějšku. Dotazy na koncový bod jsou posílány ve specifikovaných intervalech Zabbix Serverem nebo Proxy, jedná se tak o \emph{bezagentový} přístup, jelikož na uzlu poskytujícím rozhraní nemusí být doinstalován žádný pro Zabbix specifický software.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-V našem případě by bylo oproti předem navrhovaným přístupům přiliš obtížné implementovat takové HTTP rozhraní. HTTP agenta bychom však mohli nakonfigurovat, aby volal REST API služby AWS CloudWatch, které umožňuje dotázat se na specifickou metriku. Díky tomuto přístupu bychom dokonce nepotřebovali jakoukoliv doposud navrženou architekturu na straně AWS -- tedy MetricStream, Firehose a transformační Lambda funkci -- jelikož bychom mohli využít přímo veřejné rozhraní AWS CloudWatch pro dotazování se na metriky vybraných Lambda funkcí.
-
-Volba HTTP agenta by však přinášela několik problémů a nevýhod oproti datovým elementům typu Zabbix Trapper. HTTP agent není dobře škálovatelný, jelikož Zabbix Server, případně Proxy, musí dotazovat všechny koncové body, což může způsobit zbytečnou zátěž na serveru nebo proxy. Dále je nutné zajistit autentizaci a autorizaci Zabbix Serveru nebo Proxy vůči AWS REST API. 
-
-Hlavní nevýhodou pak je \emph{zbytečné} dotazování na metriky funkcí, které v daném dotazovacím intervalu nebyly spuštěny. U datových elementů typu Zabbix Trapper můžeme v transformační Lambda funkci posílat metriky pouze, když je to nutné (t.j. pouze nově získané metriky od jejího posledního volání). Další nevýhodou je nutnost konfigurace monitorování daných Lambda funkcí v Zabbixu a ne na straně AWS bez dodatečných komponent v AWS. Vývojář Lambda funkcí by tak musel mít znalost Zabbixu a ručně konfigurovat monitorování svých funkcí v systému Zabbix. U předchozího přístupu stačí označit Lambda funkci ve službě AWS Lambda -- vývojář tak pouze potřebuje znát formát značení, jejž si představíme později v kapitole \ref{ch:implementace}, a nemusí se starat o konkrétní monitorovací systém; tuto starost řeší transformační Lambda funkce.
-
-Mezi nevýhody také patří účtování za volání AWS REST API, které by mohlo být v případě velkého množství monitorovaných funkcí vysoké. Volání transformační Lambda funkce sice také stojí finanční zdroje, na druhou stranu v jednom jejím volání je žádoucí poslat všechny metriky v jednom dotazu. HTTP agenti by naopak periodicky dotazovali metriky pro každou jednotlivou Lambda funkci zvlášť (pro tu funkci, již by každý agent monitoroval izolovaně).
-\end{tiny}
 
 \subsection{Host a host group}
 Host (síťový uzel) v Zabbixu reprezentuje jeden monitorovaný objekt. Prakticky můžeme síťový uzel přirovnat ke \emph{jmennému prostoru} u AWS služby CloudWatch, jelikož slouží k seskupení metrik (datových elementů), alarmů (v systému Zabbix \emph{spouštěčů}) a dalších entit, z nichž pro nás později důležitá budou \emph{pravidla pro nízkoúrovňové objevování}. 
@@ -460,10 +404,6 @@ U vytvořených spouštěčů je pravdivost výrazu vyhodnocována, když systé
 
 Konfigurace entity trigger dovoluje specifikovat závislosti na jiných spouštěčích. Dokud se některý spouštěč v nachází ve stavu PROBLEM, pak všechny na něm závislé spouštěče do tohoto stavu nepřejdou. Tato vlastnost například umožňuje vytvořit více odstupňovaných spouštěčů tak, aby při problému spouštěče s vyšší severitou nebyl systém zahlcen událostmi od spouštěčů s nižší severitou, což v důsledku zvýší také přehlednost (na nástěnce se problém objeví pouze jednou a to s tou nejvyšší severitou).
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Ve vztahu k monitorovacímu systému AWS Lambda funkcí jsou spouštěče konfigurovatelným prvkem -- jejich specifikaci tak určitým způsobem (navrženo dále v kapitole \ref{ch:implementace}) musí dodat uživatel. 
-\end{tiny}
 
 \subsection{Discovery}
 
@@ -471,10 +411,6 @@ Důležitou kapitolou v analýze systému Zabbix je funkcionalita \emph{objevov�
 
 Funkce objevování umožňuje automatické vytváření některých entit pomocí \emph{pravidel pro nízkoúrovňové objevování} a \emph{prototypů entit} (\emph{prototype}). Entitami mohou být datové elementy, spouštěče a grafy, i když referenční materiály pro Zabbix API definují také prototypy síťových uzlů, jež však nejsou dokumentovány. Pravidla pro objevování jsou další entity, které specifikují, jakým způsobem je objevování realizováno. Pravidla mají mnoho společných vlastností s datovými elementy a je také možné je vnímat jako datové elementy s tím rozdílem, že nemonitorují metriky, ale sbírají data o objevovaných entitách.
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Pro účely této práce je objevování zjevně velmi žádoucí, jelikož díky němu nebude potřeba každou nově monitorovanou Lambda funkci potřeba zavádět ručně do systému Zabbix. To usnadní usnadní správu monitoringu a zvýší jeho přehlednost, což vyhovuje požadavkům zákazníka.
-\end{tiny}
 
 \subsubsection{Pravidla pro nízkoúrovňové objevování}
 
@@ -482,10 +418,6 @@ Jak již bylo naznačeno, pravidla pro objevování jsou v podstatě datové ele
 
 Důležitou konfigurací je také \emph{doba zanechání ztracených zdrojů} (\emph{keep lost resources period}), která specifikuje, po jak dlouhou dobu Zabbix Server ponechá vytvořené entity z jejich prototypů poté, co přestane obdržovat zprávy o daných objevovaných entitách. Doba je vyhodnocována při každém zpracování přijaté zprávy o objevovaných entitách. Jestliže doba od posledního \uv{objevení} (t.j. přijetí zprávy obsahující danou entitu) je větší než doba zanechání ztracených zdrojů a zároveň se daná entita v příchozí zprávě nevyskytuje, pak jsou entity odstraněny. 
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Existence konfigurace \emph{doby zanechání ztracených zdrojů} pravidel nízkoúrovňového objevování prakticky říká, že je třeba posílat informace i o již objevených entitách a nejen o nových; entity nestačí objevit jen jednou. U monitorování Lambda funkcí je tato konfigurace výhodná při rušení monitoringu Lambda funkce -- pro zrušení stačí přestat posílat zprávy o Lambda funkci a Zabbix Server po uplynutí doby zanechání ztracených zdrojů entity funkce automaticky odstraní. Znamená to ale však také, že bude potřeba do Zabbixu posílat informace o všech monitorovaných funkcích.
-\end{tiny}
 
 Dále je u pravidel možné specifikovat další typ maker, \emph{makra nízkoúrovňového objevování} (\emph{LLD macros}), která se používají pro dynamické vytváření objevovaných entit z prototypů. Formát těchto maker je stejný jako u ostatních maker v Zabbixu, pouze se místo znaku \texttt{\$} používá znak \texttt{\#}. Makra mohou být použita v konfiguraci prototypů entit a také v \emph{kontextu maker} pro dynamickou \uv{změnu} hodnoty makra u určitých entit. Hodnoty LLD maker jsou specifikovány ve zprávách posílaných pravidlům nízkoúrovňového objevování: při doručení zprávy do pravidla najde Zabbix Server všechny prototypy entit, v nichž se doručená makra vyskytují, a vytvoří z nich objevované entity s nahrazenými hodnotami LLD maker.
 
@@ -503,6 +435,67 @@ Hlavním cílem této práce je na základě požadavků zákazníka, společnos
 % priority lambd
 % throughput
 Zákazník na začátku vývoje na systém podal benevolentní požadavky a umožnil tak širkový záběr možností pro nalezení vhodného řešení problému a průběžné návrhy následně hodnotil dle svých potřeb, dokud vývoj nedokonvergoval k uspokojivému řešení. Původní požadavky zahrnovaly konfigurovatelné monitorování AWS Lambda funkcí ve firemním AWS účtu pomocí (veřejně přístupné) instance systému Zabbix verze 5.4 s využitím Zabbix Proxy. Monitorované metriky by měly zahrnovat alespoň počet selhání za určitou dobu (závisí na provozovateli cloudu, t.j. AWS). Dále by mělo být snadné přidat či odebrat monitorované funkce a nastavit prioritu jednotlivých funkcí. Systém by dále měl pracovat spolehlivě i při vysokém počtu monitorovaných funkcí a s vysokou propustností metrik. Řešení mělo být realizováno ve firemním AWS účtu, k němuž byl poskytnut přístup.
+
+\section{Analýza problému a návrh architektury}
+% AWS | Zabbix --> architektura
+\todo{obecnější diagram, ne služby, zahrnout model v zabbixu}
+
+\subsection{Možnosti AWS}
+EC2:
+Pro účely monitorovacího systému je možné na EC2 instancích provozovat vlastní Zabbix server a proxy, ale také případně provozovat software sloužící jako prostředník mezi AWS a Zabbix proxy.
+
+Firehose: volba desinace
+Zabbix mezi službami není a tak bude potřeba prozkoumat jiné možnosti doručení dat z Metric Streams, jestliže se rozhodneme je využít. Poměrně flexibilními možnostmi jsou destinace AWS S3 bucket, pro niž AWS CloudWatch Metric Stream nabízí rychlou konfiguraci, a vlastní HTTP endpoint (server například běžící pod EC2), který je možné konfigurovat dle potřeb \cite{firehose.docs.aws}. 
+
+HTTP endpoint nabízí více možností, jelikož se jedná o vlastní software schopný zpracovávat data přesně podle potřeb zákazníka, avšak je pro něj nutný udržovat dedikovaný server a správně implementovat API komunikující s Firehose streamem. Na druhou stranu destinace v podobě S3 bucketu nabízí integrace s Lambda funkcemi, které mohou zpracovávat data z úložiště a posílat je dále do systému Zabbix. Bucket by v takovém případě sloužil pouze jako mezikrok pro přenos dat a výhodnější by bylo streamovat metriky přímo do Lambda funkce, avšak Firehose nenabízí Lambda funkci jako destinaci. Nicméně zpracovávání metrik z CloudWatch se zdá být výhodnější z Lambda funkce z důvodů nákladů na provoz, udržovatelnosti, škákovatelnosti (o niž se za nás bude starat AWS) a mezi dalšímí také \uv{sebe-monitorovatelnosti}: pokud implementace bude realizována v Lambda funkci, je možné samotnou monitorovací funkci monitorovat bez dalších nákladů.
+
+Firehose 2: použití transformační lambdy
+Pro naše účely by bylo možné využít transformace Lambda funkcí pro změnu formátu vstupních dat na formát, kterému rozumí systém Zabbix (tělo HTTP požadavku volání Zabbix API). Možnosti zde ale nekončí. Jelikož se jedná o libovolně implementovanou Lambda funkci, můžeme ji zároveň využít pro poslání vstupních metrik do systému Zabbix, což řeší i předešlý problém, že Lamba funkci nelze nastavit jako destinaci Firehose streamu. 
+
+Zde by mohla končit cesta dat na straně AWS, avšak je nutné destinaci specifikovat, ač pro ni nemusíme mít využití. Výchozí \uv{transformovaná} data nemají žadný význam, jelikož jsou z transformační funkce poslaná \uv{postranní cestou} do Zabbix a tak je možné všechny záznamy nechat prázdné a označit k zahození. Destinaci můžeme nastavit na S3 bucket, do nějž by se však nikdy žádná data zapsat neměla, neboť nastavení této destinace je nejsnazší a nejméně nákladné (není potřeba konfigurovat nevyužitou službu nebo HTTP endpoint). 
+
+Všimněme si také, že taková transformační Lambda funkce zastává funkci návrhového vzoru adaptér, jelikož princip její činnosti spočívá v převodu vstupních dat z Metric Streamu do formátu požadovaného Zabbixem.
+
+Nějaká data však do S3 bucketu zapisována být mohou, jelikož u této destinace AWS Data Firehose ukládá oznámení o chybách transformační Lambda funkce (timeout, výjimka při běhu...). Oznámení je soubor v JSON formátu nesoucí důvod chyby, počet pokusů volání transformace\footnote{Počet pokusů o nové volání je jedna z konfigurací transformace Lambda funkcí, spolu se zmíněnými buffering intervalem a velikostí} a kompletní vstup: metriky tak při chybě nejsou ztraceny. Maximální doba běhu transformační funkce je 5 minut, dá se však zkrátit v konfiguraci.
+
+Analýza nám doteď odhalila způsob, jakým můžeme metriky z AWS CloudWatch Metric Stream dostat do systému Zabbix. V následujících kapitolách se zaměříme na analýzu systému Zabbix a jeho možností monitorování, předtím ale ještě stručně rozebereme službu AWS CloudFormation umožňující snadné nasazení komponent a správu infrastruktury v AWS.
+
+CloudFormation:
+Část vyvíjeného systému pro monitorování Lamba funkcí pomocí Zabbix může využívat CloudFormation šablony pro snadné nasazení potřebných zdrojů v AWS: doteď odhalený Metric stream, jeho Firehose stream a transformační Lambda funkci.
+
+CloudWatch: CW má metriky
+Je zřejmé, že CloudWatch bude stěžejní službou pro vyvíjený systém, neboť poskytuje veškeré potřebné informace pro monitorování Lambda funkcí. Hlavním cílem práce je dopravit tyto informace (resp. jejich konfigurovatelnou podmnožinu) do interního monitorovacího systému Zabbix.
+
+CloudWatch: sledované dimenze Lambda metrik
+Vyvíjený systém má dle požadavků zákazníka monitorovat metriky pro jednotlivé funkce bez odlišování verzí, což prakticky znamená, že bude třeba exportovat metriky pouze s dimenzí názvu funkce. AWS Lambda do těchto metrik automaticky agreguje i hodnoty pro všechny verze a aliasy funkce s daným názvem, jak bylo poznamenáno v sekci \ref{sec:aws-cloudwatch-metrics}.
+
+\subsection{Možnosti Zabbix}
+Zabbix Agent:
+Z komponent systému Zabbix by mohl sloužit vyvíjenému systému Zabbix agent, jelikož se stará o sběr a posílání metrik do centrální komponenty, serveru. V našem případě je však provoz specificky nakonfigurovaného agenta problematický kvůli serverless schámatu transformační Lambda funkce\footnote{Nespravujeme server, na němž funkce běží, a nemůžeme tak agenta předinstalovat.}. Nabízí se teoretická možnost poskytnout agenta jako externí rozšíření Lambda funkce, přičemž by byla potřeba zajistit komunikaci mezi agentem a kódem funkce, nebo možnost implementovat protokol Zabbix agenta v transformační Lambda funkci, aby se serveru (nebo proxy) tvářila sama jako \emph{aktivní} agent. Zabbix ale nabízí vhodnější možnosti bez nutnosti instalace nebo implementace agenta.
+
+Typ Itemu Zabbix Agent:
+Ze zjevných důvodů je typ Zabbix Agent nevhodný pro monitorování Lambda funkcí, jelikož nejsme schopni na serveru, na němž funkce běží, nainstalovat a provozovat agenta. Aktivní agent v našem případě může být alespoň teoreticky užitečný, pokud bychom jeho protokol implementovali v transformační Lambda funkci posílající metriky z AWS CloudWatch do systému Zabbix. Jednoduchost jeho protokolu dále nabádá k jeho implementaci v Lambda funkci.
+
+Typ Itemu Zabbix Trapper:
+Protokol používaný u typu datového elementu Zabbix Trapper by však byl pro implementaci v transformační Lambda funkci vhodnější než protokol aktivního Zabbix agenta.
+
+Typ Itemu HTTP/S Agent:
+V našem případě by bylo oproti předem navrhovaným přístupům přiliš obtížné implementovat takové HTTP rozhraní. HTTP agenta bychom však mohli nakonfigurovat, aby volal REST API služby AWS CloudWatch, které umožňuje dotázat se na specifickou metriku. Díky tomuto přístupu bychom dokonce nepotřebovali jakoukoliv doposud navrženou architekturu na straně AWS -- tedy MetricStream, Firehose a transformační Lambda funkci -- jelikož bychom mohli využít přímo veřejné rozhraní AWS CloudWatch pro dotazování se na metriky vybraných Lambda funkcí.
+
+Volba HTTP agenta by však přinášela několik problémů a nevýhod oproti datovým elementům typu Zabbix Trapper. HTTP agent není dobře škálovatelný, jelikož Zabbix Server, případně Proxy, musí dotazovat všechny koncové body, což může způsobit zbytečnou zátěž na serveru nebo proxy. Dále je nutné zajistit autentizaci a autorizaci Zabbix Serveru nebo Proxy vůči AWS REST API. 
+
+Hlavní nevýhodou pak je \emph{zbytečné} dotazování na metriky funkcí, které v daném dotazovacím intervalu nebyly spuštěny. U datových elementů typu Zabbix Trapper můžeme v transformační Lambda funkci posílat metriky pouze, když je to nutné (t.j. pouze nově získané metriky od jejího posledního volání). Další nevýhodou je nutnost konfigurace monitorování daných Lambda funkcí v Zabbixu a ne na straně AWS bez dodatečných komponent v AWS. Vývojář Lambda funkcí by tak musel mít znalost Zabbixu a ručně konfigurovat monitorování svých funkcí v systému Zabbix. U předchozího přístupu stačí označit Lambda funkci ve službě AWS Lambda -- vývojář tak pouze potřebuje znát formát značení, jejž si představíme později v kapitole \ref{ch:implementace}, a nemusí se starat o konkrétní monitorovací systém; tuto starost řeší transformační Lambda funkce.
+
+Mezi nevýhody také patří účtování za volání AWS REST API, které by mohlo být v případě velkého množství monitorovaných funkcí vysoké. Volání transformační Lambda funkce sice také stojí finanční zdroje, na druhou stranu v jednom jejím volání je žádoucí poslat všechny metriky v jednom dotazu. HTTP agenti by naopak periodicky dotazovali metriky pro každou jednotlivou Lambda funkci zvlášť (pro tu funkci, již by každý agent monitoroval izolovaně).
+
+Triggery:
+Ve vztahu k monitorovacímu systému AWS Lambda funkcí jsou spouštěče konfigurovatelným prvkem -- jejich specifikaci tak určitým způsobem (navrženo dále v kapitole \ref{ch:implementace}) musí dodat uživatel. 
+
+Discovery:
+Pro účely této práce je objevování zjevně velmi žádoucí, jelikož díky němu nebude potřeba každou nově monitorovanou Lambda funkci potřeba zavádět ručně do systému Zabbix. To usnadní usnadní správu monitoringu a zvýší jeho přehlednost, což vyhovuje požadavkům zákazníka.
+
+Keep resources period:
+Existence konfigurace \emph{doby zanechání ztracených zdrojů} pravidel nízkoúrovňového objevování prakticky říká, že je třeba posílat informace i o již objevených entitách a nejen o nových; entity nestačí objevit jen jednou. U monitorování Lambda funkcí je tato konfigurace výhodná při rušení monitoringu Lambda funkce -- pro zrušení stačí přestat posílat zprávy o Lambda funkci a Zabbix Server po uplynutí doby zanechání ztracených zdrojů entity funkce automaticky odstraní. Znamená to ale však také, že bude potřeba do Zabbixu posílat informace o všech monitorovaných funkcích.
 
 \section{Modelování Lambda funkcí v systému Zabbix}
 \todo{schémata}
@@ -530,7 +523,7 @@ Další model rozšiřuje funkcionalitu předchozího zejména přidáním nízk
 
 Každá funkce a její metrika má tedy svůj jediný datový element a spouštěč, pročež byl pracovně pojmenován \uv{Jeden item, jeden trigger}.
 
-Dalším posunem od modelu \uv{Vše v jednom} je zavedení \emph{priorit} Lambda funkcí. Priorita funkce hraje podobnou roli jako severita spouštěče a určuje abstraktní třídu, do níž funkce spadá. Třídou je primárně myšlena kritičnost funkce a intuitivně i severita spouštěče hlídajícího její metriky, avšak je možné priority vnímat i jako jiné klasifikace, například třídy doby trvání funkcí, přičemž rychlejší funkce nemusí znamenat kritčtější. Pro jednoduchost však uvažujme kritičnost/důležitost funkce. Priorita může nabývat hodnot 0 až 4 a speciální hodnoty -1 reprezentující neznámou prioritu. Priorita je uložena externě (v proměnné prostředí Lambda funkce na straně AWS) a pro každou funkci volena uživatelem. Do systému Zabbix musí být poslána z AWS jako součást dat pro objevení spolu s názvem funkce.
+Dalším posunem od modelu \uv{Vše v jednom} je zavedení \emph{priorit} Lambda funkcí. Priorita funkce hraje podobnou roli jako severita spouštěče a určuje abstraktní třídu, do níž funkce spadá. Třídou je primárně myšlena kritičnost funkce a intuitivně i severita spouštěče hlídajícího její metriky, avšak je možné priority vnímat i jako jiné klasifikace, například třídy doby trvání funkcí, přičemž rychlejší funkce nemusí znamenat kritčtější. Pro jednoduchost však uvažujme kritičnost/důležitost funkce. Priorita může nabývat hodnot 0 až 4 a speciální hodnoty -1 reprezentující neznámou prioritu a zahrnuje všechny jiné hodnoty než 0 až 4. Priorita je uložena externě (v proměnné prostředí Lambda funkce na straně AWS, viz sekci \ref{sec:prio-env-var}) a pro každou funkci je volena uživatelem. Do systému Zabbix musí být poslána jako součást dat pro objevení spolu s názvem funkce.
 
 V rámci modelu \uv{Jeden item, jeden trigger} je priorita mapována na dvojici severity spouštěče a \emph{konstanty}, vůči níž je hodnota metriky spouštěčem porovnávána. Konfigurace metrik poskytnutá uživatelem obsahuje tabulku přiřazující každé prioritě takovou dvojici. Při objevení Lambda funkce je vytvořen datový element pro každou metriku a spouštěč s odpovídající severitou, která je nastavena pomocí přepsání pravidla nízkoúrovňového objevování a přijaté priority funkce. Konstanta je ve výrazu spouštěče reprezentována uživatelským makrem s kontextem makra, který je s využitím LLD makra značící prioritu doplněn hodnotou dané priority. Každá metrika tak musí mít u síťového uzlu definována makra s kontextem pro všechny možné priority.
 
@@ -585,7 +578,7 @@ Při objevování Zabbix server na základě prototypů vytvořil jeden datový 
 
 Pokud příkladový Zabbix Server přijme hodnotu metriky \uv{Doba trvání} dané funkce 800 milisekund, spouštěč se severitou \emph{varování} vygeneruje problémovou událost. Jestliže následně přijme hodnotu 1100 milisekund, problémovou událost generuje spouštěč s \emph{průměrnou} severitou a předchozí událost je díky závislosti spouštěčů uzavřena. V systému tak setrvává pouze událost s nejvyšší severitou.
 
-Model \uv{Jeden item, více triggerů} dále řeší prioritizaci Lambda funkcí vůči jednotlivým metrikám. Minulý model zaváděl konstantní prioritu uloženou v proměnné prostředí Lambda funkce v AWS, tento model zavádí proměnnou prostředí, která obsahuje seznam dvojic identifikátoru metriky (jedinečný název poskytnutý v konfiguraci) a priority funkce vůči ní. Při objevení funkce je do Zabbixu poslán její název a každá z priorit jako LLD makra. Pravidlo nízkoúrovňového objevování tak přijímá ve zprávě více maker, na jejichž základu vytváří objevované entity. Zpráva tak může vypadat například následovně:
+Model \uv{Jeden item, více triggerů} dále řeší prioritizaci Lambda funkcí vůči jednotlivým metrikám. Minulý model zaváděl jedinou prioritu (uloženou v proměnné prostředí Lambda funkce v AWS, viz sekci \ref{sec:prio-env-var}), tento model zavádí seznam priorit vůči pouze uživatelem vybraným metrikám, jež mají být u funkce monitorovány. Při objevení funkce je do Zabbixu poslán její název a každá z poskytnutých priorit jako LLD makra. Pravidlo nízkoúrovňového objevování tak přijímá ve zprávě více maker, na jejichž základu vytváří objevované entity. Zpráva tak může vypadat například následovně:
 
 \begin{verbatim}
 [
@@ -610,7 +603,7 @@ se nyní na místě konstanty ve výrazu prototypu spouštěče nachází makro
 {$DOBA_TRVANI_HIGH:{#DOBA_TRVANI_PRIO}}.
 \end{verbatim}
 
-Tento přístup lze dále upravit tak, aby bylo možné vybírat pouze specifické metriky pro každou Lambda funkci. Jestliže seznam identifikátorů metrik a jejich priorit v proměnné prostředí Lambda funkce neobsahuje identifikátory všech konfigurovaných metrik, objevovací zpráva nebude obsahovat jejich LLD makra a Zabbix server tak nebude vytvářet datové elementy a spouštěče těchto metriky pro dané Lambda funkce. Zabbix Server vytváří pouze ty entity, v jejichž prototypech se nachází LLD makra přijatá ve zprávě. Pokud se například ve zprávě nenachází LLD makro \verb|{#DOBA_TRVANI_PRIO}|, nebudou vytvřeny spouštěče pro danou metriku, neboť se LLD makro v prototypu spouštěče nachází, ale ve zprávě nikoliv. Datové elementy jsou vytvářeny vždy pro všechny metriky, neboť prototypy datových elementů neobsahují LLD makra pro priority, pouze pro název funkce. Monitorovány jsou tedy vždy všechny metriky, ale automaticky sledovány pouze zvolené.
+Tento přístup umožňuje vybírat pouze specifické metriky pro každou Lambda funkci. Jestliže objevovací zpráva neobsahuje LLD makra některých metrik, Zabbix server nebude vytvářet datové elementy a spouštěče těchto metriky pro dané Lambda funkce. Zabbix Server vytváří pouze ty entity, v jejichž prototypech se nachází LLD makra přijatá ve zprávě. Pokud se například ve zprávě nenachází LLD makro \verb|{#DOBA_TRVANI_PRIO}|, nebudou vytvořeny spouštěče pro danou metriku, neboť se LLD makro v prototypu spouštěče nachází, ale ve zprávě nikoliv. Datové elementy jsou vytvářeny vždy pro všechny metriky, neboť prototypy datových elementů neobsahují LLD makra pro priority, pouze pro název funkce. Monitorovány jsou tedy vždy všechny metriky, ale automaticky sledovány pouze zvolené.
 
 Tento model je z doposud představených nejvíce flexibilní a konfigurovatelný, neboť umožňuje uživateli nastavit pro každou funkci i její metriku jinou prioritu a navíc i odstupňovat severitu spouštěčů podle závažnosti problémových událostí. Umožňuje také uživateli vybrat, které metriky chce sledovat a které nikoliv. Model \uv{Jeden item, více triggerů} vyhovoval zákazníkovým požadavkům a byl tak implementován do vyvíjeného systému. 
 
@@ -618,7 +611,19 @@ Přesto lze u něj najít některé nedostatky. Z uživatelského hlediska je op
 
 Lepší model by však z těchto nedostatků mohl vyřešit pouze nepřehlednost. Pro zachování funkctionality by nebylo možné snižit náročnost konfigurace ani počet entit.
 
-% nic :-)
+\section{Označení Lambda funkcí pro monitorování}
+\todo{sekce tady? nebo jinde?}
+\label{sec:prio-env-var}
+Jedním z požadavků na systém a zároveň problémem nutným řešit je snadné vybírání konkrétních Lambda funkcí k monitoringu a přiřazení priorit. Nejlepší řešení nabízí služba AWS Lambda, která funkcím umožňuje doplnit \emph{proměnné prostředí}, pojmenovanou hodnotu. Funkcím, jež mají být monitorovány, uživatel pouze nastaví proměnnou prostředí s určitým názvem (konfigurovatelný, ve výchozím stavu \verb|ZBLAMB_PRIO|). Hodnota proměnné je seznam mezerou oddělených dvojic identifikátorů metrik a priorit Lambda funkce vůči nim v souladu s použitým modelem Lambda funkcí \uv{Jeden item, více triggerů}. Identifikátory metrik poskytne uživatel v konfiguraci systému (viz sekci \ref{sec:config-metric-class}). Priority mohou nabývat hodnot 0 až 4. Identifikátor a priorita jsou odděleny dvojtečkou. Například hodnota proměnné \verb|ZBLAMB_PRIO| může být nastavena na \verb|doba_trvani:3 pocet_chyb:1| při konfiguraci metrik uživatelem s danými názvy.
+
+\section{Objevování Lambda funkcí}
+Dalším problémem je objevování Lambda funkcí v systému Zabbix. Použitý model Lambda funkcí v sytému Zabbix, \uv{Jeden item, více triggerů}, staví na nízkoúrovňovém objevování a před zahájením monitoringu Lambda funkce je potřeba ji nejdříve \emph{objevit}. Pro objevení entit v systému Zabbix je potřeba zaslat do \emph{pravidla pro nízkoúrovňové objevování} zprávu podobně jako do \emph{datových elementů}, avšak s LLD makry popisujícími objevené entity. Použitý model Lambda funkcí využívá LLD makra pro název funkce a priority metrik, jež mají být v systému Zabbix automaticky sledovány. 
+
+Lambda funkce s tímto nastavením je tedy potřeba objevit v systému Zabbix. Prvotní nápad může uvažovat objevování Lambda funkcí přímo v transformační Lambda funkci, která by mohla zaslat nejdříve objevovací zprávu obsahující všechny vyhovující vstupní funkce a až následně zaslat metriky. Tento přístup je ale značně komplikován systémem Zabbix kvůli nutnému nastavení \emph{doby zanechání ztracených zdrojů} u pravidla nízkoúrovňového objevování. Systém Zabbix by mohl mylně mazat objevené entity, pokud by některá z monitorovaných Lambda funkcí nebyla po delší dobu spuštěna a negenerovala tak metriky, ale stále by uživatel požadoval funkci monitorovat. 
+
+Tento problém by v transformační Lamba funkci bylo možné řešit několika způsoby. Například by bylo možné nastavit \emph{doby zanechání ztracených zdrojů} na maximální hodnotu (25 let), ukončení monitorování funkce by ale muselo probíhat ručně v systému Zabbix. Další možností by bylo nastavit \emph{doby zanechání ztracených zdrojů} na \emph{optimální} hodnotu pomocí pravděpodobnostní analýzy\footnote{Lze předpokládat, že doba mezi dvěma invokacemi dané Lambda funkce bude mít exponenciální rozdělení. Hodnotu \emph{doby zanechání ztracených zdrojů} by pak bylo potřeba nastavit na takovou dobu, u níž je velmi pravděpodobné, že Lambda funkce bude invokována. Překročení této doby by pak znamenalo, že není dále monitorována}, což by ale představovalo další nároky na uživatele. Nakonec by bylo možné v transformační Lambda funkci zjistit všechny Lambda funkce s danou proměnnou prostředí a zaslat pro ně objevovací zprávu -- obsahovala by tedy všechny monitorované Lambda funkce, nejen ty nacházející se na vstupu transformační Lambda funkce. Toto řešení však přidává transformační Lambda funkci další zodpovědnost a zbytečně ji komplikuje.
+
+Koncové řešení tak přichází s návrhem další Lambda funkce, jejíž jediným cílem bude objevovat všechny monitorované Lambda funkce, jedná se tak o oddělení zodpovědnosti (\emph{separation of concerns}) v posledním návrhu. Tato \emph{objevovací Lambda funkce} je spouštěna pomocí služby AWS EventBridge, která umožňuje plánování Lambda funkcí. Monitorované Lambda funkce tak budou objevovány opakovaně s periodou nastavenou uživatelem. Hodnotu nastavení \emph{doby zanechání ztracených zdrojů} je v tomto případě možné nastavit na nulu, tedy okamžité smazání entit, které nebudou v objevovací zprávě, neboť objevovací Lambda funkce v každé zprávě zahrne pouze a jen ty Lambda funkce, u nichž uživatel nastavil proměnnou prostředí s prioritami. Systém Zabbix jednak nebude omylně mazat entity, ale zároveň v něm nebudou entity setrvávat déle, než je uživatel požaduje. 
 
 \chapter{Implementace systému}
 \label{ch:implementace}
@@ -630,7 +635,6 @@ V této kapitole se budeme věnovat jak průběžným návrhům implementace, ta
 % Lambda → CW → MetricStream → Firehose → ? → Zabbix
 % možnosti pro "?" -- S3, HTTP Endpoint... + jak uděláno (hack transformační lambdou)
 % nástřel konfigurace hlavně pro Transf. lambdu (jak pozná, co má posílat -- LLDMultiTriggerConfig)
-\todo{obecnější diagram, ne služby, zahrnout model v zabbixu}
 
 Analýza služeb AWS v minulé kapitole již silně naznačovala směr architektury celého systému. Architektura systému se týká zejména právě strany AWS, neboť systém Zabbix je již hotový a jeho architektura je dána -- uživatel pouze volí, zda koncovým bodem systému pro monitorování Lambda funkcí bude Zabbix server nebo Zabbix proxy. 
 
@@ -739,16 +743,6 @@ Následně transformační Lambda zkontroluje odpověď Zabbix serveru (nebo pro
 % opt keep period
 % LLD lambda
 
-\todo{dát do analýzy:}
-\begin{tiny}
-Dalším problémem je objevování Lambda funkcí v systému Zabbix. Použitý model Lambda funkcí v sytému Zabbix, \uv{Jeden item, více triggerů}, staví na nízkoúrovňovém objevování a před zahájením monitoringu Lambda funkce je potřeba ji nejdříve \emph{objevit}. Jak již bylo zmíněno, pro objevení entit v systému Zabbix je potřeba zaslat do \emph{pravidla pro nízkoúrovňové objevování} zprávu podobně jako do \emph{datových elementů}, avšak obsahující LLD makra popisující objevené entity. Použitý model Lambda funkcí využívá LLD makra pro název funkce a priority metrik, jež mají být v systému Zabbix automaticky sledovány. Priority musí nastavit uživatel systému pro monitorování Lambda funkcí a to pomocí proměnné prostředí Lambda funkce pouze u těch Lambda funkcí, jež si přeje monitorovat. Název proměnné je konfigurovatlný s výchozí hodnotou \verb|ZBLAMB_PRIO|. Hodnota proměnné je seznam mezerou oddělených dvojic identifikátorů metrik a priorit Lambda funkce vůči nim. Identifikátory metrik odpovídají názvům metrik v jejich konfiguraci, kterou poskytne uživatel. Priority mohou nabývat hodnot 0 až 4. Identifikátor a priorita jsou odděleny dvojtečkou. Například hodnota proměnné \verb|ZBLAMB_PRIO| může být nastavena na \verb|doba_trvani:3 pocet_chyb:1|. 
-
-Lambda funkce s tímto nastavením je tedy potřeba objevit v systému Zabbix. Prvotní nápad uvažoval Lambda funkce objevovat přímo v transformační Lambda funkci: místo zjišťování funkcí k ignorování by se zjišťovaly funkce k objevení a monitorování určením, zda u funkcí existuje ona proměnná prostředí. Transformační Lambda funkce by pak mohla zaslat nejříve objevovací zprávu obsahující všechny vyhovující vstupní funkce a až následně zaslat metriky. Tento přístup je ale značně komplikován systémem Zabbix kvůli nutnému nastavení \emph{doby zanechání ztracených zdrojů} u pravidla nízkoúrovňového objevování. Systém Zabbix by mohl mylně mazat objevené entity, pokud by některá z monitorovaných Lambda funkcí nebyla po delší spuštěna a negenerovala tak metriky, ale stále by uživatel požadoval funkci monitorovat. 
-
-Tento problém by v transformační Lamba funkci bylo možné řešit několika způsoby. Například by bylo možné nastavit \emph{doby zanechání ztracených zdrojů} na maximální hodnotu (25 let), ukončení monitorování funkce by ale muselo probíhat ručně v systému Zabbix. Další možností by bylo nastavit \emph{doby zanechání ztracených zdrojů} na \emph{optimální} hodnotu pomocí pravděpodobnostní analýzy\footnote{Lze předpokládat, že doba mezi dvěma invokacemi dané Lambda funkce bude mít exponenciální rozdělení. Hodnotu \emph{doby zanechání ztracených zdrojů} by pak bylo potřeba nastavit na takovou dobu, u níž je velmi pravděpodobné, že Lambda funkce bude invokována. Překročení této doby by pak znamenalo, že není dále monitorována}, což by ale představovalo další nároky na uživatele. Nakonec by bylo možné v transformační Lambda funkci zjistit všechny Lambda funkce s danou proměnnou prostředí a zaslat pro ně objevovací zprávu -- obsahovala by tedy všechny monitorované Lambda funkce, nejen ty nacházející se na vstupu transformační Lambda funkce. Toto řešení však přidává transformační Lambda funkci další zodpovědnost a zbytečně ji komplikuje.
-
-Koncové řešení tak přichází s návrhem další Lambda funkce, jejíž jediným cílem bude objevovat všechny monitorované Lambda funkce, jedná se tak o oddělení zodpovědnosti (\emph{separation of concerns}) v posledním návrhu. Tato \emph{objevovací Lambda funkce} je spouštěna pomocí služby AWS EventBridge, která umožňuje plánování Lambda funkcí. Monitorované Lambda funkce tak budou objevovány opakovaně s periodou nastavenou uživatelem. Hodnotu nastavení \emph{doby zanechání ztracených zdrojů} je v tomto případě možné nastavit na nulu, tedy okamžité smazání entit, které nebudou v objevovací zprávě, neboť objevovací Lambda funkce v každé zprávě zahrne pouze a jen ty Lambda funkce, u nichž uživatel nastavil proměnnou prostředí s prioritami. Systém Zabbix jednak nebude omylně mazat entity, ale zároveň v něm nebudou entity setrvávat déle, než je uživatel požaduje. 
-\end{tiny}
 
 Objevovací Lambda funkce je také implementována pro postředí Python 3.8 a vyžaduje knihovny \verb|boto3| a \verb|zappix| stejně jako transformační Lambda funkce. Vstup do funkce je irelevantní. Ihned po invokaci funkce pomocí knihovny \verb|boto3| načte všechny Lambda funkce v regionu AWS, v němž je spuštěna, a uloží jejich názvy a slovník proměnných prostředí do seznamu. Následně odfiltruje Lambda funkce bez proměnné prostředí s prioritami. Ze zbylých záznamů vytvoří zprávu pro \emph{pravidlo nízkoúrovňového objevování}: seznam objektů ve formátu JSON, kde každý objekt reprezentuje Lambda funkci (název a její priority). U každé ponechané Lambda funkce projde priority z proměnné prostředí a zaznamená je do jednoho slovníku spolu s názvem funkce. Tento slovník je pak přidán do seznamu, který je nakonec serializován do formátu JSON. Objevovací Lambda funkce zprávu odešle pomocí knihovny \verb|zappix| do systému Zabbix. Pokud odpověď Zabbix serveru (nebo proxy) obsahuje chybu, funkce skončí s návratovou hodnotou 1. 
 
@@ -777,6 +771,7 @@ Druhá sada konfiguračních proměnných se týká šablon služby AWS CloudFor
 Po vyplnění každé sady skript zapíše hodnoty do konfiguračních souborů v několika adresářích projektu a po obou sadách zkopíruje konfiguraci metrik do potřebného adresáře. Po dokončení skriptu je možné přejít k nasazování projektu. Před nasazením může být skript spuštěn libovolněkrát a konfigurační soubory budou přepsány. Po nasazení však uživatel nemůže měnit konfigurační hodnoty, které skript vygeneroval. Pro změnu konfigurace je potřeba nasazený projekt nejdříve odstranit a poté znovu nasadit. Prvním krokem nasazování a tedy i následujícím krokem je konfigurace systému Zabbix.
 
 \subsubsection{třída LLDMultiTriggerConfig}
+\label{sec:config-metric-class}
 % pořádně popsat, jak funguje její specifikace
 
 Prvním a zároveň nejnáročnějším krokem konfigurace je uživatelská definice metrik ke sledování. U každé metriky je potřeba specifikovat metriku Lambda funkce z AWS a její sledovanou statistiku, logický výraz pro spouštěče, tabulku priorit a severit, datový typ hodnoty metriky pro Zabbix a jednoznačný název metriky pro systém monitorování Lambda funkcí. Definice konfiguračních metrik se musí nacházet v souboru \verb|metrics_def.py| v kořenovém adresáři projektu. Již podle přípony se jedná opět o skript v jazyce Python, avšak tento skript pouze definuje jedinou proměnnou \verb|MetricConigs|, jíž je přiřazen seznam instancí v projektu deklarované třídy \verb|LLDMultiTriggerConfig|, které reprezentují uživatelské \uv{konfigurační} metriky. Soubor \verb|metrics_def.py| v projektu již existuje a slouží jako příklad. Uživatel tak může soubor upravit dle svých potřeb.
