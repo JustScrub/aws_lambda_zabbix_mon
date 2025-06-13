@@ -38,7 +38,7 @@
 \author{Jakub}{Mladý}{Bc.}{}
 \supervisor{Ing. Maxmilián Otta, Ph.D.}
 \assignment{zadani.pdf}
-\signdate{}{}{}{} % day, month, year, city
+\signdate{19}{6}{2025}{Františkových Lázních} % day, month, year, city
 
 \addbibresource{lit.bib}% << the file with the bibliographical database to be used throughout the text
 % _____________________________________________________________________________
@@ -49,11 +49,17 @@
 % _____________________________________________________________________________
 %
 \abstract
-{}
+{
+V této práci je navržen a implementován systém pro monitorování serverless aplikací založených na technologii AWS Lambda Functions dle potřeb zákazníka, společnosti Aimtec a.s. Práce se nejdříve zaměřuje na teoretický pohled na distribuované systémy, cloud computing a jejich monitorování s přehledem a seznámením se s relevantními technologiemi a nástroji, zejména s AWS a jeho službami a monitorovacím systémem Zabbix použitým zákazníkem pro monitoring AWS Lambda funkcí. Následně je navržen a implementován systém pro monitorování serverless aplikací, který uživateli umožní snadný výběr metrik a funkcí k monitorování a co nejsnazší konfigurovatelnost výstrah a úrovní naléhavosti. Implementovaný a nasazený systém je následně otestován a vyhodnocen z pohledu jeho funkčnosti, použitelnosti a efektivity. Práce je uzavřena shrnutím dosažených výsledků a návrhem možných budoucích vylepšení systému.
+}
 % *** English abstract ***
-{}
+{
+This thesis proposes and implements a system for monitoring serverless applications based on AWS Lambda Functions according to the needs of the customer, Aimtec a.s. The thesis first focuses on the theoretical perspective of distributed systems, cloud computing, and their monitoring, providing an overview and introduction to relevant technologies and tools, especially AWS and its services, as well as the Zabbix monitoring system used by the customer for monitoring AWS Lambda functions. Subsequently, a system for monitoring serverless applications is designed and implemented, allowing users to easily select metrics and functions to monitor and configure alerts and severity levels as easily as possible. The implemented and deployed system is then tested and evaluated in terms of its functionality, usability, and efficiency. The thesis concludes with a summary of the achieved results and suggestions for possible future improvements to the system.
+}
 
-\keywords{}
+\keywords{
+monitoring, serverless, AWS, Lambda, Zabbix, FaaS, cloud computing, distributed systems
+}
 % _____________________________________________________________________________
 %
 %        ACKNOWLEDGEMENT
@@ -62,6 +68,8 @@
 \acknowledgement{
 
 % poděkovat Aimtecu za umožnění spolupráce, zejména pak spolupracovníkum Lukáši Rampovi, Honzovi Šmucrovi, Jirkovi <>, ... za poskytnutí informací, zpětnou vazbu a ochotu pomoct
+
+Rád bych poděkoval společnosti Aimtec a.s. za umožnění spolupráce na tomto projektu, zejména pak Ing. Lukáši Rampovi, Ing. Janu Šmucrovi a Ing. Jirku Loudilovi, kteří mi poskytli cenné informace, zpětnou vazbu a ochotu pomoci při realizaci této práce. Dále děkuji vedoucímu práce Ing. Maxmiliánu Ottovi, Ph.D., za jeho volné vedení a cenné rady během psaní této práce.
 
 }
 % _____________________________________________________________________________
@@ -81,7 +89,11 @@
 
 \chapter{Úvod}
 
-%V moderním světě rozvinutých informačních technologií každodenně využíváme aplikace a služby, které stojí na komplexní infrastruktuře tvořené mnoha vzájemně propojenými výpočetními jednotkami tvoříčími komunikační síť, leč se jejich uživatelům mohou zvenčí jevit jako jediný celek. Takové systémy se nazývají distribuované nebo decentralizované, i když o rozdílech těchto dvou označení panují rozdílné názory \cite{distrib_sys_4}.
+V moderním světě rozvinutých informačních technologií každodenně využíváme aplikace a služby, které stojí na komplexní infrastruktuře komponované mnoha vzájemně propojenými výpočetními jednotkami tvoříčími komunikační síť, leč se jejich uživatelům mohou zvenčí jevit jako jediný celek. Tyto aplikace a služby se nazývají distribuované nebo decentralizované. Jelikož takovou infrastrukturu je náročné provozovat a spravovat, zejména z pohledu lidských zdrojů, vznikly tržní subjekty poskytující tyto prostředky jako službu (as a Service) za nižší náklady díky úsporám z rozsahu. Tyto služby se nazývají cloud computing (cloudové výpočetní prostředí) a umožňují firmám a jednotlivcům využívat výpočetní kapacity bez nutnosti investovat do vlastního hardwaru a infrastruktury. Popularita cloudových služeb vedla k rozvoji různých modelů poskytování služeb a zdrojů, které umožňují uživatelům snadno přistupovat k výpočetním prostředkům a škálovat je podle svých potřeb. Jedním z takových modelů je serverless computing, který umožňuje vývojářům psát kód a spouštět ho v cloudovém prostředí bez nutnosti správy serverů. Tento model je prominentně realizován pomocí paradigmatu funkce jako služba (FaaS, Function as a Service).
+
+Komplexita a distribuovanost těchto systémů však přináší řadu výzev, zejména v oblasti monitorování a diagnostiky. Systémy jsou často složeny z mnoha komponent, které spolu komunikují a interagují, což ztěžuje sledování jejich stavu a výkonu. Monitorování serverless aplikací je obzvlášť náročné, neboť tyto aplikace jsou často postaveny na událostně řízené architektuře a jejich komponenty mohou být dynamicky škálovány, nasazovány a rušeny.
+
+Cílem této práce je navrhnout a implementovat systém pro monitorování serverless aplikací založených na technologii AWS Lambda Functions dle potřeb zákazníka, společnosti Aimtec a.s. Práce se nejdříve zaměří na teoretický pohled na distribuované systémy, cloud computing a jejich monitorování s přehledem a seznámením se s relevantními technologiemi a nástroji, zejména s AWS a jeho službami a monitorovacím systémem Zabbix použitým zákazníkem pro monitoring AWS Lambda funkcí. Následně bude navržen a implementován systém pro monitorování serverless aplikací, který uživateli umožní snadný výběr metrik a funkcí k monitorování a co nejsnazší konfigurovatelnost výstrah a úrovní naléhavosti. Implementovaný a nasazený systém bude následně otestován a vyhodnocen z pohledu jeho funkčnosti, použitelnosti a efektivity. Práce bude uzavřena shrnutím dosažených výsledků a návrhem možných budoucích vylepšení systému.
 
 %\section{Termíny a jazyk}
 % termíny anglicky, v textu český překlad nebo anglicky bez skloňování jenom v 1.p. sg.
@@ -212,8 +224,8 @@ kde $\pi_f$ je očekávaný počet požadavků za sekundu a $\delta_f$ je oček�
 \subsubsection{Verzování}
 AWS Lambda umožňuje pro potřeby kontinuálního vývoje funkce verzovat. Funkce je možné vyvíjet/upravovat a testovat ještě před zveřejněním a následně publikovat novou verzi, která je dostupná pro volání. Zveřejněné verze obdrží unikátní monotónně se zvyšující identifikátor a nejde je dále měnit. Konkrétní verze mohou být označeny aliasy sloužícími k přesměrování volání. Aliasy je možné přesměrovat pro plynulý přechod mezi verzemi funkce. AWS navíc umožňujě definovat \emph{vážený alias}, který umožňuje rozdělit provoz mezi dvěmi verzemi podle zadaného poměru, jako podporu \emph{canary deployment} pro účely CI/CD \cite{lambda.docs.aws}.
 
-\subsubsection{Životní cyklus Lambda funkce}
-\todo{doplnit tělo}
+%\subsubsection{Životní cyklus Lambda funkce}
+%\todo{doplnit tělo}
 
 
 \section{Monitoring cloudových aplikací}
@@ -439,7 +451,7 @@ Popsanou architekturu systému pro externí monitorování AWS Lambda funkcí sh
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.8\textwidth]{img/architektura.png}
+    \includegraphics[width=0.8\textwidth]{figs/architektura.png}
     \caption{Abstraktní architektura systému pro externí monitorování AWS Lambda funkcí}
     \label{fig:architektura}
 \end{figure}
@@ -1184,6 +1196,15 @@ Služby AWS by se kvůli skevenčnímu zpracovávání také mohly považovat za
 
 \chapter{Závěr}
 
+% shrnutí, co bylo uděláno, jaké jsou výsledky, co by se dalo udělat lépe, co by se dalo udělat jinak
+V této práci byl navržen a implementován systém pro monitorování AWS Lambda funkcí pomocí monitorovacího systému Zabbix na základě požadavků zadavatele a zákazníka, organizace Aimtec a.s. Práce nejdříve představila teoretické základy distribuovaných systémů v cloudových prostředí, zejména pak služby cloudového prostředí AWS, z teoretického hlediska projednala paradigmata serverless a FaaS se zaměřením na AWS Lambda, a nakonec se v teorii zaměřila na monitorování těchto služeb a konkrétní prostředky monitorovací služby AWS CloudWatch a monitorovacího systému Zabbix. 
+
+V praktické části práce byly představeny benevolentní požadavky zákazníka na vyvíjený monitorovací systém a na jejich základě byla navržena událostně řízená sekvenčně dávková architektura systému. Systém se skládá z několika komponent, z nichž většina byla realizována pomocí dostupných služeb AWS včetně vlastních Lambda funkcí umožňujících \uv{automonitoring}, sledování monitorovacího systému pomocí vlastních prostředků. V cílové komponentě, systému Zabbix, byl navržen a implementován zákazníkovi vyhovující model AWS Lambda funkcí, který umožňuje s ohledem na požadavky co nejsnazší konfiguraci monitorovaných funkcí, jejich metrik a priorit funkcí vůči jednotlivým metrikám. Práce poměrně náročný, ale vzhledem k možnostem co nejjednodušší postup nasazování systému zevrubně popsala.
+
+Systém byl nasazen do zákazníkem poskytnutého prostředí AWS a otestován pomocí testovacího skriptu generujícího vstupy pro klíčovou komponentu systému, transformační Lambda funkci. Skript byl navržen tak, aby generoval vstupy s různými počty záznamů a funkcí, což umožnilo provést benchmarking transformační Lambda funkce. Výsledky benchmarkingu ukázaly, že funkce je spolehlivá a stabilní. Systém dokáže monitorovat více Lambda funkcí, než se v reálném provozu objevuje, a je schopen zpracovat větší objemy dat, než jaké se očekávají. Zároveň nepředstavuje přílišnou dodatečnou zátěž pro infrastrukturu AWS a Zabbix, neboť jediné v uživatelském prostředí AWS spouštěné komponenty jsou objevovací a transformační Lambda funkce, jejichž dobu běhu a periodu spouštění může uživatel ovlivnit v konfiguraci. Následná diskuze se zaměřila na možné úzké body a jedinečná místa selhání v systému, přičemž byla odhalena pouze jedinečná místa selhání, která by však neměla představovat problém v reálném provozu. V případě výpadku některé z komponent systému by došlo pouze k částečnému výpadku, systém by však i nadále fungoval a data by byla díky komponentě implementující vzor Dead Letter Queue zachována.
+
+Ve výsledném systému existují místa pro vylepšení, zejména idempotence nasazování systému. Systém však na funkčnosti nepostrádá žádnou z požadovaných vlastností a je plně schopen plnit svůj účel, spolehlivě monitorovat AWS Lambda funkce. Práci tak lze považovat za úspěšnou a splňující požadavky zadavatele.
+
 % _____________________________________________________________________________
 %
 %
@@ -1192,14 +1213,11 @@ Služby AWS by se kvůli skevenčnímu zpracovávání také mohly považovat za
 % _____________________________________________________________________________
 %
 
-\appendix
+%\appendix
 
-\chapter{Seznam zkratek}
+%\chapter{Seznam zkratek}
 
-\chapter{Optimální nastavení LLD Keep Period}
-
-
-
+%\chapter{Optimální nastavení LLD Keep Period}
 
 
 \backmatter
