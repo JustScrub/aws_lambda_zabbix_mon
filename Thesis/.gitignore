@@ -11,3 +11,5 @@ latexmkrc
 *.blg
 *.fdb_latexmk
 *.fls
+
+poster.pdf
