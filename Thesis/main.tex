@@ -388,7 +388,7 @@ Skupiny síťových uzlů pouze slouží k organizaci a nemají žádný vliv na
 \subsection{Trigger}
 Trigger (\uv{spouštěč}) je v Zabbixu entita hlídající \emph{normální} hodnoty metrik podle určitého logického výrazu. Slouží jako alarm při problémových hodnotách metrik -- interně se může nacházet v jednom ze stavů \uv{OK} nebo \uv{PROBLEM} v závislosti na vyhodnocení daného logického výrazu (nepravdivý, resp. pravdivý).
 
-Trigger je vytvářen v rámci hosta nebo šablony. V konfiguraci mu je přiřazen název, zobrazovaný název, \emph{severita}, \emph{logický výraz}, \emph{závislosti} na jiných spouštěčích a další. Severita určuje závažnost problému, který spouštěč hlídá. Základními severitami jsou \emph{informace}, \emph{upozornění}, \emph{průměrná} a \emph{vysoká severita} a \emph{katastrofa}. 
+Trigger je vytvářen v rámci hosta nebo šablony. V konfiguraci mu je přiřazen název, zobrazovaný název, \emph{severita}, \emph{logický výraz}, \emph{závislosti} na jiných spouštěčích a další. Severita určuje závažnost problému, který spouštěč hlídá. Základními severitami jsou \emph{neklasifikovaná}, \emph{informace}, \emph{upozornění}, \emph{průměrná} a \emph{vysoká severita} a \emph{katastrofa}. 
 
 Logický výraz je složitější textová konstrukce, která může obsahovat několik podmínek, logické, aritmetické a porovnávací operátory, funkce a konstanty. Proměnné figurující ve výrazech jsou datové elementy identifikované názvem síťového uzlu nebo šablony, pod něž datový element spadá, a jejich klíčem -- je tedy možné vytvářet spouštěče, které hlídají hodnoty metrik různých síťových uzlů nebo šablon. 
 
@@ -448,7 +448,7 @@ Popsanou architekturu systému pro externí monitorování AWS Lambda funkcí sh
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.8\textwidth]{figs/architektura.png}
+    \includegraphics[width=\textwidth]{figs/architektura.png}
     \caption{Abstraktní architektura systému pro externí monitorování AWS Lambda funkcí}
     \label{fig:architektura}
 \end{figure}
@@ -515,7 +515,14 @@ Prvotní model nepočítal s nízkoúrovňovým objevováním, kvůli čemuž po
 
 Jelikož však všechny Lambda funkce sdílely pro své metriky shodné datové elementy v Zabbixu, bylo potřeba rozlišit, které hodnoty patří které funkci. U spouštěčů rozlišování bylo docíleno pomocí \emph{značek} (\emph{tags}) a \emph{korelační značky} (\emph{correlation tag}), jimiž jsme se u popisu systému Zabbix nezabývali. Značka je dvojice názvu a hodnoty přiřazená při tvorbě spouštěče, hodnota však může obsahovat makro, které Zabbix dokáže nahradit hodnotou sledovaného datového elementu, kterou lze dále upravit \emph{funkcí makra} (například nahradit podle regulárního výrazu). Korelační značka je pak název jedné z definovaných značek spouštěče. Při její specifikaci pak spouštěč dokáže generovat odlišné události označené touto značkou (a její hodnotou) pro odlišné hodnoty značky. Pokud se v hodnotě datového elementu objevuje název Lambda funkce, je tak možné generovat problémové události pro každou Lambda funkci zvlášť\footnote{Název funkce je třeba získat z hodnoty metriky např. pomocí náhrady podle regulárního výrazu. Číselnou hodnotu metriky je nutné extrahovat podobným způsobem, akorát ve výrazu spouštěče namísto v korelační značce.}. 
 
-Model byl pracovně nazván \uv{Vše v jednom}, jelikož každý datový element reprezentující specifikovanou metriku zahrnoval všechny Lambda funkce.
+Model byl pracovně nazván \uv{Vše v jednom}, jelikož každý datový element reprezentující specifikovanou metriku zahrnoval všechny Lambda funkce. Obrázek \ref{fig:vse-v-jednom} tento model vizuálně přibližuje v diagramu založeném na diagramu tříd. Skupina síťových uzlů sestává (je komponována) z jednoho síťového uzlu, který zahrnuje pouze jeden \uv{virtuální} model Lambda funkcí. Tento model sestává z datových elementů a spouštěčů, za každou konfigurovanou metriku jeden. Spouštěče navíc odkazují na datové elementy, jejichž metriky sledují. Model Lambda funkcí je ale pouze virtuální a slouží jen pro přehlednost v diagramu -- v systému Zabbix spadají všechny datové elementy a spouštěče pod vyjádřený síťový uzel přímo.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figs/zab-lam-models/model_all-in-one.drawio.png}
+    \caption{Diagram modelu \uv{Vše v jednom}}
+    \label{fig:vse-v-jednom}
+\end{figure}
 
 Tento model však představoval značné nedostatky a to zejména v přehlednosti a konfigurovatelnosti spouštěčů. Jelikož shodná metrika všech Lambda funkcí sdílela jeden spouštěč, nebylo možné nastavit problémové hodnoty metrik pro jednotlivé funkce a stejně tak pro ně nebylo možné nastavit různé severity. Přehlednost trpěla tím, že jeden datový element sbíral metriky různých funkcí. Model tak byl značně nevyhovující. 
 
@@ -544,9 +551,16 @@ Pro komplexitu slovního popisu uveďme příklad. Uvažujme Lambda funkci pojme
 ]
 \end{verbatim}
 
-Záznam nese LLD makra pro název funkce a prioritu, respektive. Z těchto informací Zabbix server vytvoří datový element pro Lambda funkci měřící metriku \uv{Doba trvání} a spouštěč severity \emph{vysoká} s výrazem, který porovnává poslední hodnotu metriky s konstantou vyjádřenou makrem \verb|{$DOBA_TRVANI:3}|. Během konfigurace Zabbix serveru bylo centrálnímu síťovému uzlu přiřazeno toto makro s hodnotou 1000 (podle tabulky v konfiguraci metriky). Pro makro \verb|{$DOBA_TRVANI}| existují kontexty se všemi prioritami dle tabulky priorit v konfiguraci metriky. Severita spouštěče je nastavena pomocí přepsání pravidla nízkoúrovňového objevování, které specifikuje, že pokud LLD makro \verb|{#PRIO}| nabývá hodnoty 3, pak je severita spouštěče \emph{vysoká}. Každá priorita v tabulce priorit má své přepsání pravidla.
+Záznam nese LLD makra pro název funkce a prioritu, respektive. Z těchto informací Zabbix server vytvoří datový element pro Lambda funkci měřící metriku \uv{Doba trvání} a spouštěč severity \emph{vysoká} s výrazem, který porovnává poslední hodnotu metriky s konstantou vyjádřenou makrem \verb|{$DOBA_TRVANI:3}|. Během konfigurace Zabbix serveru bylo centrálnímu síťovému uzlu přiřazeno toto makro s hodnotou 1000 (podle tabulky v konfiguraci metriky). Pro makro \verb|{$DOBA_TRVANI}| existují kontexty se všemi prioritami dle tabulky priorit v konfiguraci metriky. Severita spouštěče je nastavena pomocí přepsání pravidla nízkoúrovňového objevování, které specifikuje, že pokud LLD makro \verb|{#PRIO}| nabývá hodnoty 3, pak je severita spouštěče \emph{vysoká}. Každá priorita v tabulce priorit má své přepsání pravidla. Pokud po objevení funkce objevený datový element přijme hodnotu vyšší než 1000, spouštěč vygeneruje problémovou událost s vysokou severitou.
 
-Pokud po objevení funkce objevený datový element přijme hodnotu vyšší než 1000, spouštěč vygeneruje problémovou událost s vysokou severitou.
+Diagram modelu \uv{Jeden item, jeden trigger} je zobrazen na obrázku \ref{fig:jeden-item-jeden-trigger}. Skupina síťových uzlů opět sestává z jednoho síťového uzlu, který zahrnuje pravidlo nízkoúrovňového objevování a jeden virtuální prototyp modelu Lambda funkce, který je tvořen prototypy datových elementů a spouštěčů -- jeden prototyp datového elementu a jeden prototyp spouštěče s irelevantní severitou pro každou metriku. Při objevení Lambda funkce (pravidlo přijme objevovací zprávu) je vytvořen virtuální model objevené Lambda funkce, jemuž patří konkrétní datové elementy a spouštěče (jeden na každou metriku). Jedno z přepsání pravidla nízkoúrovňového objevování zároveň nastaví severitu objeveného spouštěče podle priority funkce. Prototyp modelu a model jsou opět virtuální, jejich komponenty spadají přímo pod síťový uzel.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{figs/zab-lam-models/model_one-item-one-trigger.drawio.png}
+    \caption{Diagram modelu \uv{Jeden item, jeden trigger}}
+    \label{fig:jeden-item-jeden-trigger}
+\end{figure}
 
 Model \uv{Jeden item, jeden trigger} je tak výrazným posunem od modelu \uv{Vše v jednom}, avšak stále nebyl dostatečně uspokojivý. Přestože model umožňuje nastavovat priority funkcí a nakonfigurovat tak, jak závažné problémy funkce generují při překročení kterých hodnot, trpí nedostatečným množstvím problémových stavů: model Lambda funkce buď negeneruje žádný problém, anebo generuje problém s nastavenou severitou a je tak nutné zvolit jedinou mezní hodnotu určující problémový stav. V reálném nasazení je však žádoucí odstupňovat severity podle závažnosti problému -- prakticky tedy vytvářet více spouštěčů různých severit a při nižších mezních hodnotách metriky generovat problém s nižší severitou. Dalším nedostatkem modelu je \uv{konstantní} priorita Lambda funkce vůči všem sbíraným metrikám. Například metrika doby trvání Lambda funkce nemusí mít pro danou funkci takovou váhu, jako počet chyb. Oba tyto nedostatky byly řešeny v následujícím modelu.
 
@@ -565,6 +579,7 @@ Nakonec tento model redukuje počet prototypů datových elementů a s tím tak�
 Pro ilustraci opět uveďme příklad: uživatel nakonfiguroval metriku \uv{Doba trvání}, která sleduje statistiku maximum z metriky \uv{Duration} v AWS, s tabulkou priorit a severit jako v tabulce \ref{tab:multi-trig-prio_tab-example} a v AWS Lambda provozuje funkci \uv{MojeFunkce} s prioritou 3. Po zprovoznění vyvíjeného systému je funkce objevena (prozatím) stejným způsobem jako v minulém příkladu. 
 
 \begin{table}[]
+\centering
 \begin{tabular}{|l|l|l|l|l|l|}
 \hline
 sev\textbackslash prio          & \textbf{0} & \textbf{1} & \textbf{2} & \textbf{3} & \textbf{4} \\ \hline
@@ -574,7 +589,7 @@ sev\textbackslash prio          & \textbf{0} & \textbf{1} & \textbf{2} & \textbf
 \textit{HIGH}     & 750        & 1000       & 1000       & -          & -          \\ \hline
 \textit{DISASTER} & 1000       & -          & -          & -          & -          \\ \hline
 \end{tabular}
-\caption{Příklad poskytnutné tabulky priorit a severit v konfiguraci metriky \uv{doba trvání} u modelu \uv{Jeden item, více triggerů}. Číselné hodnoty jsou v milisekundách, spojovník značí nevyplněné pole. Sloupce reprezentují prioritu Lambda funkce, řádky severitu spouštěče.}
+\caption{Příklad poskytnutné tabulky priorit a severit v konfiguraci metriky \uv{doba trvání} u modelu \uv{Jeden item, více triggerů}. Číselné hodnoty jsou v milisekundách, spojovník značí nevyplněné pole. Sloupce reprezentují prioritu Lambda funkce, řádky severitu spouštěče. Severita \uv{NOT CLASSIFIED} a priorita -1 jsou vynechány.}
 \label{tab:multi-trig-prio_tab-example}
 \end{table}
 
@@ -608,6 +623,15 @@ se nyní na místě konstanty ve výrazu prototypu spouštěče nachází makro
 \end{verbatim}
 
 Tento přístup umožňuje vybírat sledování pouze specifických metrik pro každou Lambda funkci. Jestliže objevovací zpráva neobsahuje LLD makra některých metrik, Zabbix server nebude vytvářet spouštěče těchto metriky pro dané Lambda funkce. Zabbix Server vytváří pouze ty entity, v jejichž prototypech se nachází LLD makra přijatá ve zprávě. Pokud se například ve zprávě nenachází LLD makro \verb|{#DOBA_TRVANI_PRIO}|, nebudou vytvořeny spouštěče pro danou metriku, neboť se LLD makro v prototypu spouštěče nachází, ale ve zprávě nikoliv. Datové elementy jsou vytvářeny vždy pro všechny metriky, neboť prototypy datových elementů neobsahují LLD makra pro priority, pouze pro název funkce. Monitorovány jsou tedy vždy všechny metriky, ale automaticky sledovány pouze zvolené.
+
+Diagram tohoto modelu na obrázku \ref{fig:jeden-item-vice-triggeru} je podobný diagramu předchozího modelu, avšak s několika změnami. Předně se mění počet prototypů spouštěčů, jichž je na každou metriku šest (počet severit), a počet objevených spouštěčů každé Lambda funkce, jichž je až šest v závislosti na vynechaných kombinacích v tabulce priorit a severit. Dále se mění počet prototypů datových elementů a z nich tvořených objevených datových elementů; oba závisejí na konfiguraci metrik, metriky využívající shodnou statistiku a metriku z AWS CloudWatch sdílí jeden datový element nebo jeho prototyp. Nakonec se mění také přepsání pravidla nízkoúrovňového objevování, která nyní místo nastavování severit ruší vytváření spouštěčů s prázdnými kombinacemi v tabulce priorit a severit. Podobnost diagramů naznačuje, že hlavní změny modelu se odehrávají mimo systém Zabbix -- v konfiguraci metrik (tabulka priorit a severit) a v konfiguraci priorit Lambda funkcí (seznam metrik a jejich priorit).
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{figs/zab-lam-models/model_one-item-multi-trigger.drawio.png}
+    \caption{Diagram modelu \uv{Jeden item, více triggerů}}
+    \label{fig:jeden-item-vice-triggeru}
+\end{figure}
 
 Tento model je z doposud představených nejvíce flexibilní a konfigurovatelný, neboť umožňuje uživateli nastavit pro každou funkci i její metriku jinou prioritu a navíc i odstupňovat severitu spouštěčů podle závažnosti problémových událostí. Umožňuje také uživateli vybrat, které metriky chce sledovat a které nikoliv. Model \uv{Jeden item, více triggerů} vyhovoval zákazníkovým požadavkům a byl tak implementován do vyvíjeného systému. 
 
@@ -650,7 +674,7 @@ Komponenta pro automatickou registraci monitorovaných Lambda funkcí je realizo
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{figs/arch_simple_diag.png}
+    \includegraphics[width=\textwidth]{figs/arch_simple_diag.png}
     \caption{Infrastruktura systému pro monitorování AWS Lambda funkcí}
     \label{fig:infrastructure_diagram}
 \end{figure}
@@ -987,7 +1011,7 @@ Vytvořené EC2 instance spustí komponenty systému Zabbix v Docker kontejnerec
     \item \verb|ZBLambCreateProxy| -- příznaková hodnota, zda má být vytvořena EC2 instance se Zabbix proxy. Možné hodnoty jsou \verb|yes| (ano, výchozí) a \verb|no| (ne).
 \end{itemize}
 
-Šablona navíc také vrací \emph{výstupní parametry}, které mohou být užitečné pro uživatele. Prvním výstupem je privátní IP adresa instance se Zabbix serverem, druhým je privátní IP adresa instance se Zabbix proxy, pokud byla vytvářena, jinak opět privátní IP adresa instance se Zabbix serverem. Třetím výstupem je ID vytvořeného SSH klíče, který umístěn v repozitáří \verb|/ec2/keypair/<KeyID>| ve službě AWS System Manager Parameter Store, kde \verb|<KeyID>| je výstupní ID. První dva výstupy jsou navíc \emph{exportní} -- služba AWS CloudFormation ukládá jejich hodnoty pod zvolené názvy, na něž je možné referovat v budoucích šablonách. Názvy exportů jsou \verb|ZBLamb::ZabbixServerPrivateIp|, resp. \verb|ZBLamb::ZabbixProxyPrivateIp|. 
+Šablona navíc také vrací \emph{výstupní parametry}, které mohou být užitečné pro uživatele. Prvním výstupem je privátní IP adresa instance se Zabbix serverem, druhým je privátní IP adresa instance se Zabbix proxy, pokud byla vytvářena, jinak opět privátní IP adresa instance se Zabbix serverem. Třetím výstupem je ID vytvořeného SSH klíče, který umístěn v repozitáři \verb|/ec2/keypair/<KeyID>| ve službě AWS System Manager Parameter Store, kde \verb|<KeyID>| je výstupní ID. První dva výstupy jsou navíc \emph{exportní} -- služba AWS CloudFormation ukládá jejich hodnoty pod zvolené názvy, na něž je možné referovat v budoucích šablonách. Názvy exportů jsou \verb|ZBLamb::ZabbixServerPrivateIp|, resp. \verb|ZBLamb::ZabbixProxyPrivateIp|. 
 
 \subsubsection{Šablona pro síťovou infrastrukturu}
 
