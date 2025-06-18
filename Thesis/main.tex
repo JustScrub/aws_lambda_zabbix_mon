@@ -298,24 +298,24 @@ Kromě metrik ukládá služba CloudWatch také výpisy (logs) z různých zdroj
 
 Výpisy je také možné posílat do ostatních služeb AWS: AWS Kinesis, AWS Data Firehose (stejně jako Metric Streams) nebo přímo do AWS Lambda funkce. 
 
-\section{Monitorovací systém Zabbix}
+\subsection{Monitorovací systém Zabbix}
 %\todo{obrázky, screenshoty}
 Zabbix je open-source monitorovací systém umožňující sledovat stav různých komponent infrastruktury. Je schopen monitorovat širokou škálu služeb a zdrojů, jako jsou například servery, databáze, síťová zařízení, cloudové služby nebo vlastní aplikace. Zabbix implementuje push i pull modely monitorování \cite{docs.zabbix}. Nadále se budeme věnovat již nepodporované verzi Zabbix 5.4, jež bude dle požadavků zákazníka použita při vývoji systému pro externí monitorování Lambda funkcí.
 
-\subsection{Komponenty Zabbix}
+\subsubsection{Komponenty Zabbix}
 Systém sestává z několika komponent, jimiž jsou Zabbix server, frontend, agent a volitelně proxy. Server je hlavní komponentou systému, která ukládá a zpracovává metriky. Zabbix agent je software nainstalovaný na monitorovaných zařízeních, který sbírá data a posílá je na server, případně na proxy. Frontend je webové rozhraní pro uživatele, které umožňuje zobrazovat metriky, vytvářet grafy, alarmy a další. Proxy je volitelná komponenta distribující zátěž od serveru \cite{docs.zabbix}.
 
 Proxy a agenti mohou být konfigurováni jako aktivní nebo pasivní, nastavení odpovídající modelům push a pull. V aktivním modelu agenti a proxy pravidelně posílají data na server, zatímco v pasivním modelu server žádá o data agenty a proxy. Aktivní model je výchozí \cite{docs.zabbix}.
 
 
-\subsection{Pojmy, funkce}
+\subsubsection{Pojmy, funkce}
 % pojmy -- host, item, severity, trigger, discovery, makra, trapper itemy
 % funkce -- LLD + keep period, API, Zabbix sender
 V rámci systému Zabbix je definováno několik typů záznamů nebo kategorií, s nimiž je operováno. Na nejnižší úrovni se vyskytují \uv{datové elementy}\footnote{Pro český překad některých anglických pojmů byl využit oficiální překlad dokumentace Zabbix v ruském jazyce.} (\emph{item}), které odpovídají metrikám z AWS CloudWatch\footnote{technicky jejich hodnoty budou nabývat hodnot \emph{statistik} z AWS CloudWatch, jelikož neagregované metriky nejsou poskytovány, viz výše}; jedná se o časově seřazené hodnoty nějaké veličiny identifikované \uv{klíčem} (\emph{item key}). Datové elementy jsou přiřazeny k \uv{síťovým uzlům} (\emph{host}), které abstrahují původce metrik -- například server, směrovač (router) nebo Lambda funkce. Síťový uzel může mít libovolné množství datových elementů. Síťové uzly jsou dále seskupeny do \uv{skupin síťových uzlů} (\emph{host group}), které usnadňují správu a organizaci hostů.
 
 Dále rozeberme tyto a další pojmy a funkce Zabbixu podrobně.
 
-\subsection{Makra}
+\subsubsection{Makra}
 Zabbix umožňuje definovat \uv{makra}, pojmenované uživatelské hodnoty, která mohou být použity na různých místech konfigurace systému. Makra se dělí na \uv{vnitřní}, \uv{uživatelská} a \uv{uživatelská s kontextem}. Vnitřní makra jsou předdefinovaná a jejich hodnota může záviset, na kterém z pro dané makro podporovaných místech je použito -- například makro pro poslední hodnotu datového elementu. Uživatelská makra jsou definována uživatelem na jedné z několika úrovní, jimiž jsou globální úroveň, úroveň specifického síťového uzlu a úroveň šablony\footnote{Šablony budou předmětem pozdější sekce}.
 
 Uživatelská makra s kontextem mají stejné využití jako makra bez kontextu, ale umožňují \uv{zastiňovat} výchozí hodnotu makra. V definici makra je v názvu specifikován kontext jako konkrétní textový řetězec nebo jako regulární výraz. Při použití makra je pak možné specifikovat kontext, v němž má být makro vyhodnoceno. V takovém případě Zabbix nahradí makro hodnotou podle toho, kterému kontextu makra odpovídá (rovnost řetězců nebo splnění regulárního výrazu). Pokud kontext neodpovídá žádnému z definovaných, je využita výchozí hodnota makra, tedy jakoby uživatel nepoužil kontext vůbec \cite{docs.zabbix}.
@@ -342,31 +342,28 @@ Kontext tak přidává makrům jistou míru dynamičnosti a jejich využití úz
 
 Hodnotu některých maker je při použití také možné transformovat pomocí \uv{funkcí maker} \cite{docs.zabbix}. Jejich použití je však poměrně omezené.
 
-\subsection{Šablony}
+\subsubsection{Šablony}
 Šablona je v systému Zabbix předkonfigurovaná množina různých jiných entit Zabbixu. Šablony slouží ke zjednodušení konfigurace síťových uzlů sdílejících shodné monitorované prvky (datové elementy). Šablona může být přiřazena k několika síťovým uzlům a jeden uzel může mít přiřazených více šablon. Navíc lze šabloně přiřadit jiné šablony, čímž se vytváří hierarchie šablon. Entity, které šablony mohou obsahovat, zahrnují datové elementy, \emph{spouštěče} (trigger), pravidla pro nízkoúrovňové objevování, jimž se budeme věnovat i nadále, a vizuální prvky jako grafy nebo \emph{nástěnky} (dashboards) \cite{docs.zabbix}.
 
 Zabbix nabízí několik předdefinovaných šablon, které pokrývají běžné případy monitorování, jako jsou například šablony pro monitorování serverů, síťových prvků, databází, cloudových služeb nebo aplikací. Uživatelé mohou samozřejmě vytvářet vlastní šablony, které odpovídají jejich potřebám.
 
-\subsection{Item}
+\subsubsection{Item}
 Pojem item byl představen v úvodu této sekce, v dalším si jej podrobněji rozeberme. Item (datový element) je základním prvkem monitorování v Zabbixu, který reprezentuje jednu metriku. Jakožto u stěžejní entity Zabbixu mají datové elementy širokou škálu možností konfigurace, která se zejména odvíjí od \emph{typu} datového elementu. Základní možnosti jejich nastavení zahrnují název, klíč, jednotku metriky a zmíněný typ. Název je textový řetězec, který může obsahovat makro; jednotka také může být libovolný textový řetězec, avšak Zabbix umožňuje u některých známých jednotek úpravu formátu hodnoty. Například hodnotu v sekundách (jednotka \texttt{s}) převádí na řetězec specifikující počet let, měsíců, dní, hodin, minut, sekund a milisekund.
 
 Klíč slouží jednak jako jednoznačný identifikátor datového elementu v rámci daného síťového uzlu či šablony a jednak pro určení, jaká data (metriky) má element sbírat. Zabbix specifikuje mnoho různých použitelných klíčů pro různé typy datových elementů. Název klíče může obsahovat čísla a písmena, podtržítka, tečky a spojovníky. Za názvem se často objevují parametry oddělené čárkou v hranatých závorkách, které dále specifikují sbírané metriky. Některé parametry je možné vynechat pro nastavení parametru na výchozí hodnotu. Jako parametr je možné poskytnout makro. 
 
 Jako příklad uveďme klíč \texttt{net.if.out} dostupný pro typ \uv{Zabbix agent} (sbírá data z agenta Zabbixu). Klíč reprezentuje statistiky odchozího provozu síťového rozhraní. Zabbix k tomuto klíči specifikuje jeden povinný a jeden volitelný parametr: povinný specifikuje konkrétní síťové rozhraní monitorovaného uzlu, zatímco volitelný vybírá metriku -- počet bytů (výchozí nastavení), počet paketů, počet chyb atp. Datový element typu Zabbix Agent s klíčem \texttt{net.if.out[eth0,packets]} tak sbírá počet odchozích paketů na síťovém rozhraní \texttt{eth0}.
 
-Typy datových elementů jsou rozsáhlé téma a dedikujme jim tedy svou vlastní sekci.
+Typy datových elementů jsou rozsáhlé téma a každému dedikujme svou vlastní podsekci.
 
-\subsection{Typy entity Item}
 
-Již můžeme tušit, že typ datového elementu určuje způsob sběru metrik a jeho dodatečnou konfiguraci. Rozeberme tedy pro ukázku některé typy, které by se mohly zdát užitečné pro systém externího monitorování Lambda funkcí.
-
-\subsubsection{Zabbix Agent a aktivní Zabbix Agent}
+\subsubsection{Typy Zabbix Agent a aktivní Zabbix Agent}
 Základním typem je v předešlém příkladu použitý Zabbix Agent, u nějž Zabbix Server komunikuje s komponentou Zabbix Agent běžící na monitorovaném uzlu. Tomuto typu musí být dále specifikováno \emph{rozhraní} sloužící jako lokátor Zabbix Agenta v síti (IP adresa nebo DNS název a port).  Dalším nabízeným typem datových elementů je aktivní Zabbix Agent, kde je na rozdíl od předchozího typu datového elementu spojení se Zabbix Serverem navazováno agentem (komponentou).
 
 Aktivní komunikaci zahajuje agent zprávou, v níž žádá o klíče datových elementů, jež má monitorovat. Tato počáteční zpráva obsahuje název \emph{síťového uzlu} (host), který je jedinečný pro daný Zabbix Server. V odpovědi serveru se pak nachází všechny klíče datových elementů daného síťového uzlu. Dále posílá agent zprávy obsahující kolekci objektů, jež zahrnují tentýž název síťového uzlu, klíč datového elementu a jeho hodnotu. 
 
 
-\subsubsection{Zabbix Trapper}
+\subsubsection{Typ Zabbix Trapper}
 Dalším typem datových elementů je Zabbix Trapper, který umožňuje posílat data do Zabbixu z vnějších zdrojů. Ve své podstatě je Zabbix Trapper velmi podobný aktivnímu Zabbix agentovi, komunikační protokol je však ještě snazší. Očekávaný způsob použití tohoto typu je s pomocí softwarového nástroje zabbix sender, který pouze implementuje protokol Zabbix Trapper. 
 
 V rámci protokolu komunikaci iniciuje \uv{Zabbix Sender} (klient) implementující protokol Zabbix Trapper. Namísto dvou fází však klient již od začátku posílá serveru nebo proxy přímo zapisované metriky identifikované názvem síťového uzlu a klíčem datového elementu.
@@ -374,18 +371,18 @@ V rámci protokolu komunikaci iniciuje \uv{Zabbix Sender} (klient) implementují
 
 Další vlastností tohoto typu je arbitrárnost klíčů datových elementů -- Zabbix Trapper nespecifikuje předem definované klíče, jelikož jsou uživatelsky iniciované, a tak poskytuje volnost ve vlastním formátu klíče. Klíč datového elementu je akorát nutné specifikovat v zasílané zprávě, aby bylo možné metriky správně přiřadit.
 
-\subsubsection{HTTP/S Agent}
+\subsubsection{Typ HTTP/S Agent}
 Další typ datových elementů, HTTP Agent (schopný komunikovat i přes protokol HTTPS), implementuje komunikaci se Zabbix Serverem pomocí HTTP/S rozhraní (nejčastěji REST API, avšak tento typ je kompatibilní s libovolným přístupem). HTTP agent je dodatečně konfigurován pomocí URL koncového bodu rozhraní, parametrů v URL, typem HTTP dotazu, případně jeho tělem a hlavičkami. HTTP Agent navíc umožňuje povolit \uv{trapping}, čímž se zpřístupní všechny možnosti typu Zabbix Trapper, tedy zejména posílat metriky Zabbix Trapper protokolem zevnějšku. Dotazy na koncový bod jsou posílány ve specifikovaných intervalech Zabbix Serverem nebo Proxy, jedná se tak o \emph{bezagentový} přístup, jelikož na uzlu poskytujícím rozhraní nemusí být doinstalován žádný pro Zabbix specifický software.
 
 
-\subsection{Host a host group}
+\subsubsection{Host a host group}
 Host (síťový uzel) v Zabbixu reprezentuje jeden monitorovaný objekt. Prakticky můžeme síťový uzel přirovnat ke \emph{jmennému prostoru} u AWS služby CloudWatch, jelikož slouží k seskupení metrik (datových elementů), alarmů (v systému Zabbix \emph{spouštěčů}) a dalších entit, z nichž pro nás později důležitá budou \emph{pravidla pro nízkoúrovňové objevování}. 
 
 Při konfiguraci entity host je nutné specifikovat jeho název, který musí být unikátní v rámci Zabbix Serveru, a skupiny síťových uzlů, do nichž bude host zařazen. Dále je možné dodat zobrazovaný název, zda je host monitorován pomocí Zabbix Proxy (nebo přímo pomocí Zabbix Serveru) a několik \emph{rozhraní}, která jsou však relevantní pouze pro některé typy datových elementů s pasivním přístupem monitorování, jimž se dále věnovat nebudeme\footnote{Nejvhodnější je Zabbix Trapper, u nějž se jedná o aktivní přístup, případně typ HTTP agent, pro který je rozhraní irelevantní, i když povinné.}. Dále je možné přiřadit síťovému uzlu šablony, makra a další konfigurace \cite{docs.zabbix}. Vytvořenému síťovému uzlu lze ve webovém rozhraní nebo pomocí Zabbix API přidat datové elementy, spouštěče, grafy, pravidla pro objevování a další. 
 
 Skupiny síťových uzlů pouze slouží k organizaci a nemají žádný vliv na monitorování. Skupině může být přiřazen libovolný počet šablon, které se automaticky přiřadí všem síťovým uzlům v dané skupině. Entita Host může být zařazena do více skupin \cite{docs.zabbix}.
 
-\subsection{Trigger}
+\subsubsection{Trigger}
 Trigger (\uv{spouštěč}) je v Zabbixu entita hlídající \emph{normální} hodnoty metrik podle určitého logického výrazu. Slouží jako alarm při problémových hodnotách metrik -- interně se může nacházet v jednom ze stavů \uv{OK} nebo \uv{PROBLEM} v závislosti na vyhodnocení daného logického výrazu (nepravdivý, resp. pravdivý).
 
 Trigger je vytvářen v rámci hosta nebo šablony. V konfiguraci mu je přiřazen název, zobrazovaný název, \emph{severita}, \emph{logický výraz}, \emph{závislosti} na jiných spouštěčích a další. Severita určuje závažnost problému, který spouštěč hlídá. Základními severitami jsou \emph{neklasifikovaná}, \emph{informace}, \emph{upozornění}, \emph{průměrná} a \emph{vysoká severita} a \emph{katastrofa}. 
@@ -401,12 +398,13 @@ U vytvořených spouštěčů je pravdivost výrazu vyhodnocována, když systé
 Konfigurace entity trigger dovoluje specifikovat závislosti na jiných spouštěčích. Dokud se některý spouštěč v nachází ve stavu PROBLEM, pak všechny na něm závislé spouštěče do tohoto stavu nepřejdou. Tato vlastnost například umožňuje vytvořit více odstupňovaných spouštěčů tak, aby při problému spouštěče s vyšší severitou nebyl systém zahlcen událostmi od spouštěčů s nižší severitou, což v důsledku zvýší také přehlednost (na nástěnce se problém objeví pouze jednou a to s tou nejvyšší severitou).
 
 
-\subsection{Discovery}
+\subsubsection{Discovery}
 
 Důležitou kapitolou v analýze systému Zabbix je funkcionalita \emph{objevování} (\emph{discovery}), která se dělí do tří kategorií. První dvě kategorie se zabývají automatickou registrací pasivních a aktivních komponent Zabbix Agent. Poslední kategorií je \emph{nízkoúrovňové objevování} (\emph{Low-level discovery}). Jelikož vyvíjený systém pro externí monitorování Lambda funkcí nebude využívat komponenty Zabbix Agent, jsou pro nás první dvě kategorie irelevantní a v dalším tak budeme pojmem objevování v kontextu Zabbixu mínit právě nízkoúrovňové objevování.
 
 Funkce objevování umožňuje automatické vytváření některých entit pomocí \emph{pravidel pro nízkoúrovňové objevování} a \emph{prototypů entit} (\emph{prototype}). Entitami mohou být datové elementy, spouštěče a grafy. I když referenční materiály pro Zabbix API definují také prototypy síťových uzlů, prototypy těchto entit nejsou dokumentovány. Pravidla pro objevování jsou další entity, které specifikují, jakým způsobem je objevování realizováno. Pravidla mají mnoho společných vlastností s datovými elementy a je také možné je vnímat jako datové elementy s tím rozdílem, že nemonitorují metriky, ale sbírají data o objevovaných entitách.
 
+Entitám podílejícím se na nízkoúrovňovém objevování se nadále budeme věnovat v následujících podsekcích.
 
 \subsubsection{Pravidla pro nízkoúrovňové objevování}
 
